@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>gather — The conversation studio</title>
+<meta name="description" content="A browser studio for up to six people: scenes, screen and slide presenting, an on-air AI researcher, platform chat, banners and recording.">
+<meta name="theme-color" content="#070c1a">
+<script>
+  // Dark by default. Applied before first paint so the page never flashes light.
+  (function () { var t = 'dark'; try { t = JSON.parse(localStorage.getItem('gather:theme')) || 'dark'; } catch (e) {}
+    document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+    document.documentElement.classList.add('booting'); })();
+</script>
+<style id="bootCss">
+/* Page loader: the logo draws itself, then a light runs around it until the page is ready. Inline so it paints before
+   any stylesheet arrives; it never takes clicks, and it leaves on its own if anything goes wrong. */
+.boot { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-content: center; justify-items: center; gap: 18px; pointer-events: none; background: #070c1a; transition: opacity .5s cubic-bezier(.2,.8,.2,1), visibility 0s .5s, -webkit-backdrop-filter .5s, backdrop-filter .5s; }
+:root[data-theme="light"] .boot { background: #f4f6fb; }
+.boot::before, .boot::after { content: ""; position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(70px); opacity: .55; }
+.boot::before { left: 50%; top: 50%; margin: -30vmax 0 0 -38vmax; background: radial-gradient(closest-side, rgba(37,99,235,.55), transparent); animation: boot-drift 5s ease-in-out infinite alternate; }
+.boot::after { left: 50%; top: 50%; margin: -14vmax 0 0 -6vmax; background: radial-gradient(closest-side, rgba(139,92,246,.45), transparent); animation: boot-drift 6s ease-in-out -2s infinite alternate-reverse; }
+.boot-logo { position: relative; z-index: 1; width: 76px; height: 76px; display: grid; place-items: center; }
+.boot-logo::before { content: ""; position: absolute; inset: -18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(59,130,246,.45), transparent); animation: boot-breathe 1.8s ease-in-out infinite; }
+.boot-mark { position: relative; width: 76px; height: 76px; overflow: visible; filter: drop-shadow(0 6px 22px rgba(37,99,235,.45)); }
+.boot-mark .t, .boot-mark .l { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: boot-draw .9s cubic-bezier(.65,0,.35,1) forwards; }
+.boot-mark .l0 { animation-delay: .25s; } .boot-mark .l1 { animation-delay: .38s; } .boot-mark .l2 { animation-delay: .51s; }
+.boot-mark.run { position: absolute; inset: 0; filter: none; mix-blend-mode: screen; }
+.boot-mark.run g { stroke: #dbeafe; stroke-width: 3.2; }
+.boot-mark.run .t, .boot-mark.run .l { stroke-dasharray: .16 .84; stroke-dashoffset: 1; opacity: 0; animation: boot-run 1.5s linear 1.1s infinite, boot-in .3s 1.1s forwards; }
+.boot-mark.run .l { stroke-dasharray: .3 .7; animation-duration: 1.2s; }
+.boot-word { position: relative; z-index: 1; font: 800 22px/1 "Plus Jakarta Sans", system-ui, sans-serif; letter-spacing: -.05em; color: #e8edf8; opacity: 0; transform: translateY(6px); animation: boot-up .5s cubic-bezier(.2,.8,.2,1) .55s forwards; }
+:root[data-theme="light"] .boot-word { color: #0b1020; }
+.boot-word i { font-style: normal; color: #3b82f6; }
+.boot-bar { position: relative; z-index: 1; width: 120px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(148,163,184,.16); opacity: 0; animation: boot-in .4s .7s forwards; }
+.boot-bar i { position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #3b82f6, #a78bfa, transparent); animation: boot-slide 1.1s cubic-bezier(.65,0,.35,1) infinite; }
+.boot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.boot.out { opacity: 0; visibility: hidden; }
+.boot.out .boot-logo { transform: scale(1.12); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+@keyframes boot-draw { to { stroke-dashoffset: 0; } }
+@keyframes boot-run { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes boot-in { to { opacity: 1; } }
+@keyframes boot-up { to { opacity: 1; transform: none; } }
+@keyframes boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes boot-breathe { 50% { transform: scale(1.15); opacity: .6; } }
+@keyframes boot-drift { to { transform: translate(6vmax, 4vmax) scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+  .boot *, .boot::before, .boot::after, .boot *::before { animation: none !important; }
+  .boot-mark .t, .boot-mark .l { stroke-dashoffset: 0; } .boot-mark.run { display: none; }
+  .boot-word, .boot-bar { opacity: 1; transform: none; }
+}
+</style>
+<link rel="icon" href="/icon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- UI: one display face (Plus Jakarta Sans) + Inter. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
+<!-- Stage-only brand fonts (drawn into the program canvas, never used by the interface): loaded without blocking. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@600;700&family=JetBrains+Mono:wght@600;800&family=Playfair+Display:wght@700;800&family=Bebas+Neue&family=DM+Serif+Display&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/ui.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="pre">
+<div class="boot" id="boot" role="status" aria-live="polite">
+  <div class="boot-logo"><svg class="brand-mark boot-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b9bff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg><svg class="brand-mark boot-mark run" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-run-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b9bff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-run-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg></div>
+  <span class="boot-word">gather<i>.</i></span>
+  <span class="boot-bar"><i></i></span>
+  <span class="boot-sr">Loading gather</span>
+</div>
+<script>
+  // The loader leaves once the page says it's ready (gatherBoot.done()), after at least one drawing of the logo,
+  // and never later than 6 seconds whatever happens.
+  window.gatherBoot = (function () {
+    var el = document.getElementById('boot'), t0 = Date.now(), gone = false;
+    function done() {
+      if (gone) return; gone = true;
+      setTimeout(function () {
+        document.documentElement.classList.remove('booting');
+        if (!el) return; el.classList.add('out'); el.setAttribute('aria-hidden', 'true');
+        setTimeout(function () { el.remove(); }, 600);
+      }, Math.max(0, 1100 - (Date.now() - t0)));
+    }
+    setTimeout(done, 6000);
+    return { done: done };
+  })();
+</script>
+<a class="skip-link" id="skipDock" href="#dock" hidden>Skip to studio controls</a>
+<div class="backdrop" aria-hidden="true"><i class="aur a1"></i><i class="aur a2"></i><i class="aur a3"></i><i class="aur-grid"></i></div>
+<div class="app" id="app">
+
+  <!-- ================= HEADER ================= -->
+  <header class="top glass">
+    <a class="logo" href="/" aria-label="gather home"><span class="logo-word">gather<i>.</i></span></a>
+    <div class="top-title" id="topTitle" hidden>
+      <strong id="studioTitle" role="heading" aria-level="1"></strong>
+      <span class="status" id="statusPill" data-state="offline"><i class="dot"></i><span id="statusText">Offline</span></span>
+    </div>
+    <div class="top-actions">
+      <span class="rec-chip" id="recPill" hidden><i class="dot"></i><span id="recPillText">Recording</span></span>
+      <button class="btn hdr user-btn" id="userBtn" aria-label="Your account"><span class="user-av" id="userAv"></span><svg id="userIcon" class="i" aria-hidden="true"><use href="/icons.svg#i-user"/></svg><span class="user-label" id="userLabel">Sign in</span></button>
+      <button class="icon-btn hdr-ic" id="helpTop" aria-label="Help" data-tip="Help"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-circle-help"/></svg></button>
+      <button class="icon-btn hdr-ic" id="settingsTop" aria-label="Settings" data-tip="Settings"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
+      <button class="btn hdr in-studio" id="watchTop" hidden data-tip="Your public watch page"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-play"/></svg><span>Watch page</span></button>
+      <button class="btn hdr in-studio" id="enterTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-user-plus"/></svg><span id="enterTopText">Invite</span></button>
+      <button class="btn hdr primary host-only in-studio live-top" id="liveTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span id="livePillText">Go live</span></button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+    <section class="studio" aria-label="Your studio">
+      <!-- Landing: what you see before you're in a studio -->
+      <div class="landing" id="landing">
+        <div class="land-copy">
+          <svg class="brand-mark land-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="land-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b9bff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#land-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg>
+          <h1>Your show, live from the browser.</h1>
+          <p class="land-sub">Guests, scenes, an AI producer and a live chat that pays. Stream everywhere at once. Free, nothing to install.</p>
+          <div class="land-cta">
+            <button class="btn primary lg" id="enterStage">Create a studio</button>
+            <form class="land-join" id="landJoin" autocomplete="off">
+              <input class="input" id="landCode" placeholder="Paste an invite link or code" aria-label="Invite link or studio code" spellcheck="false">
+              <button class="btn lg" id="landJoinGo">Join</button>
+            </form>
+          </div>
+          <button class="btn link" id="heroSchedule">Schedule a show for later</button>
+        </div>
+        <div class="land-art" aria-hidden="true">
+          <div class="hz-win">
+            <div class="hz-bar">
+              <span class="hz-live"><i></i>Live</span><span class="hz-time">12:48</span>
+              <span class="hz-sp"></span>
+              <span class="hz-chip"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-eye"/></svg><span class="hz-views">1,284</span></span>
+              <span class="hz-plats"><i style="--c:#ff2a3d"></i><i style="--c:#a970ff"></i><i style="--c:#53fc18"></i></span>
+            </div>
+            <div class="hz-body">
+              <div class="hz-stage">
+                <div class="hz-tiles">
+                  <div class="hz-tile a talk"><span class="hz-av">M</span><span class="hz-name"><span class="hz-eq"><i></i><i></i><i></i></span>Maya</span></div>
+                  <div class="hz-tile b"><span class="hz-av">J</span><span class="hz-name">Jordan</span></div>
+                </div>
+                <div class="hz-floats"></div>
+                <div class="hz-lower"><i></i><div><b>Building in public</b><span>Episode 12</span></div></div>
+              </div>
+              <div class="hz-chat">
+                <div class="hz-chat-h">Live chat<span class="hz-typing" hidden><i></i><i></i><i></i></span></div>
+                <div class="hz-feed">
+                <div class="hz-msg paid"><span class="hz-mav" style="--h:140">J</span><div><b>Jason <em>$10</em></b><p>Love this format!</p></div></div>
+                <div class="hz-msg"><span class="hz-mav" style="--h:20">D</span><div><b>Dev</b><p>What camera is that?</p></div></div>
+                <div class="hz-msg"><span class="hz-mav" style="--h:200">A</span><div><b>Ana</b><p>Hi from Lisbon 👋</p></div></div>
+                <div class="hz-msg"><span class="hz-mav" style="--h:300">K</span><div><b>Kai</b><p>The new layout looks so clean</p></div></div>
+                <div class="hz-msg ai"><span class="hz-mav orb"></span><div><b>Sam <em>AI</em></b><p>A Sony ZV-E10. Link’s on screen.</p></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="hz-dock"><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></i><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg></i><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg></i><span></span><i class="rec"><b></b></i><i class="orb"></i></div>
+          </div>
+        </div>
+        <ul class="land-feats">
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg><b>Scenes in one click</b><span>Cameras, slides, banners, your brand.</span></li>
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>An AI producer</b><span>Answers on air, runs the show.</span></li>
+          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><b>Chat that pays</b><span>Every platform in one chat, plus super chats.</span></li>
+        </ul>
+        <div class="land-plats" aria-label="Stream to">
+          <span>Stream to</span><b>YouTube</b><i></i><b>Twitch</b><i></i><b>Kick</b><i></i><b>Facebook</b><i></i><b>X</b><i></i><b>Your own page</b>
+        </div>
+        <footer class="land-foot">
+          <span class="land-tx"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-star"/></svg>Made in Texas</span>
+          <span class="land-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
+        </footer>
+      </div>
+      <div class="stage-card glass">
+
+        <div class="stage-wrap">
+          <div class="stage" id="stage">
+            <canvas id="stageCanvas" width="1280" height="720" aria-label="Studio stage"></canvas>
+            <canvas id="editorCanvas" width="1280" height="720" aria-hidden="true"></canvas>
+            <div class="edit-layer" id="editLayer" hidden></div>
+            <div class="drop-hint" aria-hidden="true"><b>Drop to present</b><span>PDF, video or image</span></div>
+        <div class="pres-bar glass on-media" id="presBar" hidden>
+              <span class="pill live caps" id="presKind">Slides</span>
+              <span class="pres-name" id="presName"></span>
+              <div class="pres-ctl" id="presPdf" hidden>
+                <button class="icon-btn sm" id="presPrev" aria-label="Previous slide (←)"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg></button>
+                <span class="num" id="presPage">1 / 1</span>
+                <button class="icon-btn sm" id="presNext" aria-label="Next slide (→)"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
+              </div>
+              <div class="pres-ctl" id="presVid" hidden>
+                <button class="btn sm" id="presPlay">Pause</button>
+                <input type="range" id="presSeek" min="0" max="1" step="0.001" value="0" aria-label="Seek">
+                <span class="num" id="presTime">00:00 / 00:00</span>
+                <button class="btn sm" id="presLoop" aria-pressed="false">Loop</button>
+              </div>
+              <span class="pill accent caps" id="presDuck" hidden>Ducked</span>
+              <button class="btn sm live" id="presStop">Stop</button>
+            </div>
+            <div class="cmd-bar glass raised" id="cmdBar" hidden data-status="idle" role="dialog" aria-label="Ask your AI">
+              <div class="cmd-top"><i class="orb" aria-hidden="true"></i><b id="cmdName">Sam</b><span id="cmdState">Ready</span><kbd class="cmd-esc">Esc</kbd><button type="button" class="icon-btn sm" id="cmdClose" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></div>
+              <p class="cmd-reply" id="cmdReply" aria-live="polite"></p>
+              <ul class="act-chips" id="cmdActs"></ul>
+              <button type="button" class="btn primary sm cmd-show" id="cmdShow" hidden>Open</button>
+              <form class="composer-box" id="cmdForm" autocomplete="off">
+                <button type="button" class="icon-btn sm comp-mic cmd-mic" id="cmdMic" aria-label="Talk to your AI" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></button>
+                <input id="cmdInput" maxlength="600" placeholder="Ask Sam…" aria-label="Ask your AI">
+                <button class="send-btn" id="cmdGo" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-arrow-up"/></svg></button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="deck glass" id="deck">
+        <div class="deck-head">
+          <div class="seg sm deck-tabs" role="tablist">
+            <button type="button" role="tab" class="host-only" data-deck="scenes">Scenes</button>
+            <button type="button" role="tab" data-deck="people">In the studio <i class="count" id="peopleTabCount"></i></button>
+            <button type="button" role="tab" data-deck="lobby" id="lobbyTab" hidden>Waiting <i class="count hot" id="lobbyCount">0</i></button>
+          </div>
+          <span class="host-note" id="hostNote" hidden>The host switches scenes</span>
+          <label class="toggle-inline lock" id="lockWrap" hidden data-tip="New guests knock and wait for you"><input type="checkbox" class="toggle sm" id="lockSwitch" role="switch"> Lock</label>
+          <span class="crew-count caps num" id="crewCount">0 / 6</span>
+          <button type="button" class="icon-btn sm deck-toggle" id="deckToggle" aria-expanded="true" aria-controls="deckBody" aria-label="Hide scenes and people" data-tip="Hide"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
+        </div>
+        <div class="scene-suggest host-only" id="sceneSuggest" hidden role="status" aria-live="polite">
+          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg>
+          <span class="scene-suggest-text" id="sceneSuggestText"></span>
+          <div class="scene-suggest-acts">
+            <button type="button" class="btn primary sm" id="sceneSuggestApply">Switch</button>
+            <button type="button" class="btn sm ghost" id="sceneSuggestAuto" hidden>Auto 3+</button>
+            <button type="button" class="icon-btn sm" id="sceneSuggestDismiss" aria-label="Dismiss layout suggestion"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+          </div>
+        </div>
+        <div class="deck-body" id="deckBody">
+          <div class="deck-layer" data-layer="scenes"><div class="scenes" id="sceneStrip" role="toolbar" aria-label="Scenes (arrow keys to move)"></div></div>
+          <div class="deck-layer" data-layer="people">
+            <ul class="crew-sk" aria-hidden="true"><li class="sk sk-card"></li><li class="sk sk-card"></li><li class="sk sk-card"></li></ul>
+            <ul class="crew-list" id="crewList">
+              <li class="crew-add"><button class="tile dashed" id="addSlot" aria-label="Invite a guest"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg><span>Invite</span></button></li>
+            </ul>
+          </div>
+          <div class="deck-layer" data-layer="lobby"><ul class="lobby-list" id="lobbyList"></ul></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIDE PANEL ================= -->
+    <aside class="side glass" id="side">
+      <!-- Chat -->
+      <section class="panel" data-panel="chat">
+        <header class="panel-head chat-head"><h2>Live chat</h2>
+          <div class="chat-mood" id="chatMood" data-mood="idle" aria-live="polite" title="Real-time viewer sentiment">
+            <div class="mood-top">
+              <span class="mood-label"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-activity"/></svg><b id="chatMoodLabel">Quiet</b></span>
+              <span class="mood-pct num" id="chatMoodPct">—</span>
+            </div>
+            <div class="mood-track" role="meter" id="chatMoodMeter" aria-label="Viewer chat mood" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="Waiting for viewer chat">
+              <div class="mood-fill" id="chatMoodBar" style="width: 50%"></div>
+            </div>
+            <div class="mood-chart-wrap" id="chatMoodChart" aria-label="Sentiment over stream duration"></div>
+            <div class="mood-meta num" id="chatMoodMeta">Waiting for viewer chat</div>
+          </div>
+          <div class="chat-filter" id="chatFilter" role="tablist" aria-label="Show in the chat">
+            <button type="button" role="tab" data-f="all" class="on" aria-selected="true">All</button>
+            <button type="button" role="tab" data-f="viewers">Viewers</button>
+            <button type="button" role="tab" data-f="q">Q&amp;A</button>
+            <button type="button" role="tab" data-f="paid">Super chats</button>
+            <button type="button" role="tab" data-f="ai" id="chatFilterAi">AI</button>
+          </div>
+        </header>
+        <div class="panel-body chat-body">
+          <div class="feat-bar" id="featBar" hidden>
+            <span class="feat-label">On stage</span>
+            <span class="feat-text" id="featText"></span>
+            <button type="button" class="btn link" id="featHide">Hide</button>
+          </div>
+          <div class="chat-empty" id="chatEmpty">
+            <svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg>
+            <p id="chatEmptyText">No messages yet.<br>Enter a studio to chat.</p>
+          </div>
+          <ol class="sk-stack" id="chatSk" aria-hidden="true"><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:38%"></span><span class="sk sk-line sm" style="--w:82%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:30%"></span><span class="sk sk-line sm" style="--w:64%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:44%"></span><span class="sk sk-line sm" style="--w:90%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:26%"></span><span class="sk sk-line sm" style="--w:52%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:36%"></span><span class="sk sk-line sm" style="--w:74%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:32%"></span><span class="sk sk-line sm" style="--w:60%"></span></li></ol>
+          <ol class="msgs" id="msgs" aria-live="polite"></ol>
+        </div>
+        <div class="chat-tools host-only">
+        <div class="chat-to host-only" id="chatTo" role="radiogroup" aria-label="Send to">
+          <button type="button" role="radio" data-to="chat" class="on" aria-checked="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg>Chat</button>
+          <button type="button" role="radio" data-to="ai" aria-checked="false"><i class="orb" aria-hidden="true"></i><span id="chatToAi">Ask Sam</span></button>
+        </div>
+        <div class="ai-empty host-only" id="aiEmpty" hidden>
+          <div class="ai-sugg" id="aiSugg">
+            <button type="button" class="chip" data-q="Fact-check: ">Fact-check</button>
+            <button type="button" class="chip" data-q="Switch to Solo">Switch to Solo</button>
+            <button type="button" class="chip" data-q="Show a banner: Q&amp;A time">Show a banner</button>
+            <button type="button" class="chip" data-q="Start a 5 minute countdown">5-min countdown</button>
+            <button type="button" class="chip" data-q="Find a video of ">Find a video</button>
+          </div>
+        </div>
+        </div>
+        <form class="composer" id="chatForm" autocomplete="off">
+          <div class="composer-box">
+            <textarea id="chatInput" rows="1" maxlength="1000" placeholder="Message the studio" aria-label="Message everyone in the studio"></textarea>
+            <button class="send-btn" id="chatSend" aria-label="Send message"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-arrow-up"/></svg></button>
+          </div>
+          <p class="composer-hint"><span id="chatHint">Only people in the studio see this · type @Sam to ask your AI</span></p>
+        </form>
+        <form class="composer host-only" id="aiForm" autocomplete="off" hidden>
+          <div class="composer-box">
+            <button type="button" class="icon-btn sm comp-mic" id="aiMic" aria-label="Talk instead of typing" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></button>
+            <textarea id="aiInput" rows="1" maxlength="4000" placeholder="Message Sam…" aria-label="Ask your AI"></textarea>
+            <button class="send-btn" id="aiAsk" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-arrow-up"/></svg></button>
+          </div>
+          <p class="composer-hint"><span id="aiHint">Answers land in the chat, ready to put on stage</span><button type="button" class="btn link quiet" id="aiClear">Clear AI</button></p>
+        </form>
+      </section>
+
+
+      <!-- AI -->
+      <section class="panel ai-panel host-only" data-panel="ai" hidden>
+        <header class="panel-head ai-head" data-status="idle" id="aiHead">
+          <i class="orb" aria-hidden="true"></i>
+          <div class="ai-title"><h2 id="aiTitle">Sam</h2><p id="aiSub">Your producer and researcher</p></div>
+          <button type="button" class="icon-btn sm host-only" id="aiSetupBtn" aria-expanded="false" aria-controls="aiSetup" aria-label="AI settings" data-tip="AI settings"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
+        </header>
+        <div class="panel-body ai-body">
+          <div class="ai-setup form host-only" id="aiSetup">
+            <div class="fld"><span>Provider</span>
+              <div class="seg block" role="radiogroup" aria-label="AI provider" id="aiProv">
+                <button type="button" role="radio" data-prov="claude">Claude</button>
+                <button type="button" role="radio" data-prov="openai">ChatGPT</button>
+                <button type="button" role="radio" data-prov="gemini">Gemini</button>
+                <button type="button" role="radio" data-prov="grok">Grok</button>
+              </div>
+            </div>
+            <label class="fld"><span id="aiKeyLabel">API key</span><input id="aiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key"></label>
+            <p class="hint"><span id="aiKeyHelp"></span> Kept in this browser only; gather passes it to the provider with each request and never stores it.</p>
+            <p class="hint" id="aiHouseNote" hidden></p>
+            <details class="more"><summary>Model</summary><div class="more-body"><label class="fld"><span>Model ID <em>leave blank for the default</em></span><input id="aiModel" spellcheck="false"></label></div></details>
+            <hr>
+            <label class="fld"><span>Name</span><input id="aiName" maxlength="20" placeholder="Sam"></label>
+              <div class="fld"><span>Voice</span><div class="seg block" id="aiVoiceSeg"><button type="button" data-voice="browser">Me</button><button type="button" data-voice="openai">Stream</button><button type="button" data-voice="off">Off</button></div></div>
+            <div class="row2" id="aiVoiceNameRow" hidden><label class="fld"><span>Stream voice</span><select id="aiVoiceName"><option value="alloy">Alloy</option><option value="ash">Ash</option><option value="ballad">Ballad</option><option value="coral">Coral</option><option value="echo">Echo</option><option value="fable">Fable</option><option value="nova">Nova</option><option value="onyx">Onyx</option><option value="sage">Sage</option><option value="shimmer">Shimmer</option></select></label></div>
+            <div class="row" id="aiVoiceTestRow"><button type="button" class="btn sm" id="aiVoiceTest">Test voice</button><p class="hint" id="aiVoiceNote" style="margin:0"></p></div>
+            <label class="toggle-row"><span><b>Wake word</b><small id="aiWakeHint">Say “Hey Sam, …” and it acts. Chrome or Edge.</small></span><input type="checkbox" class="toggle" id="aiWake" role="switch"></label>
+            <button type="button" class="btn primary block" id="aiSetupDone">Talk to your AI in the chat</button>
+          </div>
+          <p class="hint" id="aiHostNote" hidden>The host talks to the AI. Its answers show up in the chat.</p>
+        </div>
+      </section>
+
+      <!-- Show: watch page, viewer inbox, super chats and stage behaviour -->
+      <section class="panel" data-panel="show" hidden>
+        <header class="panel-head"><h2>Show</h2><span class="panel-meta hint">Watch page &amp; stage</span></header>
+        <div class="panel-body form">
+          <div class="watch-sec" id="watchSec">
+            <details class="psec" data-sec="watch" open><summary><b>Your watch page</b><span class="hint" id="wpCount"></span></summary><div class="psec-body">
+              <div class="wp-linkrow">
+                <code class="wp-url" id="wpUrl" title="Your watch page"></code>
+                <button type="button" class="icon-btn sm" id="wpCopy" aria-label="Copy watch link" data-tip="Copy link"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg></button>
+                <button type="button" class="icon-btn sm" id="wpOpen" aria-label="Open watch page" data-tip="Open"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-arrow-up-right"/></svg></button>
+                <button type="button" class="icon-btn sm" id="wpCard" aria-label="Put the link and a QR code on stage" data-tip="Link + QR on stage"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-qr-code"/></svg></button>
+              </div>
+              <form class="wp-handle" id="wpHandleForm" autocomplete="off">
+                <label class="fld"><span>Permanent name</span>
+                  <span class="wp-handle-row"><span class="wp-host" id="wpHost">/w/</span><input id="wpHandle" maxlength="24" spellcheck="false" autocapitalize="off" placeholder="yourname" pattern="[a-zA-Z0-9][a-zA-Z0-9-]{2,23}" aria-label="Permanent watch-page name"><button class="btn sm primary" id="wpHandleSave">Save</button></span></label>
+                <p class="hint" id="wpHandleNote"></p>
+              </form>
+              <details class="more"><summary>Page details</summary>
+                <div class="more-body">
+                  <div class="row2"><label class="fld"><span>Community goal</span><input class="input" id="wpGoalLabel" maxlength="40" placeholder="e.g. New camera"></label><label class="fld"><span>Target ($)</span><input class="input" id="wpGoalTarget" type="number" min="0" max="100000" step="1" placeholder="0 = off"></label></div>
+                  <label class="toggle-row"><span><b>Reactions on the stream</b><small>Viewers’ hearts and fire rise on the video everyone sees, on every platform.</small></span><input type="checkbox" class="toggle" id="wpReacts" role="switch"></label>
+                  <label class="fld"><span>Pinned message <em>top of the viewers’ chat</em></span><input class="input" id="wpPin" maxlength="160" placeholder="e.g. Giveaway at 8pm · be kind in chat"></label>
+                  <label class="fld"><span>About this show</span><textarea id="wpAbout" rows="3" maxlength="600" placeholder="Shown under the video: what the show is about, the schedule, who’s on today"></textarea></label>
+                  <label class="fld"><span>Links</span><textarea id="wpLinks" rows="3" maxlength="1200" spellcheck="false" placeholder="One per line, e.g.&#10;Merch | https://shop.example.com"></textarea></label>
+                </div>
+              </details>
+            </div></details>
+
+            <details class="psec" data-sec="inbox" open><summary><b>Waiting for you</b></summary><div class="psec-body">
+              <div class="inbox-lists">
+                <p class="hint inbox-empty">Nothing waiting. Voice questions and super chats chime and show up here.</p>
+                <div class="row between"><b>Voice questions</b><span class="hint" id="vmCount"></span></div>
+                <ul class="sc-list" id="vmList"></ul>
+                <p class="hint" id="vmEmpty">None yet.</p>
+                <div class="row between"><b>Super chats</b><span class="hint" id="scTotal"></span></div>
+                <ul class="sc-list" id="scList"></ul>
+                <p class="hint" id="scEmpty">None yet.</p>
+              </div>
+            </div></details>
+
+            <details class="psec" data-sec="supers" open><summary><b>Super chats</b><span class="hint" id="wpSupersState"></span></summary><div class="psec-body">
+              <label class="toggle-row"><span><b>Take super chats</b><small>Viewers tip from the chat. Money goes straight to you; you confirm each one before it shows.</small></span><input type="checkbox" class="toggle" id="wpSupers" role="switch"></label>
+              <div class="form pay-box" id="wpPayBox">
+                <p class="hint pay-status" id="wpPayStatus"></p>
+                <div class="row2"><label class="fld"><span>PayPal.me name</span><input id="wpPay-paypal" maxlength="40" placeholder="yourname" spellcheck="false"></label><label class="fld"><span>Venmo username</span><input id="wpPay-venmo" maxlength="31" placeholder="your-name" spellcheck="false"></label></div>
+                <div class="row2"><label class="fld"><span>Cash App $cashtag</span><input id="wpPay-cashapp" maxlength="21" placeholder="$yourname" spellcheck="false"></label><label class="fld"><span>Minimum ($)</span><input id="wpMin" type="number" min="1" max="500" step="1"></label></div>
+                <label class="fld"><span>Stripe payment link <em>adds card, Apple Pay and Google Pay</em></span><input id="wpPay-stripe" maxlength="120" placeholder="https://buy.stripe.com/…" spellcheck="false"></label>
+                <p class="hint warn-note" id="wpNoPay" hidden>Add at least one way to pay, or viewers won’t see the Super chat button.</p>
+              </div>
+            </div></details>
+
+            <details class="psec" data-sec="viewers" open><summary><b>Viewer features</b></summary><div class="psec-body">
+              <div class="toggle-group">
+                <label class="toggle-row"><span><b>Direct video</b><small>Under a second of delay, straight from your browser.</small></span><input type="checkbox" class="toggle" id="wpDirect" role="switch"></label>
+                <label class="sub-row" id="wpCapRow"><span>Viewers at once <em>about 2.5 Mbps of upload each</em></span><select class="input sm" id="wpCap"><option value="3">3</option><option value="6">6</option><option value="10">10</option><option value="15">15</option><option value="20">20</option></select></label>
+              </div>
+              <label class="toggle-row"><span><b>Live chat</b><small>Viewer messages land in your chat.</small></span><input type="checkbox" class="toggle" id="wpChat" role="switch"></label>
+              <label class="toggle-row"><span><b>Watch link on stream</b><small>A small badge so platform viewers find your page.</small></span><input type="checkbox" class="toggle" id="wpBadge" role="switch"></label>
+              <label class="toggle-row"><span><b>Voice questions</b><small>Viewers record a question; you play it or delete it.</small></span><input type="checkbox" class="toggle" id="wpVoice" role="switch"></label>
+            </div></details>
+
+            <details class="psec" data-sec="options" open><summary><b>Stage options</b></summary><div class="psec-body">
+              <label class="toggle-row">
+                <span><b>Live captions</b><small id="capNote">Each person’s browser transcribes their own mic.</small></span>
+                <input type="checkbox" class="toggle" id="capSwitch" role="switch">
+              </label>
+              <div class="form sub-opts" id="capOpts" hidden>
+                <label class="fld"><span>Spoken language</span>
+                  <select id="capLang">
+                    <option value="en-US">English (US)</option><option value="en-GB">English (UK)</option><option value="es-ES">Español</option><option value="es-MX">Español (México)</option>
+                    <option value="fr-FR">Français</option><option value="de-DE">Deutsch</option><option value="pt-BR">Português (Brasil)</option><option value="it-IT">Italiano</option>
+                    <option value="nl-NL">Nederlands</option><option value="ja-JP">日本語</option><option value="ko-KR">한국어</option><option value="zh-CN">中文 (普通话)</option><option value="hi-IN">हिन्दी</option><option value="ar-SA">العربية</option>
+                  </select>
+                </label>
+                <div class="fld"><span>Caption style</span>
+                  <div class="seg block" id="capStyle"><button type="button" data-cs="bar">Bar</button><button type="button" data-cs="box">Boxed lines</button><button type="button" data-cs="plain">Plain</button></div>
+                </div>
+                <label class="fld"><span>Caption size</span><input type="range" id="capSize" min="16" max="48" step="1"></label>
+              </div>
+              <label class="toggle-row">
+                <span><b>Chat overlay on stage</b><small id="overlayHint">1 chat source: studio</small></span>
+                <input type="checkbox" class="toggle" id="overlaySwitch" role="switch">
+              </label>
+              <label class="toggle-row"><span><b>Guests go straight on stage</b><small>Off: new guests wait backstage until you click their picture</small></span><input type="checkbox" class="toggle" id="autoStage" role="switch"></label>
+              <label class="toggle-row">
+                <span><b>Auto-grid for 3+ speakers</b><small id="autoGridHint">Switches to Grid automatically when 3 or more people are on stage</small></span>
+                <input type="checkbox" class="toggle" id="autoGridChk" role="switch">
+              </label>
+              <label class="toggle-row">
+                <span><b>Auto-mute silent mics</b><small id="studioMuteHint">Mutes inactive guests after 30s of silence</small></span>
+                <input type="checkbox" class="toggle" id="studioMuteChk" role="switch">
+              </label>
+              <div class="form sub-opts" id="studioMuteOpts" hidden>
+                <label class="fld"><span>Silence timeout <em id="studioMuteSecVal">30s</em></span><input type="range" id="studioMuteSec" min="10" max="120" step="5"></label>
+                <div class="fld"><span>Applies to</span>
+                  <div class="seg sm block" role="radiogroup" aria-label="Auto-mute applies to" id="studioMuteScope">
+                    <button type="button" role="radio" data-scope="guests">Guests only</button>
+                    <button type="button" role="radio" data-scope="all">Everyone</button>
+                  </div>
+                </div>
+              </div>
+            </div></details>
+          </div>
+        </div>
+      </section>
+
+      <!-- Layouts -->
+      <section class="panel" data-panel="layouts" hidden>
+        <header class="panel-head"><h2>Look</h2><div class="seg block sm look-seg" role="tablist" aria-label="Look"><button type="button" role="tab" data-look="layouts" class="on" aria-selected="true">Layout</button><button type="button" role="tab" data-look="brand">Brand</button><button type="button" role="tab" data-look="overlays">Overlays</button></div></header>
+        <div class="panel-body form">
+          <div class="row"><button type="button" class="btn primary" id="editToggle" aria-pressed="false">Edit on stage</button><button type="button" class="btn" id="resetScene"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg>Reset scene</button></div>
+          <p class="hint" id="layoutsHint">Drag and resize on the stage. Changes show for everyone and in recordings.</p>
+          <p class="hint">Hold <kbd>Alt</kbd> while dragging to let layers overlap.</p>
+          <details class="psec" data-sec="templates" open><summary><b>Start from a template</b></summary><div class="psec-body"><div class="fld"><span class="dup">Start from a template</span><div class="tpls" id="tplList"></div></div>
+          </div></details><details class="psec" data-sec="add" open><summary><b>Add to stage</b></summary><div class="psec-body"><div class="fld"><span class="dup">Add to stage</span>
+            <div class="adds">
+              <button type="button" class="btn sm" data-add="slot">+ Camera</button>
+              <button type="button" class="btn sm" data-add="media">+ Presentation</button>
+              <button type="button" class="btn sm" data-add="ai">+ AI window</button>
+              <button type="button" class="btn sm" data-add="chat">+ Chat box</button>
+              <button type="button" class="btn sm" data-add="text">+ Text</button>
+              <button type="button" class="btn sm" data-add="image">+ Image or logo</button>
+              <button type="button" class="btn sm" data-add="timer">+ Clock / countdown</button>
+              <button type="button" class="btn sm" data-add="callin">+ Watch link card</button>
+              <button type="button" class="btn sm" data-add="shape">+ Colour block</button>
+            </div>
+          </div>
+          </div></details><details class="psec" data-sec="layers" open><summary><b>Layers</b><span class="hint">top of the list is on top</span></summary><div class="psec-body"><div class="fld"><span class="dup">Layers</span>
+            <ul class="el-list" id="elList"></ul>
+            <p class="hint" id="elEmpty">Nothing added yet. Pick a template or add an element.</p>
+          </div>
+          <div class="el-props form" id="elProps" hidden></div>
+          </div></details><details class="psec" data-sec="library" open><summary><b>Media library</b><span class="hint">your AI can present these by name</span></summary><div class="psec-body"><div class="fld"><span class="dup">Media library</span>
+            <div class="row"><button type="button" class="btn sm" id="libPick">+ PDF, video, audio or image</button></div>
+            <input class="input" id="libUrl" placeholder="YouTube or web link" spellcheck="false" aria-label="YouTube or web link"><div class="row nowrap"><input class="input grow" id="libUrlName" maxlength="40" placeholder="Name it" aria-label="Name"><button type="button" class="btn" id="libUrlAdd">Add</button></div>
+            <ul class="el-list" id="libList"></ul>
+            <p class="hint" id="libEmpty">Add decks, clips, tracks and pictures once, then present them in one click, from a scene, or by asking your AI.</p>
+            <input type="file" id="libFile" accept="application/pdf,video/*,audio/*,image/*" multiple hidden>
+          </div>
+          </div></details><details class="psec" data-sec="save" open><summary><b>Save as a scene</b><span class="hint">appears in the scene strip</span></summary><div class="psec-body"><div class="fld"><span class="dup">Save as a scene</span>
+            <div class="composer-row"><input id="layoutName" maxlength="40" placeholder="Scene name"><button type="button" class="btn sm" id="saveLayout">Save</button></div>
+            <label class="fld"><span>Opens with <em>presented when the scene starts</em></span><select id="sceneMedia"><option value="">No media</option></select></label>
+            <ul class="el-list" id="savedList"></ul>
+            <p class="hint" id="savedEmpty">Saved scenes live in this browser, images included.</p>
+          </div>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- Brand -->
+      <section class="panel" data-panel="brand" hidden>
+        <header class="panel-head"><h2>Look</h2><div class="seg block sm look-seg" role="tablist" aria-label="Look"><button type="button" role="tab" data-look="layouts">Layout</button><button type="button" role="tab" data-look="brand" class="on" aria-selected="true">Brand</button><button type="button" role="tab" data-look="overlays">Overlays</button></div></header>
+        <div class="panel-body form">
+          <details class="psec" data-sec="colour" open><summary><b>Colour</b></summary><div class="psec-body">
+          <div class="fld"><span>Stage accent colour</span>
+            <div class="swatches" id="swatches">
+              <button style="--c:#3b82f6" data-color="#3b82f6" aria-label="Blue"></button>
+              <button style="--c:#22b8cf" data-color="#22b8cf" aria-label="Cyan"></button>
+              <button style="--c:#7c6cf2" data-color="#7c6cf2" aria-label="Indigo"></button>
+              <button style="--c:#2f9e77" data-color="#2f9e77" aria-label="Green"></button>
+              <button style="--c:#e8794a" data-color="#e8794a" aria-label="Orange"></button>
+              <button style="--c:#e5484d" data-color="#e5484d" aria-label="Red"></button>
+              <button style="--c:#e5e7eb" data-color="#e5e7eb" aria-label="White"></button>
+            </div>
+            <input type="color" id="colorPick" value="#3b82f6" aria-label="Custom accent colour">
+          </div>
+
+          </div></details><details class="psec" data-sec="bg" open><summary><b>Background</b></summary><div class="psec-body">
+          <div class="bgs" id="bgs">
+            <button data-bg="dusk" aria-label="Dusk"></button>
+            <button data-bg="ember" aria-label="Ember"></button>
+            <button data-bg="forest" aria-label="Forest"></button>
+            <button data-bg="graphite" aria-label="Graphite"></button>
+            <button data-bg="paper" aria-label="Paper"></button>
+          </div>
+          <div class="row"><button type="button" class="btn sm" id="bgImgPick">Use your own image</button><button type="button" class="btn ghost sm" id="bgImgClear" hidden>Remove image</button></div>
+          <label class="fld" id="bgDimRow" hidden><span>Darken the image</span><input type="range" id="bgDim" min="0" max="0.85" step="0.05"></label>
+
+          </div></details><details class="psec" data-sec="text" open><summary><b>Text</b></summary><div class="psec-body">
+          <label class="fld"><span>Stage font</span>
+            <select id="fontSel">
+              <option value="jakarta">Jakarta — clean and modern</option><option value="onest">Onest — friendly</option>
+              <option value="playfair">Playfair — editorial serif</option><option value="serif">DM Serif — warm serif</option>
+              <option value="bebas">Bebas — tall headline caps</option><option value="mono">Mono — technical</option>
+            </select>
+          </label>
+          <div class="fld"><span>Name tags</span>
+            <div class="seg block" id="tagSeg"><button type="button" data-tag="solid">Solid</button><button type="button" data-tag="glass">Glass</button><button type="button" data-tag="outline">Outline</button><button type="button" data-tag="minimal">Minimal</button></div>
+          </div>
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="namesChk" checked><span>Show display names</span></label>
+
+          </div></details><details class="psec" data-sec="banners" open><summary><b>Banners and titles</b></summary><div class="psec-body">
+          <div class="fld"><span>Banner style</span>
+            <div class="seg block" id="bannerStyleSeg"><button type="button" data-bs="classic">Classic</button><button type="button" data-bs="glass">Glass</button><button type="button" data-bs="bold">Bold</button><button type="button" data-bs="minimal">Minimal</button></div>
+          </div>
+          <div class="row2">
+            <label class="fld"><span>Animation</span>
+              <select id="animSel"><option value="slide">Slide in</option><option value="fade">Fade</option><option value="pop">Pop</option><option value="wipe">Wipe</option><option value="type">Typewriter</option></select>
+            </label>
+            <div class="fld"><span>&nbsp;</span><button type="button" class="btn" id="animPreview">Play it again</button></div>
+          </div>
+          <label class="fld"><span>Show title <em>shown in the header and on your watch page</em></span><input id="titleInput" maxlength="60" placeholder="The conversation studio"></label>
+
+          </div></details><details class="psec" data-sec="panels" open><summary><b>Panels</b></summary><div class="psec-body">
+          <div class="fld"><span>AI window, chat overlay and camera-off tiles</span>
+            <div class="seg block" id="panelSeg"><button type="button" data-panel="glass">Glass</button><button type="button" data-panel="solid">Solid colour</button></div>
+          </div>
+          <label class="fld" id="panelColorRow" hidden><span>Panel colour</span><input type="color" id="panelColor" value="#0f172a"></label>
+
+          </div></details><details class="psec" data-sec="overlays" open><summary><b>Frames &amp; watermark</b></summary><div class="psec-body">
+          <div class="fld"><span>Frame</span>
+            <div class="seg block" id="frameSeg"><button type="button" data-frame="none">None</button><button type="button" data-frame="corners">Corners</button><button type="button" data-frame="border">Border</button><button type="button" data-frame="vignette">Vignette</button></div>
+          </div>
+          <div class="row"><button type="button" class="btn sm" id="overlayPick">Add a full-screen overlay (PNG)</button><button type="button" class="btn ghost sm" id="overlayClear" hidden>Remove</button></div>
+          </div></details><details class="psec" data-sec="logo" open><summary><b>Logo</b></summary><div class="psec-body">
+          <div class="row"><button type="button" class="btn sm" id="logoPick">Upload your logo</button><button type="button" class="btn ghost sm" id="logoClear" hidden>Remove</button></div>
+          <div class="form" id="logoRow" hidden>
+            <div class="fld"><span>Logo position</span>
+              <div class="seg block" id="logoPosSeg"><button type="button" data-lp="tl">Top left</button><button type="button" data-lp="tr">Top right</button><button type="button" data-lp="bl">Bottom left</button><button type="button" data-lp="br">Bottom right</button></div>
+            </div>
+            <label class="fld"><span>Logo size</span><input type="range" id="logoSize" min="0.04" max="0.35" step="0.01"></label>
+          </div>
+          </div></details><details class="psec" data-sec="ads" open><summary><b>Sponsors &amp; ads</b></summary><div class="psec-body">
+          <label class="toggle-row"><span><b>Rotate sponsor banners</b><small>Up to 8 images, shown one at a time</small></span><input type="checkbox" class="toggle" id="adsSwitch" role="switch"></label>
+          <div class="ad-list" id="adList"></div>
+          <div class="row"><button type="button" class="btn sm" id="adPick">+ Add sponsor images</button></div>
+          <div class="form" id="adOpts" hidden>
+            <div class="fld"><span>Position</span><div class="seg block" id="adPosSeg"><button type="button" data-ap="br">Bottom right</button><button type="button" data-ap="bl">Bottom left</button><button type="button" data-ap="tr">Top right</button><button type="button" data-ap="bottom">Bottom banner</button></div></div>
+            <label class="fld"><span>Each ad shows for</span><select id="adEvery"><option value="8">8 seconds</option><option value="12">12 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option></select></label>
+          </div>
+          <input type="file" id="adFile" accept="image/*" multiple hidden>
+          <p class="hint" id="brandHint">Brand changes apply to everyone in the studio.</p>
+          <input type="file" id="bgImgFile" accept="image/*" hidden><input type="file" id="overlayFile" accept="image/png,image/webp,image/gif" hidden><input type="file" id="logoFile" accept="image/*" hidden>
+          </div></details><details class="psec" data-sec="tips" open><summary><b>Support links</b><span class="hint">shown on stage as a QR card</span></summary><div class="psec-body">
+          <div class="fld"><span class="dup">Support links</span>
+            <div class="tip-list" id="tipList"></div>
+            <p class="hint">Viewers scan the code to tip you.</p>
+          </div>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- Overlays: Banner, ticker & custom emotes inside Look -->
+      <section class="panel" data-panel="overlays" hidden>
+        <header class="panel-head"><h2>Look</h2><div class="seg block sm look-seg" role="tablist" aria-label="Look"><button type="button" role="tab" data-look="layouts">Layout</button><button type="button" role="tab" data-look="brand">Brand</button><button type="button" role="tab" data-look="overlays" class="on" aria-selected="true">Overlays</button></div></header>
+        <div class="panel-body form">
+          <details class="psec" data-sec="stage" open><summary><b>Banner &amp; ticker</b></summary><div class="psec-body">
+            <label class="fld"><span>Banner text</span><textarea id="bannerText" rows="3" maxlength="120">Welcome to the conversation</textarea></label>
+            <label class="fld"><span>Second line <em>optional</em></span><input id="bannerSub" maxlength="120" placeholder="Episode 12 · Live from the studio"></label>
+            <div class="row">
+              <button class="btn primary" id="bannerShow">Show on stage</button>
+              <button class="btn" id="bannerHide">Hide banner</button>
+              <span class="pill warn" id="bannerEdited" hidden data-tip="The banner on stage still shows the old text">Live · edited</span>
+            </div>
+            <p class="hint" id="bannerHint">Banners appear on every participant's stage and in recordings.</p>
+            <ul class="presets" id="bannerPresets"></ul>
+            <button class="btn link" id="bannerSave">+ Save current text as a preset</button>
+            <hr>
+            <label class="fld"><span>Scrolling ticker</span><input id="tickerText" maxlength="200" placeholder="Ask your questions in the chat · New episodes every Thursday"></label>
+            <div class="row">
+              <button class="btn" id="tickerShow">Run ticker</button>
+              <button class="btn ghost" id="tickerHide">Stop</button>
+            </div>
+          </div></details>
+
+          <details class="psec" data-sec="emotes" id="emoteSec" open><summary><b>Custom emotes</b><span class="hint" id="emoteCount"></span></summary><div class="psec-body">
+            <div class="row"><input class="input grow" id="emoteName" maxlength="20" placeholder="Emote name, e.g. hype" aria-label="Emote name" spellcheck="false"><button type="button" class="btn sm" id="emoteAdd">Upload image</button><input type="file" id="emoteFile" accept="image/png,image/webp,image/gif,image/jpeg" hidden></div>
+            <p class="hint">Viewers type <code>:name:</code> in chat. Square images under 200 KB work best.</p>
+            <div class="emote-list" id="emoteList"></div>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- Shop: products sold live; checkout happens on the store's own site -->
+      <section class="panel" data-panel="shop" hidden>
+        <header class="panel-head"><h2>Shop</h2><span class="panel-meta hint" id="shopCount"></span></header>
+        <div class="panel-body form" id="shopSec">
+          <details class="psec" data-sec="shop-items" open><summary><b>Live catalogue</b></summary><div class="psec-body">
+            <p class="hint">Pin a product and it pops up on stage and on your watch page. Buyers check out on your store.</p>
+            <ul class="shop-list" id="shopList"></ul>
+            <p class="hint empty-note" id="shopEmptyHint">No products added yet. Load from Shopify below or add any link by hand.</p>
+            <details class="more sub-fold"><summary>Add a product by hand <em>Etsy, Gumroad, anything with a link</em></summary>
+              <div class="more-body">
+                <div class="row2"><label class="fld"><span>Name</span><input id="shopTitle" maxlength="80" placeholder="Limited hoodie"></label><label class="fld"><span>Price</span><input id="shopPrice" maxlength="16" placeholder="$45"></label></div>
+                <label class="fld"><span>Product link</span><input id="shopUrl" maxlength="400" placeholder="https://www.etsy.com/listing/…" spellcheck="false"></label>
+                <label class="fld"><span>Image link <em>optional</em></span><input id="shopImg" maxlength="400" placeholder="https://…/photo.jpg" spellcheck="false"></label>
+                <button type="button" class="btn sm" id="shopAdd">Add product</button>
+              </div>
+            </details>
+          </div></details>
+
+          <details class="psec" data-sec="shop-shopify" open><summary><b>Connect Shopify</b></summary><div class="psec-body">
+            <label class="fld"><span>Shopify store</span><input id="shopDomain" maxlength="80" placeholder="yourstore.myshopify.com" spellcheck="false"></label>
+            <label class="fld"><span>Storefront token <em>from Shopify admin → Apps → Develop apps</em></span><input id="shopToken" maxlength="80" type="password" autocomplete="off" spellcheck="false"></label>
+            <div class="row"><button type="button" class="btn sm" id="shopLoad">Load my Shopify products</button><span class="hint" id="shopMsg"></span></div>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- Polls and predictions -->
+      <section class="panel" data-panel="polls" hidden>
+        <header class="panel-head"><h2>Polls</h2><span class="panel-meta hint" id="pollState"></span></header>
+        <div class="panel-body form" id="pollSec">
+          <details class="psec" data-sec="poll-create" open><summary><b>Polls &amp; predictions</b></summary><div class="psec-body">
+            <div class="seg block" role="radiogroup" aria-label="Kind" id="pollKind"><button type="button" role="radio" data-kind="poll" aria-checked="true">Poll</button><button type="button" role="radio" data-kind="predict" aria-checked="false">Prediction</button></div>
+            <label class="fld"><span>Question</span><input id="pollQ" maxlength="120" placeholder="Who wins this round?"></label>
+            <label class="fld"><span>Choices <em>one per line, 2 to 4</em></span><textarea id="pollOpts" rows="3" maxlength="200" placeholder="Red team&#10;Blue team"></textarea></label>
+            <div class="row"><select class="input sm poll-mins" id="pollMins" aria-label="Voting time"><option value="1">1 min</option><option value="2" selected>2 min</option><option value="5">5 min</option><option value="10">10 min</option></select><button type="button" class="btn sm primary" id="pollGo">Start</button><button type="button" class="btn sm ghost" id="pollEnd">End</button></div>
+            <div class="poll-live" id="pollLive"></div>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- Play with me: gaming & viewer queue -->
+      <section class="panel" data-panel="gaming" hidden>
+        <header class="panel-head"><h2>Play with me</h2><span class="panel-meta hint" id="queueCount"></span></header>
+        <div class="panel-body form" id="queueSec">
+          <details class="psec" data-sec="gaming-queue" open><summary><b>Viewer queue</b></summary><div class="psec-body">
+            <label class="toggle-row"><span><b>Take players</b><small>Viewers join a queue with their gamertag from the watch page.</small></span><input type="checkbox" class="toggle" id="wpQueue" role="switch"></label>
+            <div class="row"><button type="button" class="btn sm primary" id="queueNext">Call next player</button><button type="button" class="btn sm ghost" id="queueClear">Clear queue</button></div>
+            <ol class="queue-list" id="queueList"></ol>
+            <p class="hint empty-note" id="queueEmptyHint">Turn on “Take players” and viewers can line up with their gamertag.</p>
+          </div></details>
+        </div>
+      </section>
+
+      <!-- Music: background track & auto-ducking -->
+      <section class="panel" data-panel="music" hidden>
+        <header class="panel-head"><h2>Music</h2><span class="panel-meta hint" id="musicState"></span></header>
+        <div class="panel-body form">
+          <details class="psec" data-sec="music" id="musicSec" open><summary><b>Background music</b></summary><div class="psec-body">
+            <div class="row">
+              <button type="button" class="btn sm" id="musicPick">+ Choose audio track</button>
+              <button type="button" class="btn ghost sm" id="musicClear" hidden>Remove</button>
+              <input type="file" id="musicFile" accept="audio/*" hidden>
+            </div>
+            <div class="music-player form" id="musicPlayer" hidden>
+              <div class="music-top">
+                <b class="music-name" id="musicName"></b>
+                <span class="pill accent caps" id="musicDuckPill" hidden>Ducked</span>
+              </div>
+              <div class="music-seek-row">
+                <input type="range" id="musicSeek" min="0" max="1" step="0.001" value="0" aria-label="Track position">
+                <span class="num music-time" id="musicTime">00:00 / 00:00</span>
+              </div>
+              <div class="row music-ctls">
+                <button type="button" class="btn sm primary" id="musicPlay">Play</button>
+                <button type="button" class="btn sm" id="musicLoop" aria-pressed="true">Loop</button>
+                <label class="music-vol">
+                  <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg>
+                  <input type="range" id="musicVol" min="0" max="1" step="0.02" value="0.7" aria-label="Music volume">
+                  <em class="num" id="musicVolVal">70%</em>
+                </label>
+              </div>
+              <div class="music-duck-row" id="musicDuckRow">
+                <span>Output level</span>
+                <div class="meter duck-meter"><i id="musicDuckBar"></i></div>
+              </div>
+            </div>
+            <div class="row between"><p class="hint">Plays into the studio mix and ducks automatically when anyone speaks.</p><button type="button" class="btn link" id="musicDuckSettings">Ducking settings</button></div>
+          </div></details>
+        </div>
+      </section>
+
+    </aside>
+
+    <nav class="rail glass" aria-label="Studio panels">
+      <button class="icon-btn stacked rail-btn on" data-tab="chat"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><span class="caption">Chat</span><b class="dot-badge" id="chatBadge" hidden></b></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="show"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-clapperboard"/></svg><span class="caption">Show</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="look"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg><span class="caption">Look</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="shop"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span class="caption">Shop</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="polls"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-bar-chart-2"/></svg><span class="caption">Polls</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="gaming"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg><span class="caption">Play</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="music"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-music"/></svg><span class="caption">Music</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="ai"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><span class="caption">AI</span></button>
+      <button class="icon-btn panel-toggle" id="panelToggle" aria-expanded="true" aria-controls="side" aria-label="Hide the panel" data-tip="Hide the panel"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
+    </nav>
+  </main>
+
+  <!-- ================= DOCK ================= -->
+  <footer class="dock glass" id="dock" tabindex="-1" aria-label="Studio controls">
+    <div class="dock-tools">
+      <button class="icon-btn stacked mutes" id="micBtn" aria-pressed="false"><span class="swap"><svg class="i when-off" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg><svg class="i when-on" aria-hidden="true"><use href="/icons.svg#i-mic-off"/></svg></span><span class="caption" id="micLabel">Microphone</span></button>
+      <button class="icon-btn stacked mutes" id="camBtn" aria-pressed="false"><span class="swap"><svg class="i when-off" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><svg class="i when-on" aria-hidden="true"><use href="/icons.svg#i-video-off"/></svg></span><span class="caption" id="camLabel">Camera</span></button>
+      <div class="present-wrap">
+        <button class="icon-btn stacked" id="shareBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="presentMenu"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg><span class="caption" id="shareLabel">Present</span></button>
+        <div class="popover glass raised present-menu" id="presentMenu" popover role="menu" aria-label="Present"><div class="menu">
+          <button class="menu-item" role="menuitem" data-present="screen"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg><b>Share screen</b><span>A window, tab or full screen, with sound</span></button>
+          <button class="menu-item" role="menuitem" data-present="game"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg><b>Share a game</b><span>60 fps, tuned for fast motion, with game sound</span></button>
+          <button class="menu-item" role="menuitem" data-present="video"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><b>Play a video</b><span>MP4, WebM or MOV from your computer</span></button>
+          <button class="menu-item" role="menuitem" data-present="music"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg><b>Background music</b><span>Play an audio track that ducks when people speak</span></button>
+          <button class="menu-item" role="menuitem" data-present="pdf"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-file-text"/></svg><b>Present slides</b><span>A PDF deck, page by page</span></button>
+          <button class="menu-item" role="menuitem" data-present="image"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-image"/></svg><b>Show an image</b><span>PNG, JPEG, WebP or GIF</span></button>
+          <button class="menu-item" role="menuitem" data-present="ai"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>AI answer</b><span>Ask your AI and put the answer on stage</span></button>
+        </div></div>
+      </div>
+      <span class="dock-sep" aria-hidden="true"></span>
+      <button class="icon-btn stacked guest-only hand-tool" id="handBtn" aria-pressed="false" disabled><svg class="i" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg><span class="caption" id="handLabel">Raise hand</span></button>
+      <button class="icon-btn stacked rec-tool host-only" id="recBtn"><svg class="i rec-ic" viewBox="0 0 24 24" aria-hidden="true"><circle class="rec-ring" cx="12" cy="12" r="9"/><circle class="rec-dot" cx="12" cy="12" r="5"/><rect class="rec-stop" x="7.5" y="7.5" width="9" height="9" rx="2"/></svg><span class="caption" id="recLabel">Record</span></button>
+      <button class="icon-btn stacked host-only ai-dock" id="aiDock" aria-expanded="false" aria-controls="cmdBar" data-status="idle" hidden><span class="orb-i" aria-hidden="true"></span><span class="caption" id="aiDockName">Sam</span></button>
+    </div>
+    <div class="guide host-only" id="guide" hidden role="status" aria-label="Getting started">
+      <span class="guide-dots" id="guideDots" aria-hidden="true"></span>
+      <span class="guide-text"><span class="guide-prog" id="guideProg">1 of 5</span><b id="guideStep">Name your show</b></span>
+      <button type="button" class="btn sm primary" id="guideGo">Show me</button>
+      <button type="button" class="icon-btn sm" id="guideSkip" aria-label="Hide the setup guide" data-tip="Hide the guide"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+    </div>
+    <p class="dock-note" id="dockNote" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-activity"/></svg><span id="dockNoteText"></span>
+      <span class="note-invite" id="noteInvite" hidden><button type="button" class="btn sm ghost" id="noteLink" data-tip="Copy the invite link"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Copy link</button><button type="button" class="btn sm ghost note-code" id="noteCode" data-tip="Copy the studio code"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span id="noteCodeText"></span></button></span>
+    </p>
+    <button class="btn danger" id="leaveBtn" disabled aria-label="Leave studio">Leave<span class="wide-only">&nbsp;studio</span></button>
+  </footer>
+</div>
+
+<input type="file" id="videoFile" accept="video/*" hidden>
+<input type="file" id="pdfFile" accept="application/pdf" hidden>
+<input type="file" id="imageFile" accept="image/*" hidden>
+<input type="file" id="anyFile" accept="application/pdf,video/*,audio/*,image/*" hidden>
+<input type="file" id="avatarFile" accept="image/*" hidden>
+
+<!-- ================= GO LIVE ================= -->
+<dialog class="modal" id="liveDlg" aria-labelledby="liveH">
+  <div class="modal-card glass raised wide">
+    <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    <h2 id="liveH">Go live</h2>
+    <p class="live-lede">Stream to any mix of platforms at once. Your watch page streams too, always.</p>
+    <div class="form live-body">
+      <section class="live-sec" id="liveSec" aria-label="Where to stream">
+        <h3 class="live-label">Stream to</h3>
+        <div class="plat-grid">
+          <button type="button" class="plat-tile" data-plat="youtube" style="--c:#ff2a3d"><i></i>YouTube</button>
+          <button type="button" class="plat-tile" data-plat="twitch" style="--c:#9b6bff"><i></i>Twitch</button>
+          <button type="button" class="plat-tile" data-plat="kick" style="--c:#53fc18"><i></i>Kick</button>
+          <button type="button" class="plat-tile" data-plat="facebook" style="--c:#1877f2"><i></i>Facebook</button>
+          <button type="button" class="plat-tile" data-plat="x" style="--c:#e7e9ea"><i></i>X</button>
+          <button type="button" class="plat-tile" data-plat="rumble" style="--c:#85c742"><i></i>Rumble</button>
+          <button type="button" class="plat-tile" data-plat="custom" style="--c:#8b9bb8"><i></i>Other</button>
+          <select id="destAdd" aria-label="Add a destination" tabindex="-1"><option value="">+ Add a destination</option><option value="youtube">YouTube</option><option value="twitch">Twitch</option><option value="kick">Kick</option><option value="facebook">Facebook</option><option value="x">X</option><option value="rumble">Rumble</option><option value="custom">Other (RTMP)</option></select>
+        </div>
+        <ul class="dest-list" id="destList"></ul>
+        <p class="hint" id="liveNote">Stream keys stay in this browser. Copy each one from the platform’s live dashboard.</p>
+        <div class="watch-card" id="watchRow" hidden>
+          <svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-play"/></svg>
+          <span><b>Your watch page</b><small>Always on: the live player, chat and super chats.</small></span>
+          <button type="button" class="btn sm" id="watchCopy">Copy link</button>
+        </div>
+        <div class="soft-card" id="liveOff" hidden><p><b>Going live isn’t available on this site yet.</b> You can record your show now and upload it to YouTube or anywhere else afterwards.</p><button type="button" class="btn sm" id="liveOffRec">Record instead</button></div>
+      </section>
+      <section class="live-row" aria-label="Format">
+        <h3 class="live-label">Format</h3>
+        <div class="seg sm fmt-seg" role="radiogroup" aria-label="Stage format" id="aspectSeg">
+          <button type="button" role="radio" data-aspect="16:9"><i class="fmt-ic land" aria-hidden="true"></i>Landscape</button>
+          <button type="button" role="radio" data-aspect="9:16"><i class="fmt-ic vert" aria-hidden="true"></i>Vertical</button>
+        </div>
+      </section>
+      <div class="live-go">
+        <button type="button" class="btn live lg block" id="liveBtn">Go live</button>
+        <p class="hint live-why" id="liveWhy" hidden></p>
+        <p class="hint live-stats" id="liveStats" hidden></p>
+      </div>
+      <div class="live-later" id="upBlock">
+        <div class="live-later-row"><span>Not today?</span><button type="button" class="btn link" id="wizOpen">Plan a stream for later</button></div>
+        <div id="upSignin" class="soft-card"><p>Sign in to schedule streams, email invites and keep them here.</p><button type="button" class="btn sm" id="upSigninBtn">Create an account or sign in</button></div>
+        <div id="upWrap" hidden><ul class="up-list" id="upList"></ul><p class="hint" id="upEmpty" hidden>Nothing scheduled.</p></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- ================= SETTINGS ================= -->
+<dialog class="modal" id="settingsDlg" aria-labelledby="settingsH">
+  <div class="modal-card glass raised wide settings-card">
+    <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    <nav class="set-nav" aria-label="Settings sections">
+      <h2 id="settingsH">Settings</h2>
+      <button type="button" class="set-nav-btn" data-set="general"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg>General</button>
+      <button type="button" class="set-nav-btn" data-set="mic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg>Microphone</button>
+      <button type="button" class="set-nav-btn" data-set="camera"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg>Camera</button>
+      <button type="button" class="set-nav-btn" data-set="background"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-image"/></svg>Background</button>
+      <button type="button" class="set-nav-btn" data-set="connections"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Connections</button>
+      <button type="button" class="set-nav-btn" data-set="network"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg>Network</button>
+    </nav>
+    <div class="form settings-body" id="settingsBody">
+      <section class="set-sec" id="set-general" data-set="general" aria-labelledby="set-general-h">
+        <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-sliders-horizontal"/></svg></span><div><h3 id="set-general-h">General</h3><p>How gather looks, and your name.</p></div></header>
+
+          <div class="fld"><span>Appearance</span>
+            <div class="seg block" role="radiogroup" aria-label="Appearance" id="themeSeg">
+              <button type="button" role="radio" data-theme-opt="dark">Dark</button>
+              <button type="button" role="radio" data-theme-opt="light">Light</button>
+            </div>
+          </div>
+          <label class="fld"><span>Display name</span><input id="nameInput" maxlength="24" placeholder="Your name"></label>
+          <div class="fld"><span>Camera-off background <em>behind your photo when your camera is off</em></span>
+            <div class="row"><img id="offBgThumb" class="bgfx-thumb" alt="" hidden><button type="button" class="btn sm" id="offBgPick">Choose a picture</button><button type="button" class="btn ghost sm" id="offBgClear" hidden>Remove</button></div>
+            <input type="file" id="offBgFile" accept="image/*" hidden>
+          </div>
+      </section>
+      <section class="set-sec" id="set-mic" data-set="mic" aria-labelledby="set-mic-h">
+        <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-mic"/></svg></span><div><h3 id="set-mic-h">Microphone</h3><p>Pick a mic and clean up your sound.</p></div></header>
+
+          <label class="fld"><span>Microphone</span><select id="micSelect"><option value="">Default microphone</option></select></label>
+          <div class="fld"><span>Input level</span><div class="meter"><i id="meterFill"></i></div></div>
+          <label class="fld"><span>Input gain <em id="micGainVal">100%</em></span><input type="range" id="micGain" min="0.3" max="2.5" step="0.05"></label>
+          <label class="toggle-row"><span><b>AI noise removal</b><small>Removes fans, keyboards and traffic, keeps your voice</small></span><input type="checkbox" class="toggle" id="aiNoiseChk" role="switch"></label>
+          <div class="toggle-group duck-group" id="duckGroup">
+            <label class="toggle-row"><span><b>Auto-duck background audio</b><small>Lowers background music and media sound while anyone speaks</small></span><input type="checkbox" class="toggle" id="duckChk" role="switch"></label>
+            <div class="duck-opts" id="duckOpts">
+              <label class="fld"><span>Duck volume to <em id="duckLevelVal">20%</em></span><input type="range" id="duckLevel" min="0.05" max="0.75" step="0.05"></label>
+              <div class="fld"><span>Fade back speed</span>
+                <div class="seg sm block" role="radiogroup" aria-label="Fade back speed" id="duckReleaseSeg">
+                  <button type="button" role="radio" data-duck-rel="fast">Fast</button>
+                  <button type="button" role="radio" data-duck-rel="normal">Smooth</button>
+                  <button type="button" role="radio" data-duck-rel="slow">Slow</button>
+                </div>
+              </div>
+              <div class="duck-status">
+                <span class="pill caps" id="duckLivePill">Ready</span>
+                <div class="meter duck-meter"><i id="duckMeterFill"></i></div>
+                <span class="num duck-pct" id="duckMeterPct">100%</span>
+              </div>
+            </div>
+          </div>
+          <div class="toggle-group automute-group" id="autoMuteGroup">
+            <label class="toggle-row"><span><b>Auto-mute when silent</b><small>Mutes your mic after a period of silence to keep background noise out</small></span><input type="checkbox" class="toggle" id="autoMuteChk" role="switch"></label>
+            <div class="duck-opts" id="autoMuteOpts">
+              <label class="fld"><span>Silence timeout <em id="autoMuteSecVal">30s</em></span><input type="range" id="autoMuteSec" min="10" max="120" step="5"></label>
+              <div class="duck-status">
+                <span class="pill caps" id="autoMutePill">Ready</span>
+                <div class="meter duck-meter"><i id="autoMuteMeterFill"></i></div>
+                <span class="num duck-pct" id="autoMuteCountdown">0s</span>
+              </div>
+            </div>
+          </div>
+          <div class="set-list">
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="echoChk"><span>Echo cancellation <em class="dim">keep on unless you use headphones</em></span></label>
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="nsChk"><span>Browser noise suppression</span></label>
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="agcChk"><span>Automatic volume levelling</span></label>
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="startMic" checked><span>Start with microphone on</span></label>
+          </div>
+      </section>
+      <section class="set-sec" id="set-camera" data-set="camera" aria-labelledby="set-camera-h">
+        <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-video"/></svg></span><div><h3 id="set-camera-h">Camera</h3><p>Pick a camera, its quality and the light.</p></div></header>
+
+          <label class="fld"><span>Camera</span><select id="camSelect"><option value="">Default camera</option></select></label>
+          <div class="row2">
+            <label class="fld"><span>Quality</span><select id="qualitySelect"><option value="360">360p · light</option><option value="720" selected>720p · recommended</option><option value="1080">1080p · best</option></select></label>
+            <label class="fld"><span>Frame rate</span><select id="fpsSelect"><option value="24">24 fps · film</option><option value="30">30 fps</option><option value="60">60 fps · smooth</option></select></label>
+          </div>
+          <div class="set-picture"><div class="set-picture-h"><span>Picture</span><button type="button" class="btn ghost sm" id="fxReset">Reset</button></div>
+          <label class="fld"><span>Brightness</span><input type="range" id="fxBright" min="-0.3" max="0.3" step="0.01"></label>
+          <label class="fld"><span>Contrast</span><input type="range" id="fxContrast" min="0.6" max="1.6" step="0.01"></label>
+          <label class="fld"><span>Colour</span><input type="range" id="fxSat" min="0" max="1.8" step="0.01"></label>
+          
+          </div>
+          <div class="set-list">
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="mirrorChk"><span>Mirror my own view <em class="dim">others always see you the right way round</em></span></label>
+          <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="startCam" checked><span>Start with camera on</span></label>
+          </div>
+      </section>
+      <section class="set-sec" id="set-background" data-set="background" aria-labelledby="set-background-h">
+        <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-image"/></svg></span><div><h3 id="set-background-h">Background</h3><p>Blur, replace or key out what’s behind you.</p></div></header>
+
+          <div class="seg block" id="bgFxSeg" role="radiogroup" aria-label="Background effect">
+            <button type="button" role="radio" data-fx="none">None</button>
+            <button type="button" role="radio" data-fx="blur">Blur</button>
+            <button type="button" role="radio" data-fx="image">Replace</button>
+            <button type="button" role="radio" data-fx="green">Green screen</button>
+          </div>
+          <p class="hint" id="bgFxNote" style="margin-top:0"></p>
+          <div class="callout warn" id="bgFxNoScreen" role="status" hidden>
+            <p><strong>No green or blue screen in view.</strong> Green screen only removes a real coloured backdrop behind you. Without one, use Blur or Replace: they cut you out with AI.</p>
+            <div class="row"><button type="button" class="btn sm" data-fx-switch="blur">Use Blur</button><button type="button" class="btn sm" data-fx-switch="image">Use Replace</button></div>
+          </div>
+          <div class="row" id="bgFxImgRow" hidden>
+            <img id="bgFxThumb" class="bgfx-thumb" alt="" hidden>
+            <button type="button" class="btn sm" id="bgFxPick">Choose a picture</button>
+            <button type="button" class="btn ghost sm" id="bgFxClear" hidden>Remove</button>
+            <input type="file" id="bgFxFile" accept="image/*" hidden>
+          </div>
+          <div class="form" id="bgFxKeyRow" hidden>
+            <div class="row2">
+              <label class="fld"><span>Screen colour</span><input type="color" id="keyColor"></label>
+              <div class="fld"><span>&nbsp;</span><button type="button" class="btn" id="keyAuto"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Pick automatically</button></div>
+            </div>
+            <label class="fld"><span>Key tolerance <em>raise if patches of screen show through</em></span><input type="range" id="keyTol" min="0.03" max="0.3" step="0.005"></label>
+            <label class="fld"><span>Spill removal <em>takes the green glow off skin and hair</em></span><input type="range" id="keySpill" min="0" max="1" step="0.05"></label>
+          </div>
+          <label class="fld" id="bgFxEdgeRow" hidden><span>Edge softness</span><input type="range" id="fxEdge" min="0.03" max="0.3" step="0.01"></label>
+          <label class="fld" id="bgFxBlurRow" hidden><span>Blur amount</span><input type="range" id="fxBlur" min="0.4" max="2.5" step="0.1"></label>
+      </section>
+      <section class="set-sec" id="set-connections" data-set="connections" aria-labelledby="set-connections-h">
+        <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-link"/></svg></span><div><h3 id="set-connections-h">Connections</h3><p>Bring platform chats in, and save to Google Drive.</p></div></header>
+
+          <div class="platforms">
+            <div class="plat-head"><strong>Platform chat</strong><span>Connected chats flow into this chat and the overlay.</span></div>
+            <form class="plat" id="twitchForm" autocomplete="off">
+              <span class="pill caps src-twitch">Twitch</span>
+              <div class="plat-body"><input id="twitchInput" maxlength="60" placeholder="channel name" aria-label="Twitch channel" spellcheck="false"><i class="plat-st" id="twitchStatus" data-state="off">Not connected</i></div>
+              <button class="btn sm" id="twitchGo">Connect</button>
+            </form>
+            <form class="plat" id="rumbleForm" autocomplete="off">
+              <span class="pill caps src-rumble">Rumble</span>
+              <div class="plat-body"><input id="rumbleInput" type="password" placeholder="Live Stream API URL" aria-label="Rumble Live Stream API URL" spellcheck="false"><i class="plat-st" id="rumbleStatus" data-state="off">Not connected</i></div>
+              <button class="btn sm" id="rumbleGo">Connect</button>
+            </form>
+            <form class="plat" id="ytForm" autocomplete="off">
+              <span class="pill caps src-youtube">YouTube</span>
+              <div class="plat-body"><input id="ytInput" placeholder="your live stream, or paste its link" aria-label="YouTube live video link (optional)" spellcheck="false"><i class="plat-st" id="ytStatus" data-state="off">Not connected</i></div>
+              <button class="btn sm" id="ytGo">Connect</button>
+            </form>
+            <p class="hint" style="margin:0">YouTube: chat, Super Chats and memberships come in; Hide, Time out and Block also apply on YouTube.</p>
+          </div>
+          <div class="fld"><span>Google <em>Drive saving and YouTube chat</em></span>
+            <label class="toggle-row"><span><b>Save recordings to Google Drive</b><small id="driveNote">Each recording goes into a “gather recordings” folder in your Drive.</small></span><input type="checkbox" class="toggle" id="driveAuto" role="switch"></label>
+            <div class="row"><span class="hint" id="googleState" style="margin:0">Not connected</span><button type="button" class="btn sm ghost" id="googleOut" hidden>Disconnect Google</button></div>
+          </div>
+      </section>
+      <section class="set-sec" id="set-network" data-set="network" aria-labelledby="set-network-h">
+        <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-shield-check"/></svg></span><div><h3 id="set-network-h">Network</h3><p>Your own relay server, for strict networks.</p></div></header>
+
+          <label class="fld"><span>TURN server URL <em>optional</em></span><input id="turnUrl" placeholder="turn:your-server.com:3478" spellcheck="false"></label>
+          <p class="hint" id="turnHint">A TURN relay helps guests on strict corporate and mobile networks.</p>
+          <label class="fld"><span>TURN username</span><input id="turnUser" spellcheck="false" autocomplete="off"></label>
+          <label class="fld"><span>TURN credential</span><input id="turnPass" type="password" autocomplete="off"></label>
+          <p class="hint">Use short-lived credentials. Kept in this browser session only.</p>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<!-- ================= HELP ================= -->
+<dialog class="modal" id="helpDlg" aria-labelledby="helpH">
+  <div class="modal-card glass raised wide">
+    <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    <h2 id="helpH">Help</h2>
+    <div class="form help-body">
+
+          <div class="composer-row help-search"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-search"/></svg><input id="helpSearch" placeholder="Try “echo”, “background”, “captions”…" aria-label="Search help"></div>
+          <div id="helpPopWrap"><h3 class="caps">Most searched</h3><ul class="help-list" id="helpPopular"></ul></div>
+          <ul class="help-list" id="helpResults"></ul>
+          <p class="hint" id="helpNone" hidden>Nothing matches. Try another word, like “mic” or “layout”.</p>
+          <button type="button" class="btn block" id="tourStart"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Take the studio tour</button>
+          <h3 class="caps">Shortcuts</h3>
+          <label class="toggle-row"><span><b>Single-key shortcuts</b><small>Off if you use voice control or a screen reader</small></span><input type="checkbox" class="toggle" id="keysChk" role="switch"></label>
+          <dl class="keys">
+            <div><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></div>
+            <div><dt><kbd>V</kbd></dt><dd>Camera on or off</dd></div>
+            <div><dt><kbd>S</kbd></dt><dd>Share or stop sharing your screen</dd></div>
+            <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous and next slide</dd></div>
+            <div><dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Switch scenes (host)</dd></div>
+            <div><dt><kbd>R</kbd></dt><dd>Start or stop recording (host)</dd></div>
+            <div><dt><kbd>/</kbd></dt><dd>Ask your AI (host) or jump to chat</dd></div>
+          </dl>
+    </div>
+  </div>
+</dialog>
+
+<!-- ================= ENTER STUDIO ================= -->
+<dialog class="modal" id="enterDlg" aria-labelledby="enterH">
+  <form method="dialog" class="modal-card glass raised wide" id="enterForm">
+    <button type="button" class="icon-btn sm modal-close" value="cancel" data-close aria-label="Close" formnovalidate><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+    <div class="enter-head"><h2 id="enterH">Step into the studio.</h2><p class="sub">Check how you look and sound. Nobody sees you until you go in.</p></div>
+    <div class="green-room">
+      <div class="gr-col">
+      <div class="preview">
+        <video id="previewVideo" autoplay playsinline muted></video>
+        <div class="preview-off" id="previewOff"><span id="previewInitials">?</span><small id="previewMsg">Camera is off</small></div>
+        <div class="preview-tools">
+          <button type="button" class="icon-btn lg round light mutes" id="pMic" aria-pressed="false" aria-label="Toggle microphone"><span class="swap"><svg class="i when-off" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg><svg class="i when-on" aria-hidden="true"><use href="/icons.svg#i-mic-off"/></svg></span></button>
+          <button type="button" class="icon-btn lg round light mutes" id="pCam" aria-pressed="false" aria-label="Toggle camera"><span class="swap"><svg class="i when-off" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><svg class="i when-on" aria-hidden="true"><use href="/icons.svg#i-video-off"/></svg></span></button>
+          <div class="pmeter"><i id="pMeter"></i></div>
+        </div>
+      </div>
+        <div class="gr-quick">
+          <div class="seg block gr-fx" id="grFx" role="group" aria-label="Background"><button type="button" data-fx="none">Real</button><button type="button" data-fx="blur">Blur</button><button type="button" data-fx="image">Picture</button><button type="button" data-fx="green">Green screen</button></div>
+          <div class="gr-dev"><select class="input sm" id="grCam" aria-label="Camera"><option value="">Default camera</option></select><select class="input sm" id="grMic" aria-label="Microphone"><option value="">Default microphone</option></select></div>
+        </div>
+      </div>
+      <div class="knock-wait" id="knockWait" hidden>
+        <div class="knock-orb"><i></i><i></i><i></i></div>
+        <h3 id="knockWaitH">Waiting for the host</h3>
+        <p id="knockMsg">The host has been told you’re here.</p>
+        <button type="button" class="btn ghost" id="knockCancel">Cancel</button>
+      </div>
+      <div class="enter-fields" id="enterFields">
+        <div class="seg block" role="tablist">
+          <button type="button" role="tab" aria-selected="true" data-mode="create" class="on">Create studio</button>
+          <button type="button" role="tab" aria-selected="false" data-mode="join">Join studio</button>
+        </div>
+        <div class="who-row">
+          <button type="button" class="avatar-pick" id="avatarBtn" aria-label="Add a profile photo">
+            <img id="avatarImg" alt="" hidden>
+            <svg class="i" aria-hidden="true"><use href="/icons.svg#i-user"/></svg>
+          </button>
+          <label class="fld grow"><span>Your name</span><input id="enterName" maxlength="24" placeholder="Alex Morgan" required></label>
+        </div>
+        <p class="hint who-hint"><button type="button" class="btn link" id="avatarHint">Add a photo</button> · shown when your camera is off <button type="button" class="btn link quiet" id="avatarClear">Remove</button></p>
+        <label class="fld" id="codeFld" hidden><span>Studio code</span><input id="enterCode" maxlength="40" placeholder="gather-3f9a2c1d7e04" spellcheck="false"></label>
+        <p class="err" id="enterErr" hidden></p>
+        <button class="btn primary lg block" id="enterGo" value="go">Create studio</button>
+        <p class="fine">Up to six people. Video goes directly between browsers.</p>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- ================= ACCOUNT ================= -->
+<dialog class="modal" id="acctDlg" aria-labelledby="acH">
+  <div class="modal-card glass raised ac-card">
+    <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    <aside class="ac-side" aria-hidden="true">
+      <img class="ac-mark" src="/icon.png" alt="" width="40" height="40">
+      <p class="ac-side-h">Host your show from the browser.</p>
+      <ul class="ac-side-list">
+        <li><svg class="i sm"><use href="/icons.svg#i-users"/></svg>Up to six people on stage, free</li>
+        <li><svg class="i sm"><use href="/icons.svg#i-sparkles"/></svg>Scenes, slides and an AI producer</li>
+        <li><svg class="i sm"><use href="/icons.svg#i-radio"/></svg>Stream to every platform at once</li>
+      </ul>
+      <p class="ac-side-note">Guests never need an account.</p>
+    </aside>
+    <div class="ac-main">
+    <h2 id="acH">Welcome back.</h2>
+    <p class="sub" id="acWhy" hidden>Sign in or create a free account to start a studio.</p>
+    <div id="acOut">
+      <div class="seg block" role="tablist" id="acTabs"><button type="button" role="tab" data-ac="in">Sign in</button><button type="button" role="tab" data-ac="up">Create account</button></div>
+      <button type="button" class="g-btn" id="acGoogleBtn" hidden><svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg><span id="acGoogleText">Continue with Google</span></button>
+      <p class="ac-or" id="acOr" hidden>or with email</p>
+      <form id="acForm" class="form ac-form" autocomplete="on">
+        <div class="ac-up" id="acNameRow" hidden>
+          <button type="button" class="ac-up-av" id="acUpAvatar" aria-label="Add a profile photo" data-tip="Add a profile photo"><img id="acUpAvatarImg" alt="" hidden><span id="acUpAvatarIni"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-user"/></svg></span><i class="ac-up-plus" aria-hidden="true"><svg class="i sm"><use href="/icons.svg#i-plus"/></svg></i></button>
+          <label class="fld grow"><span>Your name</span><input id="acName" maxlength="24" autocomplete="nickname" placeholder="How guests will see you"></label>
+          <input type="file" id="acUpAvatarFile" accept="image/*" hidden>
+        </div>
+        <label class="fld"><span>Email</span><input id="acEmail" type="email" required autocomplete="email" placeholder="you@example.com"></label>
+        <label class="fld"><span>Password</span>
+          <span class="pass-wrap"><input id="acPass" type="password" required minlength="8" placeholder="At least 8 characters"><button type="button" class="icon-btn sm pass-eye" id="acPassEye" aria-label="Show password" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-eye"/></svg></button></span>
+        </label>
+        <div class="pass-meter" id="acMeter" hidden aria-live="polite"><i></i><i></i><i></i><span id="acMeterText"></span></div>
+        <label class="ac-agree" id="acAgreeRow" hidden><input type="checkbox" class="check" id="acAgree"><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.</span></label>
+        <p class="err" id="acErr" hidden></p>
+        <button class="btn primary lg block" id="acGo">Sign in</button>
+        <button type="button" class="btn link ac-forgot" id="acForgot">Forgot your password?</button>
+      </form>
+      <p class="ac-fine" id="acFine">By continuing you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.</p>
+    </div>
+    <div id="acForgotView" class="form" hidden>
+      <p class="sub">We’ll email you a link to choose a new password.</p>
+      <label class="fld"><span>Email</span><input id="acFEmail" type="email"></label>
+      <p class="err" id="acFErr" hidden></p>
+      <p class="ok-msg" id="acFMsg" hidden>If that email has an account, a reset link is on its way. Check your inbox.</p>
+      <div class="row"><button type="button" class="btn primary" id="acFGo">Send reset link</button><button type="button" class="btn ghost" id="acFBack">Back to sign in</button></div>
+    </div>
+    <div id="acResetView" class="form" hidden>
+      <label class="fld"><span>New password</span><input id="acRPass" type="password" minlength="8" autocomplete="new-password"></label>
+      <p class="err" id="acRErr" hidden></p>
+      <button type="button" class="btn primary lg block" id="acRGo">Save new password</button>
+    </div>
+    <div id="acIn" class="form" hidden>
+      <div class="profile-row">
+        <button type="button" class="avatar-pick big" id="acAvatarBtn" aria-label="Change photo"><img id="acAvatarImg" alt="" hidden><span id="acAvatarIni"></span></button>
+        <div class="grow form">
+          <label class="fld"><span>Nickname</span><input id="acNick" maxlength="24"></label>
+          <p class="hint" style="margin:0">Signed in as <b id="acEmailShow"></b></p>
+        </div>
+      </div>
+      <input type="file" id="acAvatarFile" accept="image/*" hidden>
+      <div class="row"><button type="button" class="btn primary" id="acSaveProfile">Save profile</button><button type="button" class="btn ghost" id="acSignOut">Sign out</button></div>
+      <p class="hint" id="acSync"></p>
+      <details class="more" id="acPwDetails"><summary>Change password</summary>
+        <div class="form" style="margin-top:10px">
+          <label class="fld"><span>Current password</span><input id="acCur" type="password" autocomplete="current-password"></label>
+          <label class="fld"><span>New password</span><input id="acNew" type="password" minlength="8" autocomplete="new-password"></label>
+          <p class="err" id="acPwErr" hidden></p><p class="ok-msg" id="acPwMsg" hidden>Password changed. Other devices were signed out.</p>
+          <div class="row"><button type="button" class="btn" id="acPwGo">Change password</button></div>
+        </div>
+      </details>
+      <details class="more danger"><summary>Delete account</summary>
+        <div class="form" style="margin-top:10px">
+          <p class="hint" style="margin:0">This removes your profile and saved settings for good.</p>
+          <label class="fld"><span id="acDelLabel">Password</span><input id="acDelPass" type="password" autocomplete="current-password"></label>
+          <p class="err" id="acDelErr" hidden></p>
+          <div class="row"><button type="button" class="btn danger" id="acDelGo">Delete my account</button></div>
+        </div>
+      </details>
+    </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- ================= START A STREAM ================= -->
+<dialog class="modal" id="wizDlg" aria-labelledby="wH">
+  <div class="modal-card glass raised wide">
+    <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    <h2 id="wH">Start a stream</h2>
+    <div class="w-dots" id="wDots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div id="wSteps">
+      <div data-step="1" class="w-modes">
+        <button type="button" class="tile w-mode" data-wmode="now"><b>Go live now</b><span>Open the green room, check your camera, and you’re on.</span></button>
+        <button type="button" class="tile w-mode" data-wmode="later"><b>Schedule for later</b><span>Pick a time, invite guests by email, and gather sends reminders a day and 15 minutes before.</span></button>
+      </div>
+      <div data-step="2" class="form" hidden>
+        <label class="fld"><span>Title</span><input id="wTitle" maxlength="100" placeholder="Episode 12: Building in public"></label>
+        <label class="fld"><span>Description <em>optional</em></span><textarea id="wDesc" rows="2" maxlength="1000" placeholder="What you’ll talk about, who’s joining"></textarea></label>
+        <div class="row3 w-later" hidden>
+          <label class="fld"><span>Date</span><input type="date" id="wDate"></label>
+          <label class="fld"><span>Start time</span><input type="time" id="wTime"></label>
+          <label class="fld"><span>Length</span><select id="wDur"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></label>
+        </div>
+        <label class="fld"><span>Invite guests <em>emails, separated by commas</em></span><textarea id="wInvites" rows="2" placeholder="jordan@example.com, sam@example.com"></textarea></label>
+        <p class="hint w-later" id="wMailNote" hidden></p>
+      </div>
+      <div data-step="3" class="form" hidden>
+        <div class="seg block" id="wThumbTabs"><button type="button" data-wt="design">Design</button><button type="button" data-wt="ai">AI background</button><button type="button" data-wt="upload">Upload</button></div>
+        <canvas id="wThumb" width="1280" height="720" class="w-thumb" aria-label="Thumbnail preview"></canvas>
+        <div data-wpane="design" class="form">
+          <label class="fld"><span>Headline</span><input id="wHeadline" maxlength="80" placeholder="3–6 punchy words"></label>
+          <div class="fld"><span>Style</span><div class="seg block" id="wStyle"><button type="button" data-ws="bold">Bold left</button><button type="button" data-ws="split">Split</button><button type="button" data-ws="center">Centred</button></div></div>
+          <div class="row"><button type="button" class="btn sm" id="wSnap">Use my camera</button><button type="button" class="btn sm" id="wPhotoPick">Upload a photo</button><input type="file" id="wPhotoFile" accept="image/*" hidden></div>
+        </div>
+        <div data-wpane="ai" class="form" hidden>
+          <label class="fld"><span>Describe the background</span><textarea id="wPrompt" rows="2" placeholder="Neon city skyline at night, deep blues, cinematic"></textarea></label>
+          <div class="row"><button type="button" class="btn primary sm" id="wGen">Create background</button></div>
+          <p class="hint" id="wGenNote">Uses the provider and key from your AI panel (ChatGPT, Gemini or Grok make images).</p>
+        </div>
+        <div data-wpane="upload" class="form" hidden>
+          <div class="row"><button type="button" class="btn sm" id="wUploadPick">Choose an image</button><input type="file" id="wUploadFile" accept="image/*" hidden></div>
+        </div>
+      </div>
+      <div data-step="4" class="w-review" hidden>
+        <img id="wSumThumb" alt="Thumbnail">
+        <dl>
+          <div><dt>Title</dt><dd id="wSumTitle"></dd></div>
+          <div><dt>When</dt><dd id="wSumWhen"></dd></div>
+          <div><dt>Guests</dt><dd id="wSumInv"></dd></div>
+        </dl>
+        <div class="fld"><span>Platforms <em>saved with the stream</em></span>
+          <div class="dest-grid" id="wDest">
+            <label><input type="checkbox" value="youtube"> YouTube</label><label><input type="checkbox" value="twitch"> Twitch</label>
+            <label><input type="checkbox" value="facebook"> Facebook</label><label><input type="checkbox" value="linkedin"> LinkedIn</label>
+            <label><input type="checkbox" value="x"> X</label><label><input type="checkbox" value="instagram"> Instagram</label>
+            <label><input type="checkbox" value="tiktok"> TikTok</label><label><input type="checkbox" value="rumble"> Rumble</label>
+          </div>
+          <p class="hint" style="margin-top:0">On the day, add each platform’s stream key under Stream → Go live.</p>
+        </div>
+      </div>
+      <p class="err" id="wErr" hidden></p>
+      <div class="w-nav">
+        <button type="button" class="btn ghost" id="wBack" hidden>Back</button>
+        <span class="grow"></span>
+        <button type="button" class="btn primary" id="wNext" hidden>Next</button>
+        <button type="button" class="btn primary" id="wGo" hidden>Go to the green room</button>
+      </div>
+    </div>
+    <div id="wDone" class="form" hidden>
+      <p class="ok-msg">Scheduled for <b id="wDoneWhen"></b>.</p>
+      <p class="sub" id="wDoneMail"></p>
+      <div class="row"><button type="button" class="btn primary" id="wDoneCopy">Copy invite link</button><button type="button" class="btn" id="wDoneCal">Add to calendar</button><button type="button" class="btn ghost" id="wDoneClose">Done</button></div>
+    </div>
+  </div>
+</dialog>
+
+<!-- ================= INVITE ================= -->
+<dialog class="modal" id="inviteDlg" aria-labelledby="inviteH">
+  <form method="dialog" class="modal-card glass raised">
+    <button type="button" class="icon-btn sm modal-close" value="cancel" data-close aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+    <h2 id="inviteH">Invite guests</h2>
+    <p class="sub">Send the link: guests land in the green room, check their camera and join.</p>
+    <output class="code" id="inviteCode">—</output>
+    <button type="button" class="btn primary lg block" id="copyLink">Copy invite link</button>
+    <button type="button" class="btn lg block" id="copyCode">Copy the code instead</button>
+    <p class="fine" id="inviteFine">Anyone with this code can join. Maximum six participants. Keep this tab open while hosting.</p>
+    <hr>
+    <p class="sub" style="margin:0"><b>For viewers:</b> your watch page, with the show, chat and voice questions.</p>
+    <output class="code sm" id="inviteWatch">—</output>
+    <div class="row"><button type="button" class="btn block" id="copyWatch">Copy watch link</button><button type="button" class="btn ghost" id="openWatch">Open</button></div>
+  </form>
+</dialog>
+
+<!-- ================= HOST WALK-THROUGH ================= -->
+<div class="tour" id="tour" hidden role="dialog" aria-modal="false" aria-labelledby="tourH">
+  <div class="tour-spot" id="tourSpot" aria-hidden="true"></div>
+  <div class="tour-card glass raised" id="tourCard">
+    <p class="tour-step" id="tourStep"></p>
+    <h3 id="tourH"></h3>
+    <p class="tour-text" id="tourText"></p>
+    <div class="tour-nav"><button type="button" class="btn ghost sm" id="tourSkip">Skip tour</button><span class="grow"></span><button type="button" class="btn sm" id="tourBack">Back</button><button type="button" class="btn primary sm" id="tourNext">Next</button></div>
+  </div>
+</div>
+
+<!-- ================= LEAVE ================= -->
+<dialog class="modal" id="leaveDlg" aria-labelledby="leaveH">
+  <form method="dialog" class="modal-card glass raised">
+    <h2 id="leaveH">Leave the studio?</h2>
+    <p class="sub" id="leaveWhat"></p>
+    <div class="row"><button type="button" class="btn danger" id="leaveGo">Leave</button><button class="btn" value="cancel" autofocus>Stay</button></div>
+  </form>
+</dialog>
+
+<!-- ================= RECORDING SAVED ================= -->
+<dialog class="modal" id="recDlg" aria-labelledby="recH">
+  <form method="dialog" class="modal-card glass raised">
+    <button type="button" class="icon-btn sm modal-close" value="cancel" data-close aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+    <h2 id="recH">Recording ready.</h2>
+    <p class="sub" id="recInfo">—</p>
+    <video id="recVideo" controls playsinline></video>
+    <div class="row2"><a class="btn primary lg block" id="recDownload" download>Download video</a><button type="button" class="btn lg block" id="recDrive"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Save to Google Drive</button></div>
+    <div class="meter" id="recDriveBar" hidden><i></i></div>
+    <p class="hint num" id="recDriveNote" hidden style="margin:0"></p>
+    <p class="fine" id="recFine">Saved only on this computer. Close this and the recording is discarded unless you download it or save it to Drive.</p>
+  </form>
+</dialog>
+
+<button type="button" class="audio-unblock glass raised" id="audioUnblock" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Your browser paused your guests’ sound. Click to hear them.</button>
+<div class="toasts" id="toasts" role="status" aria-live="polite" popover="manual"></div>
+<div class="media-sink" id="mediaSink" aria-hidden="true"></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

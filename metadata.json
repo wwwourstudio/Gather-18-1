@@ -1,0 +1,6 @@
+{
+  "name": "gather",
+  "description": "The conversation studio: multi-party WebRTC with a recordable stage",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

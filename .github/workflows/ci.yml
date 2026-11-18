@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Relay dependencies and FFmpeg (go-live test)
+        run: |
+          npm ci --prefix relay
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Syntax and typecheck
+        run: npm run check
+      - name: Browser suites (local server, in-memory store)
+        run: npm test
+      - name: Design-system contract
+        run: |
+          PORT=8080 ALLOW_ANON_STUDIOS=1 SIGNUP_LIMIT=200 node server.js &
+          npx --yes wait-on@8.0.1 http://localhost:8080/ui-kit.html
+          npm run ui-kit
+      - name: Camera effects in the app (green-screen detection)
+        run: npm run fx:live
+      - name: Keep screenshots and logs when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: |
+            tests/out
+            audit/screens/ui-kit
+          retention-days: 7
