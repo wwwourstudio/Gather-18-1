@@ -5,7 +5,7 @@ const SP = process.argv[2];
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
   const mk = async () => { const c = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); const p = await c.newPage(); p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/twitch|favicon|423|403/.test(m.text()) && p.errs.push(m.text())); return p; };
   const a = await mk(), b = await mk(), c = await mk();
-  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Alex Morgan');
+  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Morgan');
   await a.click('#grFx [data-fx="blur"]');
   console.log('0 green room quick background chip:', await a.evaluate(() => window.__gather.videoFx.effect));
   await a.screenshot({ path: SP + '/r5-greenroom.png' });

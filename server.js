@@ -6,6 +6,7 @@ const path = require('path');
 const { handle } = require('./lib/studio');
 const { handleAI } = require('./lib/ai');
 const accountHandler = require('./api/account');
+const { enforceUsGeo } = require('./lib/geo');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -17,6 +18,7 @@ function json(res, status, obj) {
 }
 
 http.createServer((req, res) => {
+  if (!enforceUsGeo(req, res)) return;
   const u = new URL(req.url, 'http://x');
   if (u.pathname === '/api/ai' && req.method === 'POST') {
     let raw = '';
@@ -32,7 +34,7 @@ http.createServer((req, res) => {
   }
   if (u.pathname === '/api/studio') {
     let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 640 * 1024) req.destroy(); }); // room for a 45 s voice question
+    req.on('data', (c) => { raw += c; if (raw.length > 4 * 1024 * 1024) req.destroy(); }); // room for studio file uploads + voice questions
     req.on('end', async () => {
       let body = {};
       try { body = raw ? JSON.parse(raw) : {}; } catch {}

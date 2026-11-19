@@ -43,7 +43,7 @@ const post = (api, action, body, token) => fetch(`${B}/api/${api}?action=${actio
     const ctx = await bh.newContext({ viewport: { width: 1440, height: 900 } });
     await ctx.addInitScript((t) => { if (!localStorage.getItem('gather:acctToken')) localStorage.setItem('gather:acctToken', JSON.stringify(t)); }, up.token);
     const a = await ctx.newPage(); a.on('pageerror', (e) => errs.push(e.message));
-    await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#enterGo');
+    await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.click('#enterGo');
     await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim(); await a.keyboard.press('Escape');
     await a.click('[data-tab="show"]');
     check('Show panel offers to claim a name', await wait(a, () => !document.querySelector('#wpHandle').disabled && /Claim/.test(document.querySelector('#wpHandleSave').textContent)));

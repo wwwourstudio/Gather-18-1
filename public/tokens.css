@@ -5,26 +5,27 @@
   color-scheme: dark;
 
   /* ---- colour ---- */
-  --bg: #080c16;               /* page and the stage well */
-  --bg-2: #0a1020;
-  --surface: #0f1524;          /* docked regions: header, panel, rail, dock */
-  --surface-2: #151c2e;        /* inputs, tiles, cards inside a region */
-  --surface-3: #1c2439;        /* hover / selected */
-  --ink: #e8edf6;
-  --ink-2: #aab5ca;
-  --ink-3: #8a97ae;            /* ≥ 5:1 on every surface */
-  --line: #1d2537;             /* solid hairlines */
-  --line-2: #2a3449;
-  --fill: rgba(255, 255, 255, 0.04);       /* resting control fill */
-  --fill-hover: rgba(255, 255, 255, 0.07);
-  --fill-active: rgba(255, 255, 255, 0.10);
-  --accent: #2f6bf0;           /* 4.7:1 with white text */
-  --accent-hover: #2a60d9;
-  --accent-text: #7fa8ff;      /* links and accent text on dark */
+  --bg: #060913;               /* deep midnight cosmic canvas */
+  --bg-2: #0a1024;
+  --surface: #0c1328;          /* docked regions: header, panel, rail, dock */
+  --surface-2: #121c3a;        /* inputs, tiles, cards inside a region */
+  --surface-3: #18264d;        /* hover / selected */
+  --ink: #eef3ff;
+  --ink-2: #b4c2dc;
+  --ink-3: #8c9cba;            /* >= 5:1 on every surface */
+  --line: #1b284a;             /* solid hairlines */
+  --line-2: #273866;
+  --fill: rgba(255, 255, 255, 0.045);      /* resting control fill */
+  --fill-hover: rgba(255, 255, 255, 0.08);
+  --fill-active: rgba(255, 255, 255, 0.12);
+  --accent: #3b82f6;           /* electric royal blue broadcast accent */
+  --accent-hover: #60a5fa;
+  --accent-text: #60a5fa;      /* high-contrast accent text on dark */
   --accent-ink: #ffffff;
-  --accent-soft: rgba(59, 130, 246, 0.16);
-  --accent-line: rgba(59, 130, 246, 0.45);
-  --cyan: #7fa8ff;             /* kept as an alias of --accent-text */
+  --accent-2: #8b5cf6;         /* cosmic violet secondary aurora/rim */
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 46%, transparent);
+  --cyan: var(--accent-text);  /* adaptive accent text alias */
   --live: #e11d48;             /* on air / recording / live */
   --live-soft: rgba(225, 29, 72, 0.18);
   --danger: #ff6b7a;
@@ -34,23 +35,22 @@
   --warn-bg: rgba(250, 204, 21, 0.08);
   --warn-line: rgba(250, 204, 21, 0.25);
   --warn-ink: #f6d978;
-  --focus: #7cc4ff;
-  --on-media: rgba(6, 10, 24, 0.62);       /* controls drawn over video */
-  --on-media-line: rgba(255, 255, 255, 0.16);
+  --focus: rgba(59, 130, 246, 0.72);
+  --on-media: rgba(6, 10, 24, 0.68);       /* controls drawn over video */
+  --on-media-line: rgba(255, 255, 255, 0.18);
 
   /* ---- glass ---- */
-  /* glass only where something moves underneath: controls over video and transient overlays */
-  --glass-bg: rgba(13, 19, 34, 0.62);         /* docked regions: frosted over the show's light */
-  --glass-bg-raised: rgba(17, 23, 38, 0.86);   /* popovers, modals, tooltips: legible over anything */
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --glass-blur: blur(28px) saturate(160%);
+  --glass-bg: rgba(10, 16, 36, 0.70);         /* frosted midnight blue glass */
+  --glass-bg-raised: rgba(13, 20, 44, 0.90);  /* popovers, modals, tooltips */
+  --glass-border: rgba(148, 175, 255, 0.14);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --glass-blur: blur(28px) saturate(165%);
   --glass-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.02'/%3E%3C/svg%3E");
 
   /* ---- elevation ---- */
   --shadow-glass: none;
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--line-2);
-  --shadow-lift: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 14px 36px rgba(2, 6, 20, 0.55), 0 0 0 1px var(--line-2);
+  --shadow-lift: 0 2px 8px rgba(0, 0, 0, 0.35);
   --ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
 
   /* ---- space: 4px grid ---- */
@@ -89,29 +89,34 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #eef2f8;
-  --bg-2: #e6ecf6;
+  --bg: #eef2f9;
+  --bg-2: #e4ebf6;
   --surface: #ffffff;
-  --surface-2: #f3f6fb;
+  --surface-2: #f4f7fc;
   --surface-3: #e8eef8;
-  --ink: #0c1630;
-  --ink-2: #3f4e70;
-  --ink-3: #5b6883;
-  --line: #dde3ee;
-  --line-2: #cbd4e3;
-  --accent-text: #1f56d6;
-  --fill: rgba(20, 40, 90, 0.05);
-  --fill-hover: rgba(20, 40, 90, 0.09);
-  --fill-active: rgba(20, 40, 90, 0.13);
-  --accent-hover: #2f72e0;
+  --ink: #0c1324;
+  --ink-2: #3b4861;
+  --ink-3: #5b677f;
+  --line: #d6e0ee;
+  --line-2: #c2d0e6;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #2563eb;
+  --accent-ink: #ffffff;
+  --accent-2: #7c3aed;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --fill: rgba(15, 23, 42, 0.05);
+  --fill-hover: rgba(15, 23, 42, 0.09);
+  --fill-active: rgba(15, 23, 42, 0.13);
   --danger: #dc3a4c;
   --danger-soft: rgba(220, 58, 76, 0.1);
   --ok: #15965f;
   --warn-bg: #fdf6e3; --warn-line: #ecd9a4; --warn-ink: #7a5a17;
-  --focus: #1d6fe0;
-  --glass-bg: rgba(255, 255, 255, 0.66);
-  --glass-bg-raised: rgba(255, 255, 255, 0.92);
-  --glass-border: rgba(20, 40, 90, 0.10);
+  --focus: rgba(37, 99, 235, 0.62);
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-raised: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(30, 64, 175, 0.12);
   --glass-highlight: none;
   --shadow-glass: none;
   --shadow-pop: 0 12px 32px rgba(30, 50, 100, 0.18), 0 0 0 1px var(--line-2);

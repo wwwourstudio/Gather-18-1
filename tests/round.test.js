@@ -5,7 +5,7 @@ const SP = process.argv[2];
   const mk = async () => { const c = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); const p = await c.newPage(); p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('console', m => m.type() === 'error' && !/twitch/.test(m.text()) && p.errs.push(m.text())); return p; };
   const a = await mk(), b = await mk();
   // host: profile photo in the green room
-  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Alex Morgan');
+  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Morgan');
   await a.setInputFiles('#avatarFile', SP + '/logo.png');
   await a.waitForFunction(() => !document.getElementById('avatarImg').hidden);
   await a.screenshot({ path: SP + '/r-greenroom.png' });

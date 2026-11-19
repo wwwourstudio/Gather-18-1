@@ -8,6 +8,8 @@ const SP = process.argv[2];
   await a.waitForTimeout(800);
   await a.screenshot({ path: SP + '/01-offline.png' });
   await a.click('#enterStage');
+  await a.click('#wGo');
+  await a.waitForSelector('#enterDlg[open]');
   await a.fill('#enterName', 'Alex Morgan');
   await a.waitForTimeout(1200);
   await a.screenshot({ path: SP + '/02-greenroom.png' });

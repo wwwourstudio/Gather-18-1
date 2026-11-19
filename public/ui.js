@@ -64,8 +64,8 @@ function showTip(el) {
   if (el.dataset.key) { const k = document.createElement('kbd'); k.textContent = el.dataset.key; t.append(k); }
   t.classList.add('show');
   const a = el.getBoundingClientRect(), r = t.getBoundingClientRect();
-  let top = a.top - r.height - 8;
-  if (top < 8) top = a.bottom + 8;
+  let top = el.dataset.tipSide === 'bottom' ? a.bottom + 8 : a.top - r.height - 8;
+  if (top < 8 || top + r.height > innerHeight - 8) top = el.dataset.tipSide === 'bottom' && a.top - r.height - 8 >= 8 ? a.top - r.height - 8 : a.bottom + 8;
   t.style.top = `${Math.round(top)}px`;
   t.style.left = `${Math.round(Math.min(Math.max(8, a.left + a.width / 2 - r.width / 2), innerWidth - r.width - 8))}px`;
   el.setAttribute('aria-describedby', t.id);
@@ -87,7 +87,10 @@ document.addEventListener('pointerover', (e) => {
   const el = target(e);
   if (el === tipFor) return;
   hideTip();
-  if (el) tipTimer = setTimeout(() => showTip(el), 450);
+  if (el) {
+    const delay = el.dataset.tipDelay != null ? Math.max(0, Number(el.dataset.tipDelay) || 0) : 450;
+    tipTimer = setTimeout(() => showTip(el), delay);
+  }
 });
 document.addEventListener('pointerout', (e) => { if (tipFor && !tipFor.contains(e.relatedTarget)) hideTip(); else if (!tipFor) clearTimeout(tipTimer); });
 document.addEventListener('focusin', (e) => { const el = target(e); hideTip(); if (el && el.matches(':focus-visible')) showTip(el); });

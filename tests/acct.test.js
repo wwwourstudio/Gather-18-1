@@ -21,7 +21,7 @@ const wait = (port) => new Promise((res, rej) => { const until = Date.now() + 10
 
 google.listen(0, async () => {
   const port = 8096;
-  const env = { ...process.env, PORT: String(port), GOOGLE_CLIENT_ID: CID, GOOGLE_TOKENINFO_URL: `http://127.0.0.1:${google.address().port}/tokeninfo`, GOOGLE_USERINFO_URL: `http://127.0.0.1:${google.address().port}/userinfo` };
+  const env = { ...process.env, PORT: String(port), NO_STORE_PERSIST: '1', GOOGLE_CLIENT_ID: CID, GOOGLE_TOKENINFO_URL: `http://127.0.0.1:${google.address().port}/tokeninfo`, GOOGLE_USERINFO_URL: `http://127.0.0.1:${google.address().port}/userinfo` };
   for (const k of ['REDIS_URL', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'ALLOW_ANON_STUDIOS']) delete env[k];
   const srv = spawn(process.execPath, ['server.js'], { cwd: path.resolve(__dirname, '..'), env, stdio: 'ignore' });
   let ok = true;

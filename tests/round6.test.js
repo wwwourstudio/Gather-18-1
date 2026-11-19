@@ -5,7 +5,7 @@ const SP = process.argv[2];
   const mk = async () => { const c = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); const p = await c.newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message)); return p; };
   const a = await mk(), b = await mk();
   const G = (p, fn, arg) => p.evaluate(fn, arg);
-  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Host'); await a.click('#enterGo');
+  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Host'); await a.click('#enterGo');
   await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.keyboard.press('Escape');
   await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Guest'); await b.click('#enterGo');
   await b.waitForFunction(() => !!window.__gather.studio, null, { timeout: 12000 });

@@ -9,25 +9,26 @@
 <script>document.documentElement.classList.add('booting');</script>
 <style id="bootCss">
 /* Page loader: draws the gather mark until the initial feed resolves. */
-.boot { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-content: center; justify-items: center; gap: 18px; pointer-events: none; background: #070c1a; transition: opacity .5s cubic-bezier(.2,.8,.2,1), visibility 0s .5s, -webkit-backdrop-filter .5s, backdrop-filter .5s; }
+.boot { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-content: center; justify-items: center; gap: 18px; pointer-events: none; background: #060913; transition: opacity .5s cubic-bezier(.2,.8,.2,1), visibility 0s .5s, -webkit-backdrop-filter .5s, backdrop-filter .5s; }
 :root[data-theme="light"] .boot { background: #f4f6fb; }
 .boot::before, .boot::after { content: ""; position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(70px); opacity: .55; }
-.boot::before { left: 50%; top: 50%; margin: -30vmax 0 0 -38vmax; background: radial-gradient(closest-side, rgba(37,99,235,.55), transparent); animation: boot-drift 5s ease-in-out infinite alternate; }
-.boot::after { left: 50%; top: 50%; margin: -14vmax 0 0 -6vmax; background: radial-gradient(closest-side, rgba(139,92,246,.45), transparent); animation: boot-drift 6s ease-in-out -2s infinite alternate-reverse; }
+.boot::before { left: 50%; top: 50%; margin: -30vmax 0 0 -38vmax; background: radial-gradient(closest-side, rgba(59,130,246,.34), transparent); animation: boot-drift 5s ease-in-out infinite alternate; }
+.boot::after { left: 50%; top: 50%; margin: -14vmax 0 0 -6vmax; background: radial-gradient(closest-side, rgba(139,92,246,.30), transparent); animation: boot-drift 6s ease-in-out -2s infinite alternate-reverse; }
 .boot-logo { position: relative; z-index: 1; width: 76px; height: 76px; display: grid; place-items: center; }
-.boot-logo::before { content: ""; position: absolute; inset: -18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(59,130,246,.45), transparent); animation: boot-breathe 1.8s ease-in-out infinite; }
-.boot-mark { position: relative; width: 76px; height: 76px; overflow: visible; filter: drop-shadow(0 6px 22px rgba(37,99,235,.45)); }
+.boot-logo::before { content: ""; position: absolute; inset: -18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(59,130,246,.34), transparent); animation: boot-breathe 1.8s ease-in-out infinite; }
+.boot-mark { position: relative; width: 76px; height: 76px; overflow: visible; filter: drop-shadow(0 6px 22px rgba(59,130,246,.35)); }
 .boot-mark .t, .boot-mark .l { stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: boot-draw .9s cubic-bezier(.65,0,.35,1) forwards; }
 .boot-mark .l0 { animation-delay: .25s; } .boot-mark .l1 { animation-delay: .38s; } .boot-mark .l2 { animation-delay: .51s; }
 .boot-mark.run { position: absolute; inset: 0; filter: none; mix-blend-mode: screen; }
-.boot-mark.run g { stroke: #dbeafe; stroke-width: 3.2; }
+.boot-mark.run g { stroke: #93c5fd; stroke-width: 3.2; }
 .boot-mark.run .t, .boot-mark.run .l { stroke-dasharray: .16 .84; stroke-dashoffset: 1; opacity: 0; animation: boot-run 1.5s linear 1.1s infinite, boot-in .3s 1.1s forwards; }
 .boot-mark.run .l { stroke-dasharray: .3 .7; animation-duration: 1.2s; }
 .boot-word { position: relative; z-index: 1; font: 800 22px/1 "Plus Jakarta Sans", system-ui, sans-serif; letter-spacing: -.05em; color: #e8edf8; opacity: 0; transform: translateY(6px); animation: boot-up .5s cubic-bezier(.2,.8,.2,1) .55s forwards; }
 :root[data-theme="light"] .boot-word { color: #0b1020; }
 .boot-word i { font-style: normal; color: #3b82f6; }
+:root[data-theme="light"] .boot-word i { color: #2563eb; }
 .boot-bar { position: relative; z-index: 1; width: 120px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(148,163,184,.16); opacity: 0; animation: boot-in .4s .7s forwards; }
-.boot-bar i { position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #3b82f6, #a78bfa, transparent); animation: boot-slide 1.1s cubic-bezier(.65,0,.35,1) infinite; }
+.boot-bar i { position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #38bdf8, #3b82f6, #8b5cf6, transparent); animation: boot-slide 1.1s cubic-bezier(.65,0,.35,1) infinite; }
 .boot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .boot.out { opacity: 0; visibility: hidden; }
 .boot.out .boot-logo { transform: scale(1.12); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
@@ -47,14 +48,14 @@
 <link rel="icon" href="/icon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;600;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="/tokens.css">
 <link rel="stylesheet" href="/ui.css">
 <link rel="stylesheet" href="/watch.css">
 </head>
 <body>
 <div class="boot" id="boot" role="status" aria-live="polite">
-  <div class="boot-logo"><svg class="brand-mark boot-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b9bff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg><svg class="brand-mark boot-mark run" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-run-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b9bff"/><stop offset=".55" stop-color="#2563eb"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-run-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg></div>
+  <div class="boot-logo"><svg class="brand-mark boot-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg><svg class="brand-mark boot-mark run" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-run-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-run-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg></div>
   <span class="boot-word">gather<i>.</i></span>
   <span class="boot-bar"><i></i></span>
   <span class="boot-sr">Loading gather</span>
@@ -75,32 +76,33 @@
   })();
 </script>
 
-<!-- Locked 100dvh obsidian broadcast viewport: zero vertical page scroll above the fold. -->
+<!-- Locked 100dvh broadcast console viewport: percentage-sized stage + tabbed console rail. -->
 <div class="wv sk-wait" id="wv">
-  <!-- Blurred live video bleed behind frosted obsidian panels -->
+  <!-- Ambient video bleed + Studio aurora atmosphere behind frosted midnight panels -->
   <div class="wv-ambient" aria-hidden="true"><video id="wAmbientVid" muted playsinline autoplay disablepictureinpicture></video></div>
+  <div class="backdrop wv-backdrop" aria-hidden="true"><i class="aur a1"></i><i class="aur a2"></i><i class="aur a3"></i><i class="aur-grid"></i></div>
 
-  <!-- Compact 52px Broadcast Header with Stream Stats HUD & Host Drawer Toggle -->
-  <header class="wv-top">
+  <!-- Compact Broadcast Console Header -->
+  <header class="wv-top glass">
     <a class="wv-logo" href="/" aria-label="gather home">gather<i>.</i></a>
     <div class="wv-title">
       <h1 id="wTitle">Loading…</h1>
       <span class="wv-live-tag" id="wLive" hidden><i class="dot" aria-hidden="true"></i><span id="wLiveText">Live</span></span>
-      <span class="wv-sep" aria-hidden="true">·</span>
+      <span class="wv-sep" aria-hidden="true">/</span>
       <span class="wv-meta num" id="wViewers" hidden></span>
     </div>
 
-    <!-- Stream Stats HUD (Bitrate · Resolution/FPS · Latency · Uptime) -->
+    <!-- Stream Telemetry HUD -->
     <div class="wv-hud-wrap" id="wHudWrap" hidden>
       <button class="wv-hud" id="wStatsHud" type="button" aria-expanded="false" aria-controls="wStatsPop" title="Stream telemetry &amp; network health">
         <span class="wv-hud-dot" aria-hidden="true"></span>
-        <span class="wv-hud-txt num" id="wHudSummary">Direct · 0.0 s</span>
+        <span class="wv-hud-txt num" id="wHudSummary">Standby</span>
         <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-activity"/></svg>
       </button>
-      <div class="wv-hud-pop" id="wStatsPop" hidden role="region" aria-label="Stream stats">
+      <div class="wv-hud-pop glass raised" id="wStatsPop" hidden role="region" aria-label="Stream telemetry">
         <div class="wv-hud-head">
-          <b>Stream Stats HUD</b>
-          <span class="wv-hud-mode" id="wHudMode">Direct WebRTC</span>
+          <b>Stream Telemetry</b>
+          <span class="wv-hud-mode num" id="wHudMode">Direct WebRTC</span>
         </div>
         <dl class="wv-hud-grid num">
           <div><dt>Bitrate</dt><dd id="wStatBitrate">—</dd></div>
@@ -120,35 +122,69 @@
         <span class="wv-info-name" id="wInfoName">Host</span>
         <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-info"/></svg>
       </button>
+      <button type="button" class="icon-btn sm wv-theater-btn" id="wTheaterBtn" aria-pressed="false" aria-label="Theater mode (T)" data-tip="Theater mode (T)"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-monitor"/></svg></button>
       <a class="wv-own" href="/" target="_blank" rel="noopener">Start show</a>
       <button class="icon-btn sm wv-share-top" id="wShareTop" type="button" aria-label="Share this show" data-tip="Share"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg></button>
     </div>
   </header>
 
-  <!-- Main Workspace: Responsive Video Stage + Tabbed Interactive Rail -->
+  <!-- Thin Stream Options Strip directly under Header -->
+  <nav class="wv-opts glass" id="wOptsBar" aria-label="Stream options">
+    <div class="wv-opts-l">
+      <span class="wv-type-badge" id="wWatchBadge"><svg class="i sm" aria-hidden="true"><use id="wWatchBadgeIcon" href="/icons.svg#i-radio"/></svg><span id="wWatchBadgeTxt">Live Stream</span></span>
+      <div class="wv-sources" id="wTabs" role="tablist" aria-label="Watch on" hidden></div>
+    </div>
+    <div class="wv-opts-r">
+      <div class="wv-goal" id="wGoal" hidden>
+        <span class="wv-goal-l" id="wGoalLabel">Goal</span>
+        <i><b id="wGoalBar"></b></i>
+        <span class="wv-goal-n num" id="wGoalN"></span>
+      </div>
+      <button class="wv-opt-btn num" id="wQual" type="button" aria-label="Stream quality" data-tip="Switch video quality">Quality · Auto</button>
+    </div>
+  </nav>
+
+  <!-- Main Workspace: High Frameless Stage + Below Bento Hub + Full-Height Chat Console Rail -->
   <main class="wv-main">
-    <section class="wv-stagecol" aria-label="Video stage">
+    <section class="wv-stagecol" aria-label="Video stage and creator hub">
       <button class="wv-chat-reopen" id="wChatReopen" type="button" aria-label="Show chat (C)" data-tip="Show chat (C)"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><span>Chat</span><b class="wv-unread" id="wUnread" hidden></b></button>
 
-      <!-- Aspect-constrained Obsidian Theater Player -->
+      <!-- Frameless Broadcast Stage -->
       <div class="wv-stagebox" id="wStageBox">
         <div class="wv-player" id="wPlayerWrap" tabindex="-1">
           <div class="wv-video" id="wPlayer" hidden></div>
+
+          <!-- Calibrated Broadcast Standby / Pre-Show Monitor Slate -->
           <div class="wv-empty" id="wEmpty">
-            <div class="wv-orb" aria-hidden="true"><i></i><i></i></div>
-            <b id="wEmptyH">Checking the show…</b>
-            <span id="wEmptyP"></span>
-            <div class="wv-empty-acts" id="wEmptyActs" hidden>
-              <button type="button" class="btn sm" id="wEmptyShare"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg>Share this page</button>
-              <a class="btn sm primary" href="/" target="_blank" rel="noopener">Start your own show</a>
+            <div class="wv-reticles" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div class="wv-slate-card">
+              <div class="wv-slate-id">
+                <div class="wv-orb" aria-hidden="true"><i></i><i></i></div>
+                <span class="wv-slate-av" id="wEmptyAv" aria-hidden="true"></span>
+                <span class="wv-slate-host" id="wEmptyHost">Broadcast Feed</span>
+              </div>
+              <b id="wEmptyH">Checking the show…</b>
+              <span class="wv-slate-desc" id="wEmptyP"></span>
+              <div class="wv-empty-acts" id="wEmptyActs" hidden>
+                <button type="button" class="btn sm" id="wEmptyShare"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg>Share show</button>
+                <a class="btn sm primary" href="/" target="_blank" rel="noopener">Start your own show</a>
+              </div>
+            </div>
+            <div class="wv-slate-keys num" aria-hidden="true">
+              <span><kbd>M</kbd> Mute</span>
+              <span><kbd>T</kbd> Theater</span>
+              <span><kbd>F</kbd> Fullscreen</span>
+              <span><kbd>C</kbd> Rail</span>
+              <span><kbd>?</kbd> Keys</span>
             </div>
           </div>
+
           <button class="wv-unmute" id="wUnmute" type="button" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg><span class="long">Tap to turn on sound</span><span class="short">Tap for sound</span></button>
           <div class="wv-floats" id="wFloats" aria-hidden="true"></div>
           <div class="wv-combo" id="wCombo" aria-hidden="true" hidden></div>
           <div class="wv-caps" id="wCaps" aria-live="polite" hidden></div>
 
-          <!-- Overlay Controls -->
+          <!-- Overlay Hover/Touch Controls (Clip lives strictly here) -->
           <div class="wv-ctrls" id="wCtrls">
             <button class="wv-c" id="wMute" type="button" aria-label="Mute (M)" data-tip="Mute (M)"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg></button>
             <input class="wv-vol" id="wVol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume">
@@ -157,7 +193,6 @@
             <span class="wv-heartwrap"><button class="wv-c wv-heart" id="wHeart" type="button" aria-label="Send a heart (hold for more reactions)" data-tip="React (H)"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-heart"/></svg></button><span class="wv-reactpick" id="wReactPick" hidden role="group" aria-label="Reactions"></span></span>
             <button class="wv-c" id="wClip" type="button" hidden aria-label="Open 30s Clip Studio" data-tip="Clip last 30s"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg></button>
             <button class="wv-c wv-txt" id="wCC" type="button" aria-pressed="false" aria-label="Captions" data-tip="Captions">CC</button>
-            <button class="wv-c wv-txt" id="wQual" type="button" aria-label="Quality" data-tip="Quality">Auto</button>
             <button class="wv-c wv-txt" id="wFill" type="button" aria-pressed="false" aria-label="Fill the screen" data-tip="Fill frame">Fill</button>
             <button class="wv-c" id="wPip" type="button" aria-label="Picture in picture" data-tip="Picture in picture"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-pip"/></svg></button>
             <button class="wv-c" id="wChatToggle" type="button" aria-label="Hide chat (C)" data-tip="Hide chat (C)" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg></button>
@@ -166,37 +201,88 @@
         </div>
       </div>
 
-      <!-- Integrated Bottom Stage Command Bar: One-Tap Reaction Dock + Live Hype Pulse + Goal + Clip + Super Chat -->
-      <div class="wv-strip" id="wStrip">
-        <div class="wv-reactdock" id="wReactDock" role="group" aria-label="One-tap reactions"></div>
-        <div class="wv-hype" id="wHype" title="Live hype pulse synced with reactions &amp; chat velocity">
-          <span class="wv-hype-ic" aria-hidden="true">🔥</span>
-          <i><b id="wHypeBar"></b></i>
-          <em class="num" id="wHypeLvl">Chill</em>
-        </div>
-        <div class="wv-goal" id="wGoal" hidden>
-          <span class="wv-goal-l" id="wGoalLabel">Goal</span>
-          <i><b id="wGoalBar"></b></i>
-          <span class="wv-goal-n num" id="wGoalN"></span>
-        </div>
-        <div class="wv-sources" id="wTabs" role="tablist" aria-label="Watch on" hidden></div>
-        <span class="wv-sp"></span>
-        <button class="btn sm wv-clipbtn" id="wClipStrip" type="button" hidden title="Open Instant 30s Clip Studio">
-          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg><span>30s Clip</span>
-        </button>
-        <button class="btn sm wv-supers" id="wSuperStrip" type="button" hidden>
-          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-tip"/></svg><span>Super chat</span>
-        </button>
+      <!-- Watch Party Lower Bento Hub: 1/3 Streamer Profile + 2/3 Showcase & AI Notices -->
+      <div class="wv-below" id="wBelowHub">
+        <!-- 1/3 Creator Profile & Subscribe Card -->
+        <article class="wv-creator-card glass" id="wCreatorCard" aria-label="Streamer profile">
+          <div class="wv-creator-top">
+            <span class="wv-creator-logo" id="wCreatorLogo" aria-hidden="true"></span>
+            <div class="wv-creator-id">
+              <div class="wv-creator-row">
+                <b id="wCreatorName">Broadcast Host</b>
+                <span class="wv-creator-type" id="wCreatorType">Live</span>
+              </div>
+              <span class="wv-creator-handle num" id="wCreatorHandle"></span>
+            </div>
+          </div>
+          <h2 class="wv-creator-title" id="wCreatorTitle">Live show</h2>
+          <div class="wv-creator-tags" id="wCreatorTags" hidden></div>
+          <p class="wv-creator-about" id="wCreatorAbout"></p>
+          <div class="wv-creator-foot">
+            <button type="button" class="btn primary sm wv-subscribe-card" id="wSubCard" hidden>
+              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg>
+              <span id="wSubCardText">Subscribe</span>
+            </button>
+            <span class="wv-creator-subs num" id="wCreatorSubs"></span>
+            <button type="button" class="btn sm ghost wv-creator-more" id="wCardMoreBtn">Details</button>
+          </div>
+        </article>
+
+        <!-- 2/3 Interactive Showcase, Notices & Ads, What's Next & AI Spotlight -->
+        <section class="wv-showcase-card glass" id="wShowcaseCard" aria-label="Stream notices and showcase">
+          <header class="wv-sc-head">
+            <div class="wv-sc-tabs" role="tablist" aria-label="Showcase views">
+              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="notices" aria-selected="true">
+                <span>Notices &amp; Ads</span>
+                <b class="wv-sc-cnt num" id="wCntNotices" hidden>0</b>
+              </button>
+              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="next" aria-selected="false">
+                <span>What’s Next</span>
+                <b class="wv-sc-cnt num" id="wCntNext" hidden>Soon</b>
+              </button>
+              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="spotlight" aria-selected="false">
+                <span>AI Spotlight</span>
+                <b class="wv-sc-cnt" id="wCntSpot" hidden>AI</b>
+              </button>
+            </div>
+          </header>
+
+          <div class="wv-sc-body">
+            <div class="wv-sc-pane" id="wPaneNotices" role="tabpanel">
+              <div class="wv-notices-list" id="wNoticesList"></div>
+            </div>
+            <div class="wv-sc-pane" id="wPaneNext" role="tabpanel" hidden>
+              <div class="wv-next-box" id="wNextBox"></div>
+            </div>
+            <div class="wv-sc-pane" id="wPaneSpotlight" role="tabpanel" hidden>
+              <div class="wv-spot-box" id="wSpotlightBox"></div>
+            </div>
+          </div>
+        </section>
       </div>
+
+      <footer class="wv-tx-foot" aria-label="Made in Texas, United States only">
+        <span class="wv-tx-badge">
+          <svg class="tx-emblem" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+            <path d="M12.2 3.2h4.2v4.1l3.7 1.3 4.6-.4 1.2 4.3-2.3 3.7-2.6 4.7-.7 3.7-3.4-1.5-4.1-4.8-3.8-.5-3.2-3.4-2.8-1.4.4-2.7 3.4.3V3.2h5.4Z" fill="var(--accent)" fill-opacity="0.24" stroke="var(--accent-text)" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M14.2 10.1l.8 2.2h2.3l-1.8 1.3.7 2.2-2-1.4-2 1.4.7-2.2-1.8-1.3h2.3z" fill="#f59e0b"/>
+          </svg>
+          <span>Made in Texas · Broadcasts limited to the United States</span>
+        </span>
+        <span class="wv-tx-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></span>
+      </footer>
     </section>
 
-    <!-- Right Interactive Broadcast Rail: [ Chat | Stage | Shop ] -->
-    <aside class="wv-chat" id="wChat" aria-label="Live interaction rail">
+    <!-- Right Interactive Console Rail: [ Chat | Stage | Pulse | Shop ] -->
+    <aside class="wv-chat" id="wChat" aria-label="Live interaction console">
       <header class="wv-chat-head">
         <div class="wv-tabs" role="tablist" aria-label="Sidebar views">
-          <button type="button" role="tab" id="wTabChat" aria-selected="true">Live chat</button>
+          <button type="button" role="tab" id="wTabChat" aria-selected="true">Chat</button>
           <button type="button" role="tab" id="wTabStage" aria-selected="false">
             <span>Stage</span><b class="wv-tab-badge num" id="wStageBadge" hidden>0</b>
+          </button>
+          <button type="button" role="tab" id="wTabPulse" aria-selected="false">
+            <span>Pulse</span><em class="wv-tab-num num" id="wPulseTabPct">50%</em>
           </button>
           <button type="button" role="tab" id="wTabShop" aria-selected="false" hidden>Shop</button>
           <button type="button" role="tab" id="wTabAbout" aria-selected="false" hidden>About</button>
@@ -205,28 +291,31 @@
         <button class="icon-btn sm wv-collapse" id="wChatCollapse" type="button" aria-label="Collapse chat (C)" data-tip="Collapse chat (C)"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
       </header>
 
-      <!-- Live Chat Mood Meter synced with viewer messages & reactions -->
-      <div class="wv-mood" id="wMoodBox" data-mood="idle" aria-live="polite">
-        <div class="wv-mood-row">
-          <span class="wv-mood-lbl"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-activity"/></svg><b id="wMoodLabel">Room Calm</b></span>
-          <span class="wv-mood-pct num" id="wMoodPct">50%</span>
-        </div>
-        <div class="wv-mood-track" role="meter" id="wMoodMeter" aria-label="Live room mood" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-          <i id="wMoodBar" style="width:50%"></i>
-        </div>
-        <div class="wv-mood-meta num" id="wMoodMeta">Synced with chat &amp; reactions</div>
-      </div>
+      <!-- Single Inline Console Strip in Chat (replaces stacked mood/pin/here/tops bars) -->
+      <div class="wv-rail-strip" id="wRailStrip">
+        <button type="button" class="wv-mood-mini" id="wMoodMiniBtn" data-mood="idle" data-tip="Crowd sentiment: Calm (50%) — tracks live chat positivity &amp; reactions. Click for Pulse." data-tip-delay="100" data-tip-side="bottom">
+          <svg class="i sm wv-mood-ic" aria-hidden="true"><use id="wMoodMiniIconUse" href="/icons.svg#i-activity"/></svg>
+          <span class="wv-mood-mini-lbl" id="wMoodMiniLbl">Calm</span>
+          <span class="wv-mood-mini-bar"><i id="wMoodMiniBar" style="width:50%"></i></span>
+          <span class="wv-mood-mini-pct num" id="wMoodMiniPct">50%</span>
+        </button>
 
-      <!-- Compact Stage Alert Strip when an interactive drop activates while on Chat -->
-      <div class="wv-stage-alert" id="wStageAlert" hidden>
-        <span class="wv-stage-alert-txt" id="wStageAlertTxt">Live interactive stage activity</span>
-        <button type="button" class="btn sm primary" id="wStageAlertGo">Open Stage</button>
-        <button type="button" class="icon-btn sm" id="wStageAlertX" aria-label="Dismiss alert"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
-      </div>
+        <button type="button" class="wv-pin-mini" id="wPinMiniBtn" hidden title="View full pinned message in Pulse">
+          <span class="wv-pin-mini-ic" aria-hidden="true">📌</span>
+          <span class="wv-pin-mini-txt" id="wPinMiniTxt"></span>
+        </button>
 
-      <div class="wv-here" id="wHere" hidden aria-label="Who’s here"><span class="wv-here-avs" id="wHereAvs"></span><span class="wv-here-n num" id="wHereN"></span></div>
-      <div class="wv-pin" id="wPin" hidden><span class="wv-pin-ic" aria-hidden="true">📌</span><div><b id="wPinBy">Pinned</b><p id="wPinText"></p></div></div>
-      <div class="wv-tops" id="wTops" hidden aria-label="Top supporters"></div>
+        <button type="button" class="wv-here-mini" id="wHereMiniBtn" hidden title="View room roster &amp; supporters in Pulse">
+          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-users"/></svg>
+          <span class="num" id="wHereMiniN"></span>
+        </button>
+
+        <div class="wv-stage-alert" id="wStageAlert" hidden>
+          <span class="wv-stage-alert-txt" id="wStageAlertTxt">Live stage activity</span>
+          <button type="button" class="btn sm primary" id="wStageAlertGo">Stage</button>
+          <button type="button" class="icon-btn sm" id="wStageAlertX" aria-label="Dismiss alert"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+        </div>
+      </div>
 
       <ol class="wv-msgs" id="wMsgs" aria-live="polite">
         <li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:38%"></span><span class="sk sk-line sm" style="--w:82%"></span></li>
@@ -236,6 +325,38 @@
         <li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:36%"></span><span class="sk sk-line sm" style="--w:74%"></span></li>
       </ol>
       <button class="wv-newer" id="wNewer" type="button" hidden>New messages ↓</button>
+
+      <!-- Consolidated Pulse Tab: Full Live Mood Meter, Pinned Note, Who's Here & Top Supporters -->
+      <section class="wv-pulsepanel" id="wPulsePanel" hidden aria-label="Room pulse and telemetry">
+        <div class="wv-mood" id="wMoodBox" data-mood="idle" aria-live="polite">
+          <div class="wv-mood-row">
+            <span class="wv-mood-lbl"><svg class="i sm" aria-hidden="true"><use id="wMoodBoxIconUse" href="/icons.svg#i-activity"/></svg><b id="wMoodLabel">Room Calm</b></span>
+            <span class="wv-mood-pct num" id="wMoodPct">50%</span>
+          </div>
+          <div class="wv-mood-track" role="meter" id="wMoodMeter" aria-label="Live room mood" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+            <i id="wMoodBar" style="width:50%"></i>
+          </div>
+          <div class="wv-mood-meta num" id="wMoodMeta">Synced with live chat &amp; reactions</div>
+        </div>
+
+        <div class="wv-pin" id="wPin" hidden>
+          <span class="wv-pin-ic" aria-hidden="true">📌</span>
+          <div><b id="wPinBy">Pinned</b><p id="wPinText"></p></div>
+        </div>
+
+        <div class="wv-here" id="wHere" hidden aria-label="Who’s here">
+          <div class="wv-pulse-h"><span class="caps">In the room</span><span class="wv-here-n num" id="wHereN"></span></div>
+          <span class="wv-here-avs" id="wHereAvs"></span>
+        </div>
+
+        <div class="wv-tops-wrap" id="wTopsWrap" hidden>
+          <span class="caps">Top supporters</span>
+          <div class="wv-tops" id="wTops" hidden aria-label="Top supporters"></div>
+        </div>
+        <div class="wv-pulse-empty" id="wPulseEmpty">
+          <span>Pinned notes, live room roster, and top supporters appear here as viewers join and interact.</span>
+        </div>
+      </section>
 
       <!-- Consolidated Interactive Stage Tab Panel: Polls, Pinned Product Drops, Play-with-me Queue -->
       <section class="wv-stagepanel" id="wStagePanel" hidden aria-label="Interactive stage">
@@ -263,6 +384,14 @@
       </section>
 
       <form class="wv-compose" id="wCompose" autocomplete="off">
+        <div class="wv-compose-party" id="wComposeParty">
+          <div class="wv-reactdock" id="wReactDock" role="group" aria-label="One-tap reactions"></div>
+          <div class="wv-hype" id="wHype" title="Live hype pulse synced with reactions &amp; chat velocity">
+            <span class="wv-hype-ic" aria-hidden="true">🔥</span>
+            <i><b id="wHypeBar"></b></i>
+            <em class="num" id="wHypeLvl">Chill</em>
+          </div>
+        </div>
         <div class="wv-composer">
           <div class="wv-replyto" id="wReplyTo" hidden><span><svg class="i" aria-hidden="true"><use href="/icons.svg#i-reply"/></svg>Replying to <b id="wReplyName"></b></span><button type="button" class="icon-btn sm" id="wReplyX" aria-label="Cancel reply"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></div>
           <div class="wv-inputwrap">

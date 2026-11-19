@@ -40,7 +40,7 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
   const toGather = [];
   a.on('request', (r) => { if (r.url().includes(`:${GATHER}/api/`)) toGather.push(r.postData() || ''); });
   const B = `http://127.0.0.1:${GATHER}`;
-  await a.goto(B + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Host'); await a.click('#enterGo');
+  await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Host'); await a.click('#enterGo');
   await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.keyboard.press('Escape');
   await b.goto(B + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Guest'); await b.click('#enterGo');
   await b.waitForFunction(() => !!window.__gather.studio, null, { timeout: 12000 });

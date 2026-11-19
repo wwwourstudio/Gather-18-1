@@ -18,7 +18,7 @@ const fakeSR = () => {
   await a.click('#acctDlg .modal-close');
   // settings live inside a studio: change them there (same browser, same account), then leave
   const a0 = await a.context().newPage();
-  await a0.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a0.click('#enterStage'); await a0.fill('#enterName', 'Alex Morgan'); await a0.click('#enterGo');
+  await a0.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a0.click('#enterStage'); await a0.click('#wGo'); await a0.waitForSelector('#enterDlg[open]'); await a0.fill('#enterName', 'Alex Morgan'); await a0.click('#enterGo');
   await a0.waitForSelector('#inviteDlg[open]'); await a0.keyboard.press('Escape');
   await a0.click('[data-tab="look"]'); await a0.click('.look-seg:visible [data-look="brand"]'); await a0.selectOption('#fontSel', 'playfair'); await a0.click('#bannerStyleSeg [data-bs="glass"]');
   await a0.click('#settingsTop'); await a0.check('#aiNoiseChk').catch(() => {}); await a0.keyboard.press('Escape');
@@ -30,13 +30,13 @@ const fakeSR = () => {
   console.log('  settings followed to a second browser:', await a2.evaluate(() => JSON.stringify({ font: window.__gather.state.brand.font, banner: window.__gather.state.brand.bannerStyle, aiNoise: window.__gather.audioFx.ai })));
   await a2.close();
   // 2 wizard: schedule (email not configured locally -> clear note), thumbnail designed
-  await a.click('#heroSchedule'); await a.click('[data-wmode="later"]');
+  await a.click('#heroSchedule'); await a.click('#wModeSeg [data-wmode="later"]');
   await a.fill('#wTitle', 'Episode 12: Building in public'); await a.fill('#wInvites', 'jordan@example.com, sam@example.com');
-  await a.click('#wNext'); await a.waitForSelector('[data-step="3"]:not([hidden])');
+  await a.waitForSelector('#wThumb');
   const ink = await a.evaluate(() => { const c = document.getElementById('wThumb'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4000) if (d[i] + d[i + 1] + d[i + 2] > 600) n++; return n; });
   console.log('2 thumbnail drawn (bright pixels sampled):', ink > 10);
   await a.locator('#wThumb').screenshot({ path: SP + '/r4-thumb.png' });
-  await a.click('#wNext'); await a.click('#wDest input[value="youtube"]'); await a.click('#wGo');
+  await a.click('#wizSocialMatrix input[aria-label="Connect YouTube"]'); await a.click('#wGo');
   await a.waitForSelector('#wDone:not([hidden])', { timeout: 8000 });
   console.log('  scheduled:', await a.textContent('#wDoneWhen'), '|', await a.textContent('#wDoneMail'));
   await a.click('#wDoneClose');

@@ -14,7 +14,7 @@ let pages = []; // for the timing dump on failure
   const mk = async (br = browser) => { const c = await br.newContext({ viewport: { width: 1600, height: 1000 } }); await c.addInitScript(NET); const p = await c.newPage(); p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('console', m => m.type() === 'error' && p.errs.push(m.text())); return p; };
   const a = await mk(), b = await mk(browserB);
   pages = [['host', a], ['guest', b]];
-  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Alex Morgan'); await a.click('#enterGo');
+  await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Morgan'); await a.click('#enterGo');
   await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.click('#inviteDlg .modal-close');
   await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]');
   // Picking a background in the green room must not turn an invited guest's "Join studio" into "Create studio".

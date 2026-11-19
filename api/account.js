@@ -1,6 +1,7 @@
 // Vercel serverless entry: POST /api/account?action=…  (accounts + scheduled streams)
 const { handleAccount, authUser, mailOrigin } = require('../lib/accounts');
 const { streamActions, STREAM_PUBLIC } = require('../lib/streams');
+const { enforceUsGeo } = require('../lib/geo');
 
 function originOf(req) {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
@@ -24,6 +25,7 @@ async function route(action, body, ctx) {
 }
 
 async function handler(req, res) {
+  if (!enforceUsGeo(req, res, { api: true })) return;
   res.setHeader('Cache-Control', 'no-store');
   const action = String(req.query?.action || new URL(req.url, 'http://x').searchParams.get('action') || '');
   let body = req.body;

@@ -14,7 +14,7 @@ const wait = (p, fn, arg, ms = 10000) => p.waitForFunction(fn, arg, { timeout: m
   const mk = async (br) => { const p = await (await br.newContext({ viewport: { width: 1440, height: 900 } })).newPage(); p.on('pageerror', (e) => errs.push(e.message)); return p; };
   try {
     const a = await mk(bh);
-    await a.goto(B + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
+    await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
     await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim();
     const short = await a.evaluate(() => window.__gather.short);
     check('the studio has a short watch link', /^[a-z2-9]{5}$/.test(short || ''), short);

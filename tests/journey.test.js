@@ -18,8 +18,10 @@ const URL0 = process.env.GATHER_URL || 'http://localhost:8080';
     await page.waitForLoadState('networkidle').catch(() => {});
     // Landing → green room → studio, keyboard only.
     const toCreate = await tabTo('enterStage', 10);
-    check('Create a studio is reachable by Tab', toCreate > 0, `${toCreate} tab(s)`);
+    check('Go Live Now is reachable by Tab', toCreate > 0, `${toCreate} tab(s)`);
     await page.keyboard.press('Enter');
+    await page.waitForSelector('#wizDlg[open]');
+    await page.click('#wGo');
     await page.waitForSelector('#enterDlg[open]');
     await page.focus('#enterName'); await page.keyboard.type('Kim Keys'); await page.keyboard.press('Enter');
     await page.waitForSelector('#inviteDlg[open]', { timeout: 15000 });

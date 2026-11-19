@@ -25,7 +25,7 @@ const signUp = async (page, name) => {
   try {
     // Host: a studio with a product, a flash sale, a poll, the queue and an emote.
     const a = await mk(bh);
-    await a.goto(B + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
+    await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
     await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim(); await a.keyboard.press('Escape');
     await a.click('[data-tab="show"]');
     await a.click('#shopSec > summary'); await a.click('#shopSec .sub-fold > summary');

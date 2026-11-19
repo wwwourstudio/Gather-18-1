@@ -52,6 +52,18 @@ function mkStore(get, big) {
   };
 }
 
+if (!store.get('brandBlueV2', false)) {
+  const curA = String(store.get('accent', '') || '').toLowerCase();
+  if (curA === '#f3efe6' || curA === '#3b82f6' || curA === '#4464e8') store.set('accent', '#3b82f6');
+  const bp = store.get('brandPrefs', {});
+  const curB = String(bp?.color || '').toLowerCase();
+  if (bp && (curB === '#f3efe6' || curB === '#5b7cff' || curB === '#4464e8')) {
+    bp.color = '#3b82f6';
+    store.set('brandPrefs', bp);
+  }
+  store.set('brandBlueV2', true);
+}
+
 const MAX = 6;
 let W = 1280, H = 720; // swapped to 720x1280 for the vertical stage
 const DEFAULT_TITLE = 'The conversation studio';
@@ -68,7 +80,7 @@ const BGS = {
 
 // ---------------------------------------------------------------- state
 const S = {
-  id: null, tok: null, studio: null, host: null, phase: 'offline', // offline | connecting | online | reconnecting
+  id: null, tok: null, studio: null, host: null, short: '', shortInvite: '', phase: 'offline', // offline | connecting | online | reconnecting
   name: store.get('name', ''),
   prefs: { startMic: store.get('startMic', true), startCam: store.get('startCam', true), camId: store.get('camId', ''), micId: store.get('micId', ''), quality: store.get('quality', '720'), noise: store.get('noise', true) },
   local: { audio: null, cam: null, screen: null, micOn: store.get('startMic', true), camOn: store.get('startCam', true), hand: false, autoMuted: false, camError: '', joinedAt: 0 },
@@ -79,14 +91,26 @@ const S = {
   rec: null,
   banner: { key: '', t0: 0 },
   audioBlocked: false,
+  chatScope: 'guests',
+  pendingChatFile: null,
+  brief: null,
+  briefExpanded: true,
 };
 function localState() {
   const imgs = store.get('brandImgs', {});
+  const rawAccent = String(store.get('accent', '#3b82f6') || '#3b82f6');
+  const savedAccent = (rawAccent.toLowerCase() === '#5b7cff' || rawAccent.toLowerCase() === '#4464e8') ? '#3b82f6' : rawAccent;
   return {
     layout: 'split', stage: ['me'], banner: null, ticker: '',
-    brand: { color: store.get('accent', '#3b82f6'), bg: store.get('bg', 'dusk'), watermark: false, names: true, font: 'jakarta', tag: 'solid', bannerStyle: 'classic', anim: 'slide', frame: 'none', dim: 0.25, logoPos: 'tr', logoSize: 0.12,
+    chatOpts: { guestFiles: true, defaultScope: 'guests' },
+    brand: { color: savedAccent, bg: store.get('bg', 'dusk'), watermark: false, names: true, font: 'jakarta', tag: 'solid', bannerStyle: 'classic', anim: 'slide', frame: 'none', dim: 0.25, logoPos: 'tr', logoSize: 0.12,
       ...store.get('brandPrefs', {}), bgImage: imgs.bgImage ? 'local-brand-bgImage' : '', overlay: imgs.overlay ? 'local-brand-overlay' : '', logo: imgs.logo ? 'local-brand-logo' : '' },
     title: store.get('title', ''), elements: [], featured: null, feeds: { twitch: '' },
+    streamType: store.get('streamType', 'live'),
+    hashtags: store.get('hashtags', []),
+    notices: store.get('notices', []),
+    whatNext: store.get('whatNext', null),
+    aiSpotlight: store.get('aiSpotlight', null),
     aspect: store.get('streamPrefs', {}).aspect || '16:9', captions: { on: false, style: 'bar', size: 26, lang: 'en-US', ...(store.get('streamPrefs', {}).captions || {}) },
     autoMute: { on: true, sec: 30, scope: 'guests', ...(store.get('streamPrefs', {}).autoMute || {}) },
     autoGrid: store.get('streamPrefs', {}).autoGrid ?? true,
@@ -94,6 +118,44 @@ function localState() {
 }
 const isHost = () => !S.studio || S.host === S.id;
 const myId = () => S.id || 'me';
+const WATCH_DEFAULTS = { chat: true, supers: false, join: false, queue: false, voice: true, badge: true, direct: true, cap: 6, slow: 0, min: 2, about: '', pin: '', goal: { label: '', target: 0 }, reactsOnStream: true, links: [], pay: { paypal: '', venmo: '', cashapp: '', stripe: '' } };
+const watchCfg = () => ({ ...WATCH_DEFAULTS, ...(S.state.watch || {}), pay: { ...WATCH_DEFAULTS.pay, ...(S.state.watch?.pay || {}) } });
+function normalizeHex(hex) {
+  const raw = String(hex || '').trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(raw)) return '#' + raw.split('').map((c) => c + c).join('');
+  if (/^[0-9a-f]{6}$/i.test(raw)) return '#' + raw;
+  return '';
+}
+function hexRgb(hex) {
+  const h = normalizeHex(hex);
+  if (!h) return [59, 130, 246];
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+function hexLuminance(hex) {
+  const [r, gr, b] = hexRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * gr + 0.0722 * b;
+}
+function applyAdaptiveAccent(hex) {
+  const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const norm = normalizeHex(hex);
+  const chosen = (!norm || norm.toLowerCase() === '#5b7cff' || norm.toLowerCase() === '#4464e8') ? (dark ? '#3b82f6' : '#2563eb') : norm;
+  const [r, gr, b] = hexRgb(chosen);
+  const lum = hexLuminance(chosen);
+  const ink = lum > 0.42 ? '#070c1a' : '#ffffff';
+  const root = document.documentElement.style;
+  root.setProperty('--accent', chosen);
+  root.setProperty('--accent-ink', ink);
+  root.setProperty('--accent-hover', lum > 0.55 ? `rgb(${Math.max(0, r - 18)}, ${Math.max(0, gr - 18)}, ${Math.max(0, b - 18)})` : `rgb(${Math.min(255, r + 24)}, ${Math.min(255, gr + 24)}, ${Math.min(255, b + 24)})`);
+  root.setProperty('--accent-soft', `rgba(${r}, ${gr}, ${b}, 0.16)`);
+  root.setProperty('--accent-line', `rgba(${r}, ${gr}, ${b}, 0.42)`);
+  const textColor = dark
+    ? (lum < 0.22 ? `rgb(${Math.round(r + (255 - r) * 0.48)}, ${Math.round(gr + (255 - gr) * 0.48)}, ${Math.round(b + (255 - b) * 0.48)})` : chosen)
+    : (lum > 0.45 ? `rgb(${Math.round(r * 0.45)}, ${Math.round(gr * 0.45)}, ${Math.round(b * 0.45)})` : chosen);
+  root.setProperty('--accent-text', textColor);
+}
 
 // ---------------------------------------------------------------- utils
 function toast(msg, opts = {}) {
@@ -125,6 +187,8 @@ async function copy(text, okMsg) {
   catch { toast('Copy blocked by the browser. Select the text and copy it manually.', { err: true }); }
 }
 const inviteLink = () => `${location.origin}/s/${S.studio}`;
+const shortInviteUrl = () => (S.studio && S.shortInvite ? `${location.origin}/s/${S.shortInvite}` : '');
+const preferredInviteUrl = () => shortInviteUrl() || inviteLink();
 
 // ---------------------------------------------------------------- audio graph
 let actx = null, mixBus = null, recDest = null, duckBus = null, duckMonBus = null, duckToSend = false;
@@ -894,7 +958,7 @@ function lostStudio() {
   const code = S.studio;
   pollGen++; outbox = [];
   teardownPeers();
-  S.studio = null; S.id = null; S.tok = null; S.short = "";
+  S.studio = null; S.id = null; S.tok = null; S.short = ""; S.shortInvite = "";
   setPhase('reconnecting');
   setTimeout(() => join(code).catch((e) => { if (e.status === 403) return kickedOut(e.message); toast(e.message, { err: true }); setPhase('offline'); }), 800);
 }
@@ -932,6 +996,15 @@ async function join(code, opts = {}) {
   catch (e) {
     if (e.status === 423 && $('#enterDlg').open) { setPhase('offline'); startKnock(code, opts.callin); return; }
     if (e.status === 404 && intent === 'join' && !opts.callin && !opts.noWait && $('#enterDlg').open) { setPhase('offline'); waitForHost(code, e.message); return; }
+    if (e.status === 401) {
+      setPhase('offline');
+      if (acct.token || acct.user) signedOut();
+      if ($('#enterDlg').open && intent === 'create') {
+        $('#enterDlg').close();
+        needAccountThen(() => openEnter('create', code));
+        throw Object.assign(new Error(e.message), { status: 401, handled: true });
+      }
+    }
     if (e.status === 403) { setPhase('offline'); }
     throw e;
   }
@@ -943,11 +1016,14 @@ async function onServer(m) {
   switch (m.type) {
     case 'joined': {
       const wasHosting = isHost() && !S.studio;
-      S.id = m.id; S.tok = m.tok; S.studio = m.studio; S.host = m.host; S.short = m.short || "";
+      S.id = m.id; S.tok = m.tok; S.studio = m.studio; S.host = m.host; S.short = m.short || ""; S.shortInvite = m.inviteShort || "";
       S.local.joinedAt = Date.now();
       S.iceServers = await iceConfig(m.iceServers);
       const pre = S.state;
       S.state = m.state;
+      S.brief = m.brief || null;
+      S.chatScope = m.state?.chatOpts?.defaultScope === 'every' ? 'every' : 'guests';
+      S.pendingChatFile = null;
       setPhase('online');
       history.replaceState(null, '', '/s/' + S.studio);
       $('#enterDlg').open && $('#enterDlg').close();
@@ -958,9 +1034,18 @@ async function onServer(m) {
       pollLoop(++pollGen);
       if (S.host === S.id && wasHosting) {
         // Bring the look you set up before creating the studio.
-        setStage({ aspect: pre.aspect, captions: pre.captions, autoMute: pre.autoMute, autoGrid: pre.autoGrid !== false, brand: { ...pre.brand, bgImage: '', overlay: '', logo: '' }, title: pre.title || autoTitle(), watch: { ...WATCH_DEFAULTS, ...store.get('watchPrefs', {}) }, shop: { items: store.get('shopItems', []), pinned: '', sale: null }, layout: pre.layout, banner: pre.banner, ticker: pre.ticker, stage: [S.id], feeds: pre.feeds, scene: pre.scene || '', elements: (pre.elements || []).filter((e) => !(e?.type === 'image' && typeof e.asset === 'string' && e.asset.startsWith('local-'))) });
+        setStage({ aspect: pre.aspect, captions: pre.captions, autoMute: pre.autoMute, autoGrid: pre.autoGrid !== false, brand: { ...pre.brand, bgImage: '', overlay: '', logo: '' }, title: pre.title || autoTitle(), streamType: pre.streamType || 'live', hashtags: pre.hashtags || [], notices: pre.notices || [], whatNext: pre.whatNext || null, aiSpotlight: pre.aiSpotlight || null, watch: { ...WATCH_DEFAULTS, ...store.get('watchPrefs', {}) }, shop: { items: store.get('shopItems', []), pinned: '', sale: null }, layout: pre.layout, banner: pre.banner, ticker: pre.ticker, stage: [S.id], feeds: pre.feeds, scene: pre.scene || '', elements: (pre.elements || []).filter((e) => !(e?.type === 'image' && typeof e.asset === 'string' && e.asset.startsWith('local-'))) });
         uploadLocalAssets(pre.elements).then((elements) => { if (S.host === S.id) setStage({ elements }); });
         uploadBrandAssets(pre.brand);
+        if ((pre.notices || []).some((n) => typeof n.imgAsset === 'string' && n.imgAsset.startsWith('local-'))) {
+          Promise.all((pre.notices || []).map(async (n) => {
+            if (typeof n.imgAsset === 'string' && n.imgAsset.startsWith('local-')) {
+              const data = S.assets.get(n.imgAsset)?.data;
+              if (data) return { ...n, imgAsset: await storeAsset(data).catch(() => '') };
+            }
+            return n;
+          })).then((notices) => { if (S.host === S.id) setStage({ notices }); });
+        }
         if (S.pendingStream?.id) acctApi('streamStart', { id: S.pendingStream.id }).catch(() => {});
         S.pendingStream = null;
       }
@@ -1018,6 +1103,7 @@ async function onServer(m) {
     }
     case 'state': startSceneFade(S.state, m.state); S.state = m.state; renderAll(); renderChatMood(); break;
     case 'chat': addMsg(m.msg); break;
+    case 'guest-brief': S.brief = m.brief || null; renderGuestBrief(); break;
     case 'like': setLikes(m.id, m.n, m.from); break;
     case 'feed': for (const it of m.items || []) addExternal(it); break;
     case 'viewer-want': viewerWant(m.vid); break;
@@ -1196,6 +1282,7 @@ function setStage(patch) {
   else if (patch.elements) rememberArrangement();
   if (S.studio) wsSend({ type: 'state', state: S.state });
   else { store.set('accent', S.state.brand.color); store.set('bg', S.state.brand.bg); store.set('title', S.state.title); }
+  applyAdaptiveAccent(S.state.brand?.color);
   renderAll();
 }
 function toggleStage(id) {
@@ -1432,7 +1519,7 @@ function drawChrome() {
   g.textBaseline = 'middle';
   // The show title is no longer drawn on the stage: it lives in the header and on the watch page.
   if (window.__shopReady) { drawProduct(); drawPoll(); drawWatchBadge(); }
-  drawGoal(); drawWaves();
+  drawWaves();
 }
 // The program is painted tier by tier: stage → media → (brand frame) → overlays → chat → ticker → system.
 const TIER_Z = Object.fromEntries(TIERS.map((x) => [x.id, x.z]));
@@ -1739,74 +1826,30 @@ function analyzeChatMood() {
   return { state, label, pct, displayPct: `${pct}%`, total: recent.length, pos, neu, neg, meta };
 }
 
-const moodTrend = { points: [], t0: 0, lastAt: 0, renderer: null, loading: false };
-function formatStreamOffset(ms) {
-  const sec = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
-  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
-}
-function ensureMoodChartModule() {
-  if (moodTrend.renderer || moodTrend.loading) return;
-  moodTrend.loading = true;
-  import('/mood-chart.js').then((mod) => {
-    moodTrend.renderer = mod.renderMoodTrendChart || window.gatherMoodChart?.render || null;
-    if (moodTrend.renderer) {
-      const host = $('#chatMoodChart');
-      if (host) {
-        const m = analyzeChatMood();
-        moodTrend.renderer(host, moodTrend.points, m.state);
-      }
-    }
-  }).catch(() => {}).finally(() => { moodTrend.loading = false; });
-}
-function pushMoodPoint(m, now = Date.now()) {
-  if (!m || !m.total) return;
-  const origin = S.live?.t1 || S.state?.live?.since || S.rec?.t0 || moodTrend.t0 || (moodTrend.t0 = now);
-  if (origin !== moodTrend.t0 && !moodTrend.points.length) moodTrend.t0 = origin;
-  const elapsed = Math.max(0, now - moodTrend.t0);
-  const pt = { ts: now, timeLabel: formatStreamOffset(elapsed), pct: m.pct, label: m.label, count: m.total };
-  const last = moodTrend.points[moodTrend.points.length - 1];
-  if (last && now - last.ts < 8000) {
-    moodTrend.points[moodTrend.points.length - 1] = pt;
-  } else {
-    moodTrend.points.push(pt);
-    if (moodTrend.points.length > 72) moodTrend.points.shift();
-  }
-  moodTrend.lastAt = now;
-}
-function resetMoodTrend() {
-  moodTrend.points = [];
-  moodTrend.t0 = 0;
-  moodTrend.lastAt = 0;
-}
-
 function renderChatMood() {
   const box = $('#chatMood');
   if (!box) return;
   const m = analyzeChatMood();
   box.dataset.mood = m.state;
-  $('#chatMoodLabel').textContent = m.label;
-  $('#chatMoodPct').textContent = m.displayPct;
-  $('#chatMoodBar').style.width = `${m.pct}%`;
-  const meter = $('#chatMoodMeter');
-  if (meter) {
-    meter.setAttribute('aria-valuenow', String(m.pct));
-    meter.setAttribute('aria-valuetext', m.total ? `${m.label} (${m.pct}%): ${m.meta}` : 'Waiting for viewer chat');
-  }
-  $('#chatMoodMeta').textContent = m.meta;
-  box.title = m.total ? `Viewer mood: ${m.label} (${m.pct}%) — ${m.meta}` : 'Viewer chat mood updates as viewer messages arrive';
-  if (m.total) pushMoodPoint(m);
-  const chartEl = $('#chatMoodChart');
-  if (chartEl) {
-    ensureMoodChartModule();
-    if (moodTrend.renderer) moodTrend.renderer(chartEl, moodTrend.points, m.state);
+  const bar = $('#chatMoodBar');
+  if (bar) bar.style.width = `${m.pct}%`;
+  const lbl = $('#chatMoodLabel');
+  if (lbl) lbl.textContent = m.label;
+  const pctEl = $('#chatMoodPct');
+  if (pctEl) pctEl.textContent = m.displayPct;
+  const metaEl = $('#chatMoodMeta');
+  if (metaEl) metaEl.textContent = m.meta;
+  const desc = m.total
+    ? `Crowd sentiment: ${m.label} (${m.pct}%) — ${m.meta}. Hover bar for live viewer mood.`
+    : 'Crowd sentiment: Quiet — measures viewer chat positivity & hype in real time.';
+  box.setAttribute('aria-valuenow', String(m.pct));
+  box.setAttribute('aria-valuetext', desc);
+  box.dataset.tip = desc;
+  const tip = $('#ui-tooltip');
+  if (tip && box.getAttribute('aria-describedby') === tip.id && tip.classList.contains('show')) {
+    tip.textContent = desc;
   }
 }
-setInterval(() => {
-  if (!S.studio) return;
-  const m = analyzeChatMood();
-  if (m.total && Date.now() - moodTrend.lastAt >= 15000) renderChatMood();
-}, 5000);
 
 // Moderation is enforced by gather for every platform: hidden, timed-out and blocked viewers
 // disappear from the overlay and from everyone's studio chat. Lists live in the shared stage state.
@@ -2375,6 +2418,17 @@ function qrFor(url) {
     .then((qrcode) => { const q = qrcode(0, 'M'); q.addData(url); q.make(); qrCache.set(url, q); }).catch(() => { qrLib = null; });
   return null;
 }
+async function qrReadyFor(url) {
+  const cached = qrFor(url);
+  if (cached) return cached;
+  try {
+    const qrcode = await qrLib;
+    if (!qrcode) return null;
+    if (qrCache.get(url)) return qrCache.get(url);
+    const q = qrcode(0, 'M'); q.addData(url); q.make(); qrCache.set(url, q);
+    return q;
+  } catch { return null; }
+}
 function drawTipEl(e) {
   const r = px(e), info = TIP_INFO[e.provider] || TIP_INFO.link, pad = 16;
   g.save();
@@ -2531,6 +2585,7 @@ function renderEditor() {
   }
   renderLayers();
   renderProps();
+  renderStageToolbar();
 }
 // Layers: top of the list is on top of the picture, grouped by tier. Eye hides, lock freezes, reset sends home.
 function renderLayers() {
@@ -2645,13 +2700,13 @@ function renderProps() {
   }
   if (e.type === 'ai') f.push(`<label class="fld"><span>Text size</span><input type="range" min="14" max="34" data-k="size" data-num value="${e.size}"></label><p class="hint">Shows the latest question and answer from the AI panel. Long answers keep the newest lines in view.</p>`);
   if (e.type === 'media') f.push(`<label class="fld"><span>Corner rounding</span><input type="range" min="0" max="40" data-k="radius" data-num value="${e.radius}"></label><p class="hint">Shows whoever is presenting: a screen, a video or PDF slides.</p>`);
-  if (e.type === 'tip') f.push(`<label class="fld"><span>Card text</span><input data-k="label" maxlength="60" value="${val('label')}"></label><p class="hint">Edit the link in Brand → Support links.</p>`);
+  if (e.type === 'tip') f.push(`<label class="fld"><span>Card text</span><input data-k="label" maxlength="60" value="${val('label')}"></label><p class="hint">Edit the link in Shop → Support links.</p>`);
   if (e.type === 'shape') {
     field('Name', `<input data-k="label" maxlength="40" value="${val('label')}" placeholder="Colour block">`);
     f.push(`<div class="row2"><label class="fld"><span>Colour</span><input type="color" data-k="color" value="${e.color}"></label><label class="fld"><span>Opacity</span><input type="range" min="0.05" max="1" step="0.05" data-k="opacity" data-num value="${e.opacity ?? 1}"></label></div>`);
     field('Corner rounding', `<input type="range" min="0" max="120" data-k="radius" data-num value="${e.radius || 0}">`);
   }
-  if (isSystem(e)) f.push(`<p class="hint">${{ banner: 'Shows the banner from the Banners panel.', ticker: 'Shows the ticker text from the Banners panel.', logo: 'Shows your logo from Brand.', ads: 'Rotates your sponsor images from Brand.', featured: 'Shows a chat message you put on stage.', captions: 'Shows live captions when they’re on (Stream tab).' }[e.type]}</p>`);
+  if (isSystem(e)) f.push(`<p class="hint">${{ banner: 'Shows the banner from Look → Overlays.', ticker: 'Shows the ticker text from Look → Overlays.', logo: 'Shows your logo from Look → Brand.', ads: 'Rotates your sponsor images from Look → Overlays.', featured: 'Shows a chat message you put on stage.', captions: 'Shows live captions when they’re on (Show tab).' }[e.type]}</p>`);
   const pxs = (v, n) => Math.round(v * n);
   f.push(`<p class="hint num">${pxs(e.w, W)} × ${pxs(e.h, H)} px at ${pxs(e.x, W)}, ${pxs(e.y, H)} · ${TIERS.find((t) => t.id === tierOf(e)).label} layer</p>`);
   f.push(`<label class="toggle-inline"><input type="checkbox" class="toggle sm" data-k="stack" ${e.stack ? 'checked' : ''}><span>Allow overlap <em class="dim">— stack it over other layers on purpose</em></span></label>`);
@@ -2794,7 +2849,77 @@ document.addEventListener('keydown', (ev) => {
   renderEditor(); commitElements(250);
 });
 
-// Panel wiring
+// Stage Editing Toolbar & Panel Wiring
+function renderStageToolbar() {
+  const bar = $('#stageToolbar');
+  if (!bar) return;
+  const host = isHost(), e = selEl();
+  bar.querySelectorAll('[data-tb]').forEach((b) => {
+    const act = b.dataset.tb;
+    if (act === 'toggle-stack') {
+      b.setAttribute('aria-pressed', String(!!e?.stack));
+      b.disabled = !host || !e;
+    } else if (act === 'duplicate') {
+      b.disabled = !host || !e || isSystem(e);
+    } else if (act === 'reset') {
+      b.disabled = !host || !e || !e.home;
+    } else {
+      b.disabled = !host || !e || !!e.locked;
+    }
+  });
+}
+function stageToolbarAction(act) {
+  if (!isHost()) return toast('Only the host can change the stage.', { err: true });
+  const e = selEl();
+  if (!e) return toast('Select a layer in Layers or on the stage first.');
+  if (act === 'layer-up') return moveEl(e.id, 1);
+  if (act === 'layer-down') return moveEl(e.id, -1);
+  if (act === 'reset') return resetEl(e.id);
+  if (act === 'toggle-stack') {
+    const nextStack = !e.stack;
+    if (!nextStack) {
+      const blocker = blockerFor(e, { ...e, stack: false }, (S.state.elements || []).filter((o) => o.id !== e.id));
+      if (blocker) return toast(`${elName(e)} overlaps ${elName(blocker)}. Move one of them first.`, { err: true });
+    }
+    return patchEl(e.id, { stack: nextStack });
+  }
+  if (act === 'duplicate') {
+    if (isSystem(e)) return;
+    const els = stageElements();
+    const copyEl = { ...e, id: uid(), x: Math.min(1 - e.w, e.x + 24 / W), y: Math.min(1 - e.h, e.y + 24 / H), locked: false };
+    const spot = freeSpot(copyEl, els);
+    if (spot) Object.assign(copyEl, spot);
+    else if (spot === false) copyEl.stack = true;
+    copyEl.home = [copyEl.x, copyEl.y, copyEl.w, copyEl.h];
+    setStage({ elements: [...els, copyEl] });
+    editor.sel = copyEl.id;
+    setEditing(true);
+    return toast(`Duplicated ${elName(e)}.`);
+  }
+  if (e.locked) return toast(`${elName(e)} is locked. Unlock it in Layers first.`);
+  const g8 = (v, n) => Math.round(v * n / GRID) * GRID / n;
+  const cand = { ...e };
+  if (act === 'align-l') cand.x = SAFE.action;
+  if (act === 'align-cx') cand.x = g8((1 - e.w) / 2, W);
+  if (act === 'align-r') cand.x = Math.max(SAFE.action, 1 - SAFE.action - e.w);
+  if (act === 'align-cy') cand.y = g8((1 - e.h) / 2, H);
+  if (act === 'fit-safe') {
+    cand.w = Math.min(e.w, 1 - SAFE.action * 2);
+    cand.h = Math.min(e.h, 1 - SAFE.action * 2);
+    cand.x = Math.min(1 - SAFE.action - cand.w, Math.max(SAFE.action, e.x));
+    cand.y = Math.min(1 - SAFE.action - cand.h, Math.max(SAFE.action, e.y));
+  }
+  const others = (S.state.elements || []).filter((x) => x.id !== e.id);
+  const { rect, blocked } = e.stack ? { rect: cand, blocked: null } : resolve(e, cand, e, others);
+  Object.assign(e, rect);
+  if (blocked) toast(`Stopped clear of ${elName(blocked)}. Toggle Overlap to stack.`);
+  setStage({ elements: elementsCopy() });
+  setEditing(true);
+}
+$('#stageToolbar')?.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-tb]');
+  if (b) stageToolbarAction(b.dataset.tb);
+});
 $('#editToggle').onclick = () => setEditing(!editor.on);
 $('#resetScene').onclick = () => { if (isHost()) resetScene(); };
 $$('[data-add]').forEach((b) => b.addEventListener('click', () => { if (!isHost()) return toast('Only the host can change the stage.', { err: true }); addElement(b.dataset.add); }));
@@ -3192,9 +3317,9 @@ async function acctApi(action, body = {}) {
   }
   return data;
 }
-// Settings that follow you between devices once you're signed in. API keys and stream keys never sync.
-const SYNC_KEYS = ['tips', 'layouts', 'presets', 'accent', 'bg', 'title', 'theme', 'aiProv', 'startMic', 'startCam', 'quality', 'audioFx', 'videoFx', 'brandPrefs', 'streamPrefs'];
-let syncT = null, applyingSync = false;
+// Settings that follow you between devices once you're signed in. API keys and RTMP stream keys never sync.
+const SYNC_KEYS = ['tips', 'layouts', 'presets', 'accent', 'bg', 'title', 'theme', 'aiProv', 'startMic', 'startCam', 'quality', 'audioFx', 'videoFx', 'brandPrefs', 'streamPrefs', 'streamType', 'hashtags', 'notifyPrefs', 'onboardingDone', 'destTemplates'];
+let syncT = null, applyingSync = false, acctBootP = Promise.resolve();
 const rawSet = store.set;
 store.set = (k, v) => {
   rawSet(k, v);
@@ -3235,7 +3360,7 @@ function setUser(u, token) {
 }
 function signedOut(msg) {
   acct.user = null; acct.token = ''; rawSet('acctToken', '');
-  renderUser(); renderStreamPanel();
+  renderUser(); renderPreview(); renderStreamPanel();
   if (msg) toast(msg);
 }
 function renderUser() {
@@ -3336,9 +3461,16 @@ $('#acPass').addEventListener('input', () => {
   $('#acMeter').dataset.score = p ? sc : '';
   $('#acMeterText').textContent = !p ? '' : sc === 0 ? `${8 - p.length} more character${8 - p.length === 1 ? '' : 's'}` : ['', 'Okay', 'Good', 'Strong'][sc];
 });
-/** Starting a studio needs an account (guests don't): sign in first, then carry on to the green room. */
-function needAccountThen(fn) {
+/** Starting a studio needs an account (guests don't): hydrate existing token before ever prompting sign-in. */
+async function needAccountThen(fn) {
   if (!S.requireAccount || acct.user) return fn();
+  if (acct.token) {
+    try { await acctBootP; } catch {}
+    if (!acct.user && acct.token) {
+      try { const r = await acctApi('me'); setUser(r.user); } catch {}
+    }
+    if (acct.user) return fn();
+  }
   S.afterSignIn = fn;
   openAccount();
 }
@@ -3434,19 +3566,22 @@ async function uploadBrandAssets(brand) {
 }
 function brandPref(patch) {
   // Keep the look for the next studio too (images live in this browser).
-  const keep = ['font', 'tag', 'bannerStyle', 'anim', 'frame', 'dim', 'logoPos', 'logoSize'];
+  const keep = ['color', 'font', 'tag', 'bannerStyle', 'anim', 'frame', 'dim', 'logoPos', 'logoSize'];
   const prefs = store.get('brandPrefs', {});
   for (const k of keep) if (k in patch) prefs[k] = patch[k];
   store.set('brandPrefs', prefs);
   setStage({ brand: patch });
 }
+async function brandDataUrl(kind, data) {
+  const imgs = savedBrandImgs(); imgs[kind] = data;
+  try { rawSet('brandImgs', imgs); } catch {}
+  const id = S.studio ? await storeAsset(data) : (setAssetData('local-brand-' + kind, data), 'local-brand-' + kind);
+  setStage({ brand: { [kind]: id } });
+}
 async function brandImage(kind, file) {
   try {
     const data = await compressImage(file);
-    const imgs = savedBrandImgs(); imgs[kind] = data;
-    try { rawSet('brandImgs', imgs); } catch {}
-    const id = S.studio ? await storeAsset(data) : (setAssetData('local-brand-' + kind, data), 'local-brand-' + kind);
-    setStage({ brand: { [kind]: id } });
+    await brandDataUrl(kind, data);
     toast({ bgImage: 'Background image set.', overlay: 'Overlay added.', logo: 'Logo added.' }[kind]);
   } catch (err) { toast(err.message, { err: true }); }
 }
@@ -3459,6 +3594,63 @@ for (const [kind, pick, file, clear] of [['bgImage', '#bgImgPick', '#bgImgFile',
   $(file).onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) brandImage(kind, f); };
   $(clear).onclick = () => clearBrandImage(kind);
 }
+function buildBgSvg(accent, promptText) {
+  const col = normalizeHex(accent) || '#5b7cff';
+  const [r, gr, b] = hexRgb(col);
+  const darkAlt = `rgb(${Math.max(8, Math.round(r * 0.25))}, ${Math.max(12, Math.round(gr * 0.25))}, ${Math.max(24, Math.round(b * 0.35))})`;
+  const seed = [...String(promptText || 'gather')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const cx1 = 180 + (seed % 420), cy1 = 140 + ((seed >> 4) % 240);
+  const cx2 = 820 + ((seed >> 8) % 340), cy2 = 420 + ((seed >> 12) % 220);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><defs><radialGradient id="g1" cx="0.5" cy="0.5" r="0.65"><stop offset="0" stop-color="${col}" stop-opacity="0.46"/><stop offset="1" stop-color="#070c1a" stop-opacity="0"/></radialGradient><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#060914"/><stop offset="0.55" stop-color="${darkAlt}"/><stop offset="1" stop-color="#090d1e"/></linearGradient></defs><rect width="1280" height="720" fill="url(#bg)"/><circle cx="${cx1}" cy="${cy1}" r="420" fill="url(#g1)"/><circle cx="${cx2}" cy="${cy2}" r="360" fill="${col}" fill-opacity="0.16"/><path d="M0 540 Q 420 420 820 560 T 1280 490 L 1280 720 L 0 720 Z" fill="${col}" fill-opacity="0.08"/></svg>`;
+}
+async function generateLookAsset(kind) {
+  if (!isHost()) return toast('Only the host can change the brand.', { err: true });
+  const prov = S.aiProv || 'claude';
+  const key = store.get('aiKey:' + prov, '');
+  if (kind === 'bgImage') {
+    const prompt = $('#bgImgPrompt')?.value.trim() || `${S.state.title || 'Broadcast'} studio backdrop, modern dark architecture, glowing accent light`;
+    const btn = $('#bgImgAiBtn'); busy(btn);
+    try {
+      let data = '';
+      if (key && (prov === 'openai' || prov === 'gemini' || prov === 'grok')) {
+        const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: prov, apiKey: key, prompt }) });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.error || 'Image request failed.');
+        data = j.data;
+      } else {
+        data = await rasterizeSvg(buildBgSvg(S.state.brand.color, prompt), 1280, 720);
+      }
+      await brandDataUrl('bgImage', data);
+      toast(key && (prov === 'openai' || prov === 'gemini' || prov === 'grok') ? 'AI stage backdrop generated.' : 'Custom backdrop artwork generated.');
+    } catch (err) { toast(err.message, { err: true }); }
+    finally { busy(btn, false); }
+    return;
+  }
+  if (kind === 'logo') {
+    const label = $('#logoPrompt')?.value.trim() || S.state.title || S.name || 'G';
+    const btn = $('#logoAiBtnLook'); busy(btn);
+    try {
+      const data = await rasterizeSvg(buildLogoSvg(S.state.brand.color, label), 256, 256);
+      await brandDataUrl('logo', data);
+      toast('Brand logo badge generated.');
+    } catch (err) { toast(err.message, { err: true }); }
+    finally { busy(btn, false); }
+    return;
+  }
+  if (kind === 'overlay') {
+    const headline = $('#overlayPrompt')?.value.trim() || S.state.title || 'LIVE STUDIO';
+    const btn = $('#overlayAiBtnLook'); busy(btn);
+    try {
+      const data = await rasterizeSvg(buildOverlaySvg(S.state.brand.color, S.state.streamType || 'live', headline), 1280, 720);
+      await brandDataUrl('overlay', data);
+      toast('Transparent stage overlay generated.');
+    } catch (err) { toast(err.message, { err: true }); }
+    finally { busy(btn, false); }
+  }
+}
+$('#bgImgAiBtn')?.addEventListener('click', () => generateLookAsset('bgImage'));
+$('#logoAiBtnLook')?.addEventListener('click', () => generateLookAsset('logo'));
+$('#overlayAiBtnLook')?.addEventListener('click', () => generateLookAsset('overlay'));
 function segWire(sel, attr, key) {
   $$(sel + ' button').forEach((b) => b.addEventListener('click', () => { if (!isHost()) return; brandPref({ [key]: b.dataset[attr] }); }));
 }
@@ -3490,7 +3682,7 @@ function previewAnimation() {
 }
 $('#animPreview').onclick = previewAnimation;
 function renderBrandPanel() {
-  const b = S.state.brand, host = isHost();
+  const b = S.state.brand, host = isHost(), imgs = savedBrandImgs();
   const segOn = (sel, attr, val) => $$(sel + ' button').forEach((x) => { x.classList.toggle('on', x.dataset[attr] === val); x.disabled = !host; });
   segOn('#tagSeg', 'tag', b.tag || 'solid'); segOn('#bannerStyleSeg', 'bs', b.bannerStyle || 'classic'); segOn('#frameSeg', 'frame', b.frame || 'none'); segOn('#logoPosSeg', 'lp', b.logoPos || 'tr');
   $('#fontSel').value = b.font || 'jakarta'; $('#fontSel').disabled = !host;
@@ -3500,7 +3692,22 @@ function renderBrandPanel() {
   $('#bgImgClear').hidden = !b.bgImage; $('#overlayClear').hidden = !b.overlay; $('#logoClear').hidden = !b.logo;
   $('#bgDimRow').hidden = !b.bgImage;
   $('#logoRow').hidden = !b.logo;
-  for (const id of ['#bgImgPick', '#overlayPick', '#logoPick']) $(id).disabled = !host;
+  const bgSrc = b.bgImage ? (assetImg(b.bgImage)?.src || imgs.bgImage || '') : '';
+  if ($('#bgImgPreview')) {
+    $('#bgImgPreview').hidden = !bgSrc;
+    if (bgSrc) $('#bgImgPreview').src = bgSrc;
+  }
+  const logoSrc = b.logo ? (assetImg(b.logo)?.src || imgs.logo || '') : '';
+  if ($('#logoPreviewLook')) {
+    $('#logoPreviewLook').src = logoSrc || svgDataUrl(buildLogoSvg(b.color, S.state.title || S.name || 'G'));
+  }
+  const ovSrc = b.overlay ? (assetImg(b.overlay)?.src || imgs.overlay || '') : '';
+  if ($('#overlayPreviewLook')) {
+    $('#overlayPreviewLook').src = ovSrc || svgDataUrl(buildOverlaySvg(b.color, S.state.streamType || 'live', S.state.title || 'LIVE STUDIO'));
+  }
+  for (const id of ['#bgImgPick', '#overlayPick', '#logoPick', '#bgImgAiBtn', '#logoAiBtnLook', '#overlayAiBtnLook', '#emoteAiBtn']) {
+    if ($(id)) $(id).disabled = !host;
+  }
 }
 
 // ---------------------------------------------------------------- stream tab: format, captions, upcoming
@@ -3650,112 +3857,346 @@ function downloadIcs(st) {
 }
 $('#upSigninBtn').onclick = () => openAccount('up');
 
-// ---------------------------------------------------------------- start / schedule wizard + thumbnails
-const wiz = { step: 1, mode: 'now', thumb: null, photo: null, aiBg: null, upload: null, tab: 'design', style: 'bold' };
+// ---------------------------------------------------------------- unified Go Live Now & Schedule Launchpad
+const wiz = { step: 1, mode: 'now', streamType: store.get('streamType', 'live'), photo: null, aiBg: null, upload: null, style: 'bold', logoData: null, overlayData: null };
 const tc = $('#wThumb'), tg = tc.getContext('2d');
-function openWizard() {
+const wErr = (m) => { if (!$('#wErr')) return; $('#wErr').textContent = m; $('#wErr').hidden = !m; };
+const wWhen = () => { const v = $('#wDate')?.value && $('#wTime')?.value ? new Date(`${$('#wDate').value}T${$('#wTime').value}`) : null; return v ? v.getTime() : 0; };
+const parseHashtags = (raw) => [...new Set(String(raw || '').split(/[\s,;]+/).map((t) => t.trim().replace(/^#+/, '')).filter(Boolean).map((t) => '#' + t.replace(/[^a-z0-9_]/gi, '')).filter((t) => t.length > 1))].slice(0, 6);
+
+function setWizStep(step) {
+  wiz.step = Math.max(1, Math.min(4, Number(step) || 1));
+  wErr('');
+  $$('[data-step-pane]').forEach((pane) => { pane.hidden = Number(pane.dataset.stepPane) !== wiz.step; });
+  $$('#wizStepper [data-wstep]').forEach((btn) => {
+    const s = Number(btn.dataset.wstep);
+    const on = s === wiz.step;
+    btn.classList.toggle('done', s < wiz.step);
+    btn.setAttribute('aria-selected', String(on));
+  });
+  if ($('#wBackBtn')) $('#wBackBtn').hidden = wiz.step === 1;
+  if ($('#wNextBtn')) $('#wNextBtn').hidden = wiz.step === 4;
+  if ($('#wGo')) $('#wGo').hidden = wiz.step !== 4;
+  if ($('#wStepMeta')) $('#wStepMeta').textContent = `Step ${wiz.step} of 4`;
+  if (wiz.step === 3) { renderKitVisualPreviews(); drawThumb(); }
+  if (wiz.step === 4) { renderWizSummary(); }
+}
+
+function renderWizSummary() {
+  const box = $('#wSummary');
+  if (!box) return;
+  const typeLabel = { live: 'Live Stream', shopping: 'Live Shopping', gamer: 'Gamer Stream' }[wiz.streamType] || 'Live Stream';
+  const title = $('#wTitle')?.value.trim() || autoTitle() || 'Untitled studio';
+  const when = wiz.mode === 'later' && wWhen() ? fmtLocal(wWhen()) : 'Starting right away';
+  const dests = liveDests().filter((d) => d.on).map((d) => d.kind);
+  box.innerHTML = '';
+  const mk = (k, v) => { const sp = document.createElement('span'); const b = document.createElement('b'); b.textContent = k + ': '; sp.append(b, document.createTextNode(v)); return sp; };
+  box.append(
+    mk('Format', typeLabel),
+    mk('Show', title),
+    mk('When', when),
+    mk('Destinations', dests.length ? `${dests.length} connected` : 'Watch Party'),
+  );
+}
+
+function syncWizAiBar() {
+  const prov = $('#wAiProv')?.value || S.aiProv || 'claude';
+  const savedKey = store.get('aiKey:' + prov, '');
+  if ($('#wAiKey') && document.activeElement !== $('#wAiKey')) $('#wAiKey').value = savedKey;
+  if ($('#wAiNote') && !$('#wAiNote').dataset.busy) {
+    $('#wAiNote').textContent = savedKey
+      ? `${AI_NAME[prov] || prov} key connected locally. House key is untouched.`
+      : `Paste your own ${AI_NAME[prov] || prov} key to auto-craft titles, #hashtags, cover art, logo & overlays.`;
+  }
+}
+
+function renderKitVisualPreviews() {
+  const imgs = savedBrandImgs();
+  const logoSrc = wiz.logoData ?? imgs.logo ?? '';
+  const ovSrc = wiz.overlayData ?? imgs.overlay ?? '';
+  if ($('#wLogoPreview')) {
+    if (logoSrc) { $('#wLogoPreview').src = logoSrc; }
+    else { $('#wLogoPreview').src = svgDataUrl(buildLogoSvg(S.state.brand.color, $('#wTitle')?.value || S.name || 'G')); }
+  }
+  if ($('#wLogoClear')) $('#wLogoClear').hidden = !logoSrc;
+  if ($('#wOverlayPreview')) {
+    if (ovSrc) { $('#wOverlayPreview').src = ovSrc; }
+    else { $('#wOverlayPreview').src = svgDataUrl(buildOverlaySvg(S.state.brand.color, wiz.streamType, $('#wTitle')?.value || 'LIVE STUDIO')); }
+  }
+  if ($('#wOverlayClear')) $('#wOverlayClear').hidden = !ovSrc;
+}
+
+function svgDataUrl(svg) {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+function rasterizeSvg(svg, w, h) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      res(c.toDataURL('image/png'));
+    };
+    img.onerror = rej;
+    img.src = svgDataUrl(svg);
+  });
+}
+function buildLogoSvg(accent, title) {
+  const col = normalizeHex(accent) || '#5b7cff';
+  const ini = initials(title || 'gather');
+  const txt = hexLuminance(col) > 0.42 ? '#070c1a' : '#ffffff';
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="#111827"/></linearGradient></defs><rect width="256" height="256" rx="56" fill="#070c1a"/><rect x="10" y="10" width="236" height="236" rx="48" fill="url(#lg)" opacity="0.22"/><rect x="10" y="10" width="236" height="236" rx="48" fill="none" stroke="${col}" stroke-width="6"/><circle cx="128" cy="128" r="70" fill="${col}"/><text x="128" y="147" text-anchor="middle" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="800" font-size="64" fill="${txt}">${ini.replace(/[<>&]/g, '')}</text></svg>`;
+}
+function buildOverlaySvg(accent, type, title) {
+  const col = normalizeHex(accent) || '#5b7cff';
+  const badge = type === 'shopping' ? 'LIVE DROP' : type === 'gamer' ? 'LIVE GAMEPLAY' : 'ON AIR';
+  const cleanTitle = String(title || 'LIVE BROADCAST').slice(0, 32).replace(/[<>&]/g, '');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect x="18" y="18" width="1244" height="684" rx="22" fill="none" stroke="${col}" stroke-opacity="0.5" stroke-width="4"/><rect x="34" y="34" width="210" height="40" rx="10" fill="rgba(7,12,26,0.82)" stroke="${col}" stroke-opacity="0.6" stroke-width="2"/><circle cx="56" cy="54" r="6" fill="#ef4444"/><text x="72" y="60" font-family="Inter,sans-serif" font-weight="800" font-size="16" letter-spacing="1.5" fill="#ffffff">${badge}</text><rect x="34" y="638" width="520" height="48" rx="12" fill="rgba(7,12,26,0.84)" stroke="${col}" stroke-opacity="0.45" stroke-width="2"/><text x="54" y="668" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="700" font-size="20" fill="${col}">${cleanTitle}</text></svg>`;
+}
+
+function openWizard(mode = 'now') {
   if (S.studio && !isHost()) return;
-  Object.assign(wiz, { step: 1, mode: 'now' });
-  $('#wTitle').value = $('#wTitle').value || S.state.title || '';
+  wiz.mode = mode === 'later' ? 'later' : 'now';
+  wiz.streamType = S.state.streamType || store.get('streamType', 'live');
+  $('#wTitle').value = $('#wTitle').value || S.state.title || store.get('title', '') || '';
+  if ($('#wTags') && !$('#wTags').value) {
+    const tags = S.state.hashtags?.length ? S.state.hashtags : store.get('hashtags', []);
+    $('#wTags').value = tags.join(', ');
+  }
   const d = new Date(Date.now() + 864e5); d.setMinutes(0, 0, 0);
   if (!$('#wDate').value) { $('#wDate').value = d.toISOString().slice(0, 10); $('#wTime').value = d.toTimeString().slice(0, 5); }
+  const np = store.get('notifyPrefs', { email: true, r24h: true, r15m: true });
+  if ($('#wNotifyEmail')) $('#wNotifyEmail').checked = np.email !== false;
+  if ($('#wNotify24h')) $('#wNotify24h').checked = np.r24h !== false;
+  if ($('#wNotify15m')) $('#wNotify15m').checked = np.r15m !== false;
+  if ($('#wAiProv')) $('#wAiProv').value = S.aiProv || 'claude';
   $('#wDone').hidden = true; $('#wSteps').hidden = false;
-  renderWizard(); drawThumb();
+  wErr('');
+  syncWizAiBar();
+  renderSocialMatrix($('#wizSocialMatrix'));
+  renderKitVisualPreviews();
+  renderWizard();
+  drawThumb();
+  setWizStep(1);
   $('#wizDlg').showModal();
 }
-$('#wizOpen').onclick = openWizard;
-$$('[data-wmode]').forEach((b) => b.addEventListener('click', () => { wiz.mode = b.dataset.wmode; wiz.step = 2; renderWizard(); setTimeout(() => $('#wTitle').focus(), 50); }));
-$('#wBack').onclick = () => { wiz.step = Math.max(1, wiz.step - 1); renderWizard(); };
-$('#wNext').onclick = () => {
-  if (wiz.step === 2) {
-    if (!$('#wTitle').value.trim()) return wErr('Give your stream a title.');
-    if (wiz.mode === 'later') {
-      if (!acct.user) return wErr('Sign in to schedule streams and send reminders.');
-      const when = wWhen();
-      if (!when || when < Date.now() + 60e3) return wErr('Pick a start time in the future.');
-      if (when > Date.now() + 29 * 864e5) return wErr('You can schedule up to 29 days ahead.');
-    }
+$('#wizOpen').onclick = () => openWizard('later');
+$$('#wModeSeg [data-wmode]').forEach((b) => b.addEventListener('click', () => {
+  wiz.mode = b.dataset.wmode === 'later' ? 'later' : 'now';
+  wErr('');
+  renderWizard();
+  if (wiz.mode === 'later' && wiz.step === 1) setWizStep(2);
+}));
+$$('#wizStepper [data-wstep]').forEach((b) => b.addEventListener('click', () => setWizStep(Number(b.dataset.wstep))));
+$('#wBackBtn')?.addEventListener('click', () => setWizStep(wiz.step - 1));
+$('#wNextBtn')?.addEventListener('click', () => {
+  if (wiz.step === 2 && wiz.mode === 'later') {
+    const when = wWhen();
+    if (!when || when < Date.now() + 60e3) return wErr('Pick a start date and time in the future.');
+    if (when > Date.now() + 29 * 864e5) return wErr('You can schedule up to 29 days ahead.');
   }
-  wErr(''); wiz.step = Math.min(4, wiz.step + 1); renderWizard(); if (wiz.step === 3) drawThumb();
-};
-const wErr = (m) => { $('#wErr').textContent = m; $('#wErr').hidden = !m; };
-const wWhen = () => { const v = $('#wDate').value && $('#wTime').value ? new Date(`${$('#wDate').value}T${$('#wTime').value}`) : null; return v ? v.getTime() : 0; };
+  setWizStep(wiz.step + 1);
+});
+$$('#wTypes [data-wtype]').forEach((b) => b.addEventListener('click', () => {
+  wiz.streamType = b.dataset.wtype;
+  renderWizard();
+  renderKitVisualPreviews();
+  drawThumb();
+}));
+
 function renderWizard() {
-  $$('#wSteps [data-step]').forEach((el) => (el.hidden = Number(el.dataset.step) !== wiz.step));
-  $$('#wDots i').forEach((d, i) => d.classList.toggle('on', i < wiz.step));
-  $('#wBack').hidden = wiz.step === 1;
-  $('#wNext').hidden = wiz.step === 1 || wiz.step === 4;
-  $('#wGo').hidden = wiz.step !== 4;
-  $('#wGo').textContent = wiz.mode === 'later' ? 'Schedule stream' : 'Go to the green room';
-  $$('.w-later').forEach((el) => (el.hidden = wiz.mode !== 'later'));
-  $('#wMailNote').textContent = !acct.user ? 'Sign in to email invites and reminders.' : S.mailReady === false ? 'Email isn’t set up on this gather yet, so invites won’t be emailed. You can still copy the link.' : 'Invitees get the invite now, then reminders a day and 15 minutes before. You get the reminders too.';
-  $$('#wThumbTabs button').forEach((b) => b.classList.toggle('on', b.dataset.wt === wiz.tab));
-  $$('[data-wpane]').forEach((p) => (p.hidden = p.dataset.wpane !== wiz.tab));
+  const later = wiz.mode === 'later';
+  $$('#wModeSeg [data-wmode]').forEach((b) => {
+    const on = b.dataset.wmode === wiz.mode;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  $$('#wTypes [data-wtype]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.wtype === wiz.streamType)));
+  $$('.w-later').forEach((el) => (el.hidden = !later));
+  if ($('#wGo')) $('#wGo').textContent = later ? 'Schedule Stream' : 'Go Live Now';
+  if ($('#wMailNote')) {
+    $('#wMailNote').textContent = !acct.user
+      ? 'Sign in to schedule streams and send automatic reminders.'
+      : S.mailReady === false
+      ? 'Email isn’t configured on this server yet, so copy the invite link after scheduling.'
+      : 'Invitees receive calendar invites and automatic reminders based on your settings above.';
+  }
   $$('#wStyle button').forEach((b) => b.classList.toggle('on', b.dataset.ws === wiz.style));
-  if (wiz.step === 4) {
-    $('#wSumTitle').textContent = $('#wTitle').value.trim();
-    $('#wSumWhen').textContent = wiz.mode === 'later' ? fmtLocal(wWhen()) : 'Now';
-    const inv = $('#wInvites').value.split(/[\s,;]+/).filter(Boolean);
-    $('#wSumInv').textContent = inv.length ? `${inv.length} ${inv.length === 1 ? 'person' : 'people'}` : 'Nobody yet';
-    $('#wSumThumb').src = tc.toDataURL('image/webp', .8);
+  if (wiz.step === 4) renderWizSummary();
+}
+
+function activeWizAi() {
+  const prov = $('#wAiProv')?.value || S.aiProv || 'claude';
+  const typed = $('#wAiKey')?.value.trim();
+  if (typed && typed !== store.get('aiKey:' + prov, '')) store.set('aiKey:' + prov, typed);
+  const key = typed || store.get('aiKey:' + prov, '');
+  return { prov, key };
+}
+$('#wAiProv')?.addEventListener('change', () => {
+  S.aiProv = $('#wAiProv').value;
+  store.set('aiProv', S.aiProv);
+  syncWizAiBar();
+});
+$('#wAiKeySave')?.addEventListener('click', () => {
+  const { prov, key } = activeWizAi();
+  if (!key) return toast('Paste your API key first.', { err: true });
+  store.set('aiKey:' + prov, key);
+  syncWizAiBar();
+  toast(`${AI_NAME[prov] || prov} key saved locally in this browser.`);
+});
+
+async function generateWizKit(withVisuals) {
+  const { prov, key } = activeWizAi();
+  if (!key) {
+    $('#wAiNote').textContent = `Add your own ${AI_NAME[prov] || prov} API key above first so we never burn shared house keys.`;
+    $('#wAiKey')?.focus();
+    return toast(`Paste your ${AI_NAME[prov] || prov} key to generate AI assets.`, { err: true });
+  }
+  const btn = withVisuals ? $('#wAiKitBtn') : $('#wAiCopyBtn');
+  busy(btn);
+  $('#wAiNote').dataset.busy = '1';
+  $('#wAiNote').textContent = withVisuals ? 'Crafting copy, hashtags, cover, logo & overlay…' : 'Generating title, description & ranked hashtags…';
+  try {
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'kit',
+        provider: prov,
+        apiKey: key,
+        model: store.get('aiModel:' + prov, ''),
+        topic: $('#wTitle').value.trim() || $('#wDesc').value.trim(),
+        streamType: wiz.streamType,
+      }),
+    });
+    const kit = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(kit.error || `AI request failed (${res.status}).`);
+    if (kit.title) $('#wTitle').value = kit.title;
+    if (kit.description) $('#wDesc').value = kit.description;
+    if (Array.isArray(kit.hashtags) && kit.hashtags.length) $('#wTags').value = kit.hashtags.join(', ');
+    if (kit.headline) { $('#wHeadline').value = kit.headline; $('#wHeadline').dataset.touched = '1'; }
+    if (normalizeHex(kit.color)) setStage({ brand: { color: normalizeHex(kit.color) } });
+    if (withVisuals) {
+      const canImg = prov === 'openai' || prov === 'gemini' || prov === 'grok';
+      if (canImg) {
+        const bgRes = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'image', provider: prov, apiKey: key, prompt: kit.thumbPrompt || `${wiz.streamType} broadcast stage background, editorial dark aesthetic` }),
+        }).then((r) => r.json()).catch(() => ({}));
+        if (bgRes.data) wiz.aiBg = await loadImg(bgRes.data);
+      }
+      wiz.logoData = await rasterizeSvg(buildLogoSvg(kit.color || S.state.brand.color, kit.title || $('#wTitle').value || S.name || 'G'), 256, 256);
+      wiz.overlayData = await rasterizeSvg(buildOverlaySvg(kit.color || S.state.brand.color, wiz.streamType, kit.headline || kit.title || 'LIVE'), 1280, 720);
+      const imgs = savedBrandImgs();
+      imgs.logo = wiz.logoData; imgs.overlay = wiz.overlayData;
+      try { rawSet('brandImgs', imgs); } catch {}
+      renderKitVisualPreviews();
+    }
+    drawThumb();
+    toast(withVisuals ? 'Full AI stream kit generated.' : 'AI copy & hashtags ready.');
+  } catch (err) {
+    toast(err.message || 'AI kit generation failed.', { err: true });
+    $('#wAiNote').textContent = err.message || 'AI generation failed.';
+  } finally {
+    delete $('#wAiNote').dataset.busy;
+    busy(btn, false);
+    if (!$('#wAiNote').textContent.includes('failed')) syncWizAiBar();
   }
 }
-$$('#wThumbTabs button').forEach((b) => b.addEventListener('click', () => { wiz.tab = b.dataset.wt; renderWizard(); drawThumb(); }));
+
+$('#wAiCopyBtn')?.addEventListener('click', () => generateWizKit(false));
+$('#wAiKitBtn')?.addEventListener('click', () => generateWizKit(true));
+$('#wThumbAiBtn')?.addEventListener('click', async () => {
+  const { prov, key } = activeWizAi();
+  if (!key) { $('#wAiKey')?.focus(); return toast('Paste your own AI key first to generate cover art.', { err: true }); }
+  const btn = $('#wThumbAiBtn'); busy(btn);
+  try {
+    if (prov === 'openai' || prov === 'gemini' || prov === 'grok') {
+      const prompt = `${wiz.streamType} livestream 16:9 broadcast background for "${$('#wTitle').value.trim() || 'Live Show'}", dark editorial lighting, crisp minimal aesthetic`;
+      const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: prov, apiKey: key, prompt }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Image request failed.');
+      wiz.upload = null; wiz.aiBg = await loadImg(j.data);
+      drawThumb();
+      toast('AI cover generated.');
+    } else {
+      const col = S.state.brand.color || '#5b7cff';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><defs><radialGradient id="g1" cx="0.2" cy="0.2" r="0.9"><stop offset="0" stop-color="${col}" stop-opacity="0.32"/><stop offset="1" stop-color="#070c1a" stop-opacity="1"/></radialGradient></defs><rect width="1280" height="720" fill="#070c1a"/><rect width="1280" height="720" fill="url(#g1)"/><circle cx="1040" cy="180" r="240" fill="${col}" fill-opacity="0.1"/></svg>`;
+      wiz.upload = null; wiz.aiBg = await loadImg(await rasterizeSvg(svg, 1280, 720));
+      drawThumb();
+      toast('Editorial vector cover generated with your Claude setup.');
+    }
+  } catch (err) { toast(err.message, { err: true }); }
+  finally { busy(btn, false); }
+});
+$('#wLogoAiBtn')?.addEventListener('click', async () => {
+  wiz.logoData = await rasterizeSvg(buildLogoSvg(S.state.brand.color, $('#wTitle').value.trim() || S.name || 'G'), 256, 256);
+  const imgs = savedBrandImgs(); imgs.logo = wiz.logoData; try { rawSet('brandImgs', imgs); } catch {}
+  renderKitVisualPreviews(); toast('Brand logo generated.');
+});
+$('#wOverlayAiBtn')?.addEventListener('click', async () => {
+  wiz.overlayData = await rasterizeSvg(buildOverlaySvg(S.state.brand.color, wiz.streamType, $('#wHeadline').value.trim() || $('#wTitle').value.trim() || 'LIVE'), 1280, 720);
+  const imgs = savedBrandImgs(); imgs.overlay = wiz.overlayData; try { rawSet('brandImgs', imgs); } catch {}
+  renderKitVisualPreviews(); toast('Stage overlay generated.');
+});
+$('#wLogoPick')?.addEventListener('click', () => $('#wLogoFile').click());
+$('#wLogoFile')?.addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  wiz.logoData = await compressImage(f); const imgs = savedBrandImgs(); imgs.logo = wiz.logoData; try { rawSet('brandImgs', imgs); } catch {}
+  renderKitVisualPreviews(); toast('Brand logo uploaded.');
+});
+$('#wLogoClear')?.addEventListener('click', () => {
+  wiz.logoData = ''; const imgs = savedBrandImgs(); delete imgs.logo; rawSet('brandImgs', imgs);
+  renderKitVisualPreviews();
+});
+$('#wOverlayPick')?.addEventListener('click', () => $('#wOverlayFile').click());
+$('#wOverlayFile')?.addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  wiz.overlayData = await compressImage(f); const imgs = savedBrandImgs(); imgs.overlay = wiz.overlayData; try { rawSet('brandImgs', imgs); } catch {}
+  renderKitVisualPreviews(); toast('Stage overlay uploaded.');
+});
+$('#wOverlayClear')?.addEventListener('click', () => {
+  wiz.overlayData = ''; const imgs = savedBrandImgs(); delete imgs.overlay; rawSet('brandImgs', imgs);
+  renderKitVisualPreviews();
+});
+
 $$('#wStyle button').forEach((b) => b.addEventListener('click', () => { wiz.style = b.dataset.ws; renderWizard(); drawThumb(); }));
 $('#wHeadline').oninput = drawThumb;
-$('#wTitle').addEventListener('input', () => { if (!$('#wHeadline').dataset.touched) $('#wHeadline').value = $('#wTitle').value; drawThumb(); });
+$('#wTitle').addEventListener('input', () => { if (!$('#wHeadline').dataset.touched) $('#wHeadline').value = $('#wTitle').value; drawThumb(); renderKitVisualPreviews(); });
 $('#wHeadline').addEventListener('input', () => { $('#wHeadline').dataset.touched = '1'; });
 const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 $('#wSnap').onclick = async () => {
   const v = $(`#card-${cssId(myId())} video`) || $('#previewVideo');
-  if (!v?.videoWidth) return toast('Turn your camera on first, or upload a photo.', { err: true });
+  if (!v?.videoWidth) return toast('Turn your camera on in the green room first, or upload a photo.', { err: true });
   const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
-  c.getContext('2d').drawImage(v, 0, 0); wiz.photo = await loadImg(c.toDataURL('image/jpeg', .9)); drawThumb();
+  c.getContext('2d').drawImage(v, 0, 0); wiz.photo = await loadImg(c.toDataURL('image/jpeg', .9)); wiz.upload = null; drawThumb();
 };
 $('#wPhotoPick').onclick = () => $('#wPhotoFile').click();
-$('#wPhotoFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.photo = await loadImg(await compressImage(f)); drawThumb(); } };
+$('#wPhotoFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.photo = await loadImg(await compressImage(f)); wiz.upload = null; drawThumb(); } };
 $('#wUploadPick').onclick = () => $('#wUploadFile').click();
 $('#wUploadFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.upload = await loadImg(await compressImage(f)); drawThumb(); } };
-$('#wGen').onclick = async () => {
-  const prompt = $('#wPrompt').value.trim();
-  if (!prompt) return toast('Describe the background you want.', { err: true });
-  const prov = S.aiProv, key = store.get('aiKey:' + prov, '');
-  busy($('#wGen')); $('#wGenNote').textContent = '';
-  try {
-    const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: prov, apiKey: key, prompt }) });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(j.error || 'The image request failed.');
-    wiz.aiBg = await loadImg(j.data); wiz.tab = 'design'; renderWizard(); drawThumb();
-    toast('AI background added. Adjust the headline and style.');
-  } catch (err) { $('#wGenNote').textContent = err.message; }
-  finally { busy($('#wGen'), false); }
-};
 function cover(gx, img, x, y, w, h) {
   const k = Math.max(w / img.naturalWidth, h / img.naturalHeight), dw = img.naturalWidth * k, dh = img.naturalHeight * k;
   gx.save(); gx.beginPath(); gx.rect(x, y, w, h); gx.clip(); gx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); gx.restore();
 }
 function drawThumb() {
-  const Wt = 1280, Ht = 720, accent = S.state.brand.color, F = stageFont();
+  const Wt = 1280, Ht = 720, accent = S.state.brand.color || '#5b7cff', F = stageFont();
+  const ink = hexLuminance(accent) > 0.42 ? '#070c1a' : '#ffffff';
   tg.clearRect(0, 0, Wt, Ht);
-  if (wiz.tab === 'upload') {
-    if (wiz.upload) cover(tg, wiz.upload, 0, 0, Wt, Ht);
-    else { tg.fillStyle = '#101b3a'; tg.fillRect(0, 0, Wt, Ht); tg.fillStyle = 'rgba(255,255,255,.6)'; tg.font = '600 30px Onest, sans-serif'; tg.textAlign = 'center'; tg.fillText('Choose an image (1280 × 720 works best)', Wt / 2, Ht / 2); }
-    return;
-  }
-  // background: AI image, else the brand gradient
+  if (wiz.upload) { cover(tg, wiz.upload, 0, 0, Wt, Ht); return; }
   if (wiz.aiBg) cover(tg, wiz.aiBg, 0, 0, Wt, Ht);
-  else { const gr = tg.createLinearGradient(0, 0, Wt, Ht); gr.addColorStop(0, '#0b1636'); gr.addColorStop(.55, '#1a2a6b'); gr.addColorStop(1, accent); tg.fillStyle = gr; tg.fillRect(0, 0, Wt, Ht); }
+  else { const gr = tg.createLinearGradient(0, 0, Wt, Ht); gr.addColorStop(0, '#090c14'); gr.addColorStop(.55, hexA(accent, .28)); gr.addColorStop(1, hexA(accent, .62)); tg.fillStyle = gr; tg.fillRect(0, 0, Wt, Ht); }
   const head = ($('#wHeadline').value || $('#wTitle').value || 'Your stream title').trim();
   const st = wiz.style;
   if (wiz.photo) {
     if (st === 'split') cover(tg, wiz.photo, Wt * .5, 0, Wt * .5, Ht);
     else if (st === 'center') { tg.save(); tg.globalAlpha = .35; cover(tg, wiz.photo, 0, 0, Wt, Ht); tg.restore(); }
-    else { cover(tg, wiz.photo, Wt * .48, 0, Wt * .52, Ht); const fade = tg.createLinearGradient(Wt * .48, 0, Wt * .62, 0); fade.addColorStop(0, 'rgba(8,14,32,1)'); fade.addColorStop(1, 'rgba(8,14,32,0)'); tg.fillStyle = fade; tg.fillRect(Wt * .48, 0, Wt * .14, Ht); }
+    else { cover(tg, wiz.photo, Wt * .48, 0, Wt * .52, Ht); const fade = tg.createLinearGradient(Wt * .48, 0, Wt * .62, 0); fade.addColorStop(0, 'rgba(8,12,24,1)'); fade.addColorStop(1, 'rgba(8,12,24,0)'); tg.fillStyle = fade; tg.fillRect(Wt * .48, 0, Wt * .14, Ht); }
   }
-  if (st !== 'center') { const sh = tg.createLinearGradient(0, 0, Wt * .6, 0); sh.addColorStop(0, 'rgba(6,10,24,.75)'); sh.addColorStop(1, 'rgba(6,10,24,0)'); tg.fillStyle = sh; tg.fillRect(0, 0, Wt * .6, Ht); }
-  // headline
+  if (st !== 'center') { const sh = tg.createLinearGradient(0, 0, Wt * .62, 0); sh.addColorStop(0, 'rgba(7,12,26,.82)'); sh.addColorStop(1, 'rgba(7,12,26,0)'); tg.fillStyle = sh; tg.fillRect(0, 0, Wt * .62, Ht); }
   const maxW = st === 'center' ? Wt - 160 : Wt * .46;
-  let size = 108;
+  let size = 98;
   tg.font = `900 ${size}px ${F}`;
   let lines = [];
   for (;;) {
@@ -3766,41 +4207,100 @@ function drawThumb() {
     if (lines.length <= 4 || size <= 48) break;
     size -= 8;
   }
-  const lh = size * 1.02, total = lines.length * lh;
+  const lh = size * 1.04, total = lines.length * lh;
   tg.textAlign = st === 'center' ? 'center' : 'left'; tg.textBaseline = 'alphabetic';
   const x0 = st === 'center' ? Wt / 2 : 70, y0 = (Ht - total) / 2 + size * .85;
   lines.forEach((l, i) => {
-    tg.lineWidth = size * .12; tg.strokeStyle = 'rgba(0,0,0,.55)'; tg.lineJoin = 'round'; tg.strokeText(l, x0, y0 + i * lh);
+    tg.lineWidth = size * .12; tg.strokeStyle = 'rgba(0,0,0,.6)'; tg.lineJoin = 'round'; tg.strokeText(l, x0, y0 + i * lh);
     tg.fillStyle = i === lines.length - 1 ? accent : '#ffffff'; tg.fillText(l, x0, y0 + i * lh);
   });
-  tg.fillStyle = accent; tg.fillRect(st === 'center' ? Wt / 2 - 60 : 72, y0 + (lines.length - 1) * lh + 26, 120, 10);
+  tg.fillStyle = accent; tg.fillRect(st === 'center' ? Wt / 2 - 60 : 72, y0 + (lines.length - 1) * lh + 26, 120, 8);
+  // Subtle stream type pill on thumbnail
+  const typeLbl = { live: 'LIVE SHOW', shopping: 'LIVE SHOPPING', gamer: 'GAMER STREAM' }[wiz.streamType] || 'LIVE SHOW';
+  tg.font = '800 20px Inter, sans-serif';
+  const pw = tg.measureText(typeLbl).width + 32;
+  const px = st === 'center' ? (Wt - pw) / 2 : 70;
+  tg.fillStyle = accent; rr(px, 54, pw, 38, 8); tg.fill();
+  tg.fillStyle = ink; tg.fillText(typeLbl, px + 16, 80);
 }
-$('#wGo').onclick = async () => {
-  wErr('');
+
+function saveWizDefaults(quiet = false) {
   const title = $('#wTitle').value.trim();
-  const thumb = (wiz.tab === 'upload' && !wiz.upload) ? '' : tc.toDataURL('image/jpeg', .86);
-  const body = { title, description: $('#wDesc').value.trim(), invites: $('#wInvites').value, destinations: $$('#wDest input:checked').map((i) => i.value), thumb, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, duration: Number($('#wDur').value) };
+  const hashtags = parseHashtags($('#wTags')?.value || '');
+  const notifyPrefs = {
+    email: $('#wNotifyEmail')?.checked !== false,
+    r24h: $('#wNotify24h')?.checked !== false,
+    r15m: $('#wNotify15m')?.checked !== false,
+  };
+  store.set('streamType', wiz.streamType);
+  store.set('hashtags', hashtags);
+  if (title) store.set('title', title);
+  store.set('notifyPrefs', notifyPrefs);
+  store.set('onboardingDone', true);
+  store.set('destTemplates', liveDests().map((d) => ({ kind: d.kind, url: d.url, watch: d.watch, on: d.on })));
+  if (acct.user) pushSettings();
+  if (!quiet) toast(acct.user ? 'Stream defaults saved to your account.' : 'Stream defaults saved locally.');
+}
+$('#wSaveDefaults')?.addEventListener('click', () => saveWizDefaults(false));
+
+async function proceedWizLaunch() {
+  wErr('');
+  const title = $('#wTitle').value.trim() || autoTitle();
+  const hashtags = parseHashtags($('#wTags')?.value || '');
+  const notifyPrefs = {
+    email: $('#wNotifyEmail')?.checked !== false,
+    r24h: $('#wNotify24h')?.checked !== false,
+    r15m: $('#wNotify15m')?.checked !== false,
+  };
+  const destinations = [...new Set(liveDests().filter((d) => d.on).map((d) => d.kind))];
+  const thumb = tc.toDataURL('image/jpeg', .86);
+  const body = {
+    title, description: $('#wDesc').value.trim(), invites: $('#wInvites').value,
+    destinations, streamType: wiz.streamType, hashtags, notifyPrefs,
+    thumb, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, duration: Number($('#wDur').value || 60),
+  };
+  if (wiz.mode === 'later') {
+    if (!acct.user) return needAccountThen(() => { $('#wizDlg').showModal(); proceedWizLaunch(); });
+    const when = wWhen();
+    if (!when || when < Date.now() + 60e3) return wErr('Pick a start time in the future.');
+    if (when > Date.now() + 29 * 864e5) return wErr('You can schedule up to 29 days ahead.');
+  }
   busy($('#wGo'));
   try {
+    saveWizDefaults(true);
+    const imgs = savedBrandImgs();
+    const logoAsset = imgs.logo ? 'local-brand-logo' : '';
+    const overlayAsset = imgs.overlay ? 'local-brand-overlay' : '';
+    if (imgs.logo) setAssetData('local-brand-logo', imgs.logo);
+    if (imgs.overlay) setAssetData('local-brand-overlay', imgs.overlay);
+    setStage({ title, streamType: wiz.streamType, hashtags, ...(logoAsset || overlayAsset ? { brand: { ...(logoAsset ? { logo: logoAsset } : {}), ...(overlayAsset ? { overlay: overlayAsset } : {}) } } : {}) });
     if (wiz.mode === 'later') {
-      const r = await acctApi('streamCreate', { ...body, when: wWhen(), notify: true });
+      const r = await acctApi('streamCreate', { ...body, when: wWhen(), notify: notifyPrefs.email });
       S.streams.push(r.stream); renderUpcoming();
       $('#wSteps').hidden = true; $('#wDone').hidden = false;
       $('#wDoneWhen').textContent = fmtLocal(r.stream.when);
-      $('#wDoneMail').textContent = r.stream.mail?.skipped || (r.stream.mail ? `${r.stream.mail.sent} invites sent, ${r.stream.mail.scheduled} reminders scheduled${r.stream.mail.failed ? `, ${r.stream.mail.failed} failed: ${r.stream.mail.error}` : ''}.` : 'No emails were sent.');
+      $('#wDoneMail').textContent = r.stream.mail?.skipped || (r.stream.mail ? `${r.stream.mail.sent} invites sent, ${r.stream.mail.scheduled} reminders scheduled${r.stream.mail.failed ? `, ${r.stream.mail.failed} failed: ${r.stream.mail.error}` : ''}.` : 'Scheduled without guest emails.');
       wiz.done = r.stream;
     } else {
-      // Live now: a reserved studio when signed in (so you keep the host seat), else a fresh one.
-      let code = newCode(), id = null;
-      if (acct.user) { const r = await acctApi('streamCreate', body); code = r.stream.studio; id = r.stream.id; }
-      S.pendingStream = { code, id, title };
-      setStage({ title });
-      $('#wizDlg').close();
-      openEnter('create');
+      const startNow = async () => {
+        let code = newCode(), id = null;
+        if (acct.user) {
+          try { const r = await acctApi('streamCreate', body); code = r.stream.studio; id = r.stream.id; } catch {}
+        }
+        S.pendingStream = { code, id, title };
+        $('#wizDlg').close();
+        openEnter('create');
+      };
+      if (S.requireAccount && !acct.user) {
+        $('#wizDlg').close();
+        return needAccountThen(() => { openWizard('now'); startNow(); });
+      }
+      await startNow();
     }
   } catch (err) { wErr(err.message); }
   finally { busy($('#wGo'), false); }
-};
+}
+$('#wGo').onclick = proceedWizLaunch;
 $('#wDoneCopy').onclick = () => wiz.done && copy(`${location.origin}/s/${wiz.done.studio}`, 'Invite link copied.');
 $('#wDoneCal').onclick = () => wiz.done && downloadIcs(wiz.done);
 $('#wDoneClose').onclick = () => $('#wizDlg').close();
@@ -3887,8 +4387,8 @@ const HELP = [
   ['Add a banner or ticker', 'banner lower third ticker headline', 'overlays', '#bannerText', 'Look → Overlays'],
   ['Upload custom chat emotes', 'emote emoji custom sticker chat', 'overlays', '#emoteName', 'Look → Overlays → Custom emotes'],
   ['Change stage colours, fonts and animations', 'brand colour color font animation style', 'brand', '#fontSel', 'Look → Brand'],
-  ['Add my logo or an overlay', 'logo overlay watermark frame', 'brand', '#logoPick', 'Look → Brand → Logo'],
-  ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support', 'brand', '#tipList', 'Look → Brand → Support links'],
+  ['Add my logo or a transparent overlay', 'logo overlay watermark frame ai', 'overlays', '#overlayPick', 'Look → Overlays → Stage overlay'],
+  ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support', 'shop', '#tipList', 'Shop → Support links'],
   ['Sell products in the live shop', 'shop merch store shopify etsy product sale', 'shop', '#shopDomain', 'Shop'],
   ['Start a live poll or prediction', 'poll prediction vote audience quiz', 'polls', '#pollQ', 'Polls'],
   ['Play with viewers (queue)', 'play gaming queue gamertag viewers', 'gaming', '#wpQueue', 'Play'],
@@ -3944,20 +4444,70 @@ $('#helpSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { c
 // The finished program (the same canvas and mix as a recording) goes over a WebSocket to the gather relay, which
 // hands it to FFmpeg and on to every destination at once. H.264 from the browser is passed through untouched.
 const PLATFORMS = {
-  youtube: { name: 'YouTube', url: 'rtmp://a.rtmp.youtube.com/live2', hint: 'YouTube Studio → Go live → Stream key' },
-  twitch: { name: 'Twitch', url: 'rtmp://live.twitch.tv/app', hint: 'Twitch → Creator Dashboard → Settings → Stream → Primary stream key' },
-  kick: { name: 'Kick', url: '', hint: 'Kick → Settings → Stream URL and Stream key' },
-  facebook: { name: 'Facebook', url: 'rtmps://live-api-s.facebook.com:443/rtmp', hint: 'Facebook → Live Producer → Streaming software → Stream key' },
-  x: { name: 'X', url: '', hint: 'X Media Studio → Producer → RTMP URL and Stream key' },
-  rumble: { name: 'Rumble', url: '', hint: 'Rumble → Go Live → Stream URL and Stream key' },
-  custom: { name: 'Other', url: '', hint: 'Any RTMP or RTMPS server URL and key' },
+  youtube: { name: 'YouTube', dot: '#ff2a3d', url: 'rtmp://a.rtmp.youtube.com/live2', hint: 'YouTube Studio → Go live → Stream key' },
+  twitch: { name: 'Twitch', dot: '#9b6bff', url: 'rtmp://live.twitch.tv/app', hint: 'Twitch → Creator Dashboard → Settings → Stream → Primary stream key' },
+  kick: { name: 'Kick', dot: '#53fc18', url: '', hint: 'Kick → Settings → Stream URL and Stream key' },
+  facebook: { name: 'Facebook', dot: '#1877f2', url: 'rtmps://live-api-s.facebook.com:443/rtmp', hint: 'Facebook → Live Producer → Streaming software → Stream key' },
+  linkedin: { name: 'LinkedIn', dot: '#0a66c2', url: '', hint: 'LinkedIn Live → Go Live → RTMP URL & Stream key' },
+  x: { name: 'X', dot: '#e7e9ea', url: '', hint: 'X Media Studio → Producer → RTMP URL and Stream key' },
+  instagram: { name: 'Instagram', dot: '#e4405f', url: '', hint: 'Instagram Live Producer → Stream URL & Stream key' },
+  tiktok: { name: 'TikTok', dot: '#fe2c55', url: '', hint: 'TikTok LIVE → Cast to PC → Stream URL & key' },
+  rumble: { name: 'Rumble', dot: '#85c742', url: '', hint: 'Rumble → Go Live → Stream URL and Stream key' },
+  custom: { name: 'Other', dot: '#8b9bb8', url: '', hint: 'Any RTMP or RTMPS server URL and key' },
 };
 S.relayOn = false;
 S.live = null;
 let L_STATUS = {}; // per destination (index in liveDests) while live: {state: 'live'|'failed', reason}
 const CONNECT_TIMEOUT = 60_000; // a free relay can take ~30–50 s to wake
 const liveDests = () => store.get('liveDests', []); // local only: never synced, never sent to gather's server
-function saveDests(list) { store.set('liveDests', list); renderLive(); }
+function saveDests(list) {
+  store.set('liveDests', list);
+  renderLive();
+  renderSocialMatrix($('#wizSocialMatrix'));
+  renderSocialMatrix($('#invSocialMatrix'));
+}
+function renderSocialMatrix(box) {
+  if (!box) return;
+  const list = liveDests();
+  if (box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox') return;
+  const order = ['youtube', 'twitch', 'kick', 'facebook', 'linkedin', 'x', 'instagram', 'tiktok', 'rumble', 'custom'];
+  box.replaceChildren(...order.map((kind) => {
+    const p = PLATFORMS[kind];
+    const existing = list.find((d) => d.kind === kind);
+    const on = !!existing?.on;
+    const item = document.createElement('div');
+    item.className = 'soc-item' + (on ? ' on' : '');
+    const top = document.createElement('label');
+    top.className = 'soc-top';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox'; chk.checked = on; chk.setAttribute('aria-label', `Connect ${p.name}`);
+    const dot = document.createElement('i'); dot.className = 'soc-dot'; dot.style.background = p.dot;
+    const nm = document.createElement('span'); nm.className = 'soc-name'; nm.textContent = p.name;
+    const badge = document.createElement('span'); badge.className = 'soc-badge'; badge.textContent = on ? (existing?.key ? 'Ready' : 'On') : 'Off';
+    top.append(chk, dot, nm, badge);
+    item.append(top);
+    chk.onchange = () => {
+      const next = [...liveDests()];
+      const idx = next.findIndex((d) => d.kind === kind);
+      if (idx >= 0) next[idx] = { ...next[idx], on: chk.checked };
+      else if (chk.checked) next.push({ kind, url: p.url, key: '', on: true });
+      saveDests(next);
+    };
+    if (on) {
+      const flds = document.createElement('div'); flds.className = 'soc-fields';
+      if (!p.url || kind === 'custom') {
+        const uIn = document.createElement('input'); uIn.className = 'input sm'; uIn.placeholder = 'rtmps://…'; uIn.value = existing?.url || ''; uIn.setAttribute('aria-label', `${p.name} RTMP URL`);
+        uIn.onchange = () => { const all = [...liveDests()]; const i = all.findIndex((d) => d.kind === kind); if (i >= 0) { all[i] = { ...all[i], url: uIn.value.trim() }; saveDests(all); } };
+        flds.append(uIn);
+      }
+      const kIn = document.createElement('input'); kIn.type = 'password'; kIn.className = 'input sm'; kIn.autocomplete = 'off'; kIn.placeholder = `${p.name} stream key`; kIn.value = existing?.key || ''; kIn.setAttribute('aria-label', `${p.name} stream key`);
+      kIn.onchange = () => { const all = [...liveDests()]; const i = all.findIndex((d) => d.kind === kind); if (i >= 0) { all[i] = { ...all[i], key: kIn.value.trim() }; saveDests(all); } };
+      flds.append(kIn);
+      item.append(flds);
+    }
+    return item;
+  }));
+}
 function pickLiveMime() {
   const opts = [['video/webm;codecs=h264,opus', 'h264'], ['video/webm;codecs=avc1,opus', 'h264'], ['video/mp4;codecs=avc1,opus', 'h264'], ['video/webm;codecs=vp8,opus', 'vp8'], ['video/webm;codecs=vp9,opus', 'vp9']];
   const hit = opts.find(([m]) => window.MediaRecorder?.isTypeSupported?.(m));
@@ -4215,7 +4765,59 @@ function showRecording(blob, dur) {
   }
 }
 
-// ---------------------------------------------------------------- chat
+// ---------------------------------------------------------------- chat, options, file sharing & guest-only brief
+const chatFileCache = new Map();
+function fmtBytes(n) {
+  const v = Number(n) || 0;
+  return v >= 1048576 ? (v / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(v / 1024)) + ' KB';
+}
+async function getChatFile(fid) {
+  if (!fid) return null;
+  if (chatFileCache.has(fid)) return chatFileCache.get(fid);
+  const res = await api('chatFileGet', { ...creds(), file: fid });
+  if (res?.data) chatFileCache.set(fid, res);
+  return res;
+}
+function attachFileCard(f) {
+  const card = document.createElement('div');
+  card.className = 'chat-file-card';
+  if (f.mime?.startsWith('image/')) {
+    const img = document.createElement('img');
+    img.className = 'chat-file-img';
+    img.alt = f.name || 'Image attachment';
+    getChatFile(f.id).then((res) => { if (res?.data) img.src = res.data; }).catch(() => {});
+    img.onclick = async () => {
+      try {
+        const res = await getChatFile(f.id);
+        if (!res?.data) return;
+        const a = document.createElement('a'); a.href = res.data; a.download = f.name || 'image'; a.click();
+      } catch (e) { toast(e.message, { err: true }); }
+    };
+    card.append(img);
+  }
+  const row = document.createElement('div');
+  row.className = 'chat-file-row';
+  const meta = document.createElement('div');
+  meta.className = 'chat-file-meta';
+  const nm = document.createElement('b'); nm.textContent = f.name || 'Studio file';
+  const sz = document.createElement('small'); sz.textContent = f.size ? fmtBytes(f.size) : (f.mime || 'File');
+  meta.append(nm, sz);
+  const dl = document.createElement('button');
+  dl.type = 'button'; dl.className = 'btn sm chat-file-dl';
+  dl.innerHTML = icon('download', { size: 'sm' }) + '<span>Download</span>';
+  dl.onclick = async () => {
+    busy(dl);
+    try {
+      const res = await getChatFile(f.id);
+      if (!res?.data) throw new Error('File unavailable.');
+      const a = document.createElement('a'); a.href = res.data; a.download = f.name || 'file'; a.click();
+    } catch (e) { toast(e.message, { err: true }); }
+    finally { busy(dl, false); }
+  };
+  row.append(meta, dl);
+  card.append(row);
+  return card;
+}
 function addMsg(msg) {
   const li = document.createElement('li');
   const mine = msg.from === S.id;
@@ -4223,17 +4825,26 @@ function addMsg(msg) {
   const who = document.createElement('div'); who.className = 'who';
   const b = document.createElement('b'); b.textContent = mine ? 'You' : msg.name;
   who.append(b);
-  const txt = document.createElement('div'); txt.className = 'txt';
-  // Linkify safely: text nodes + anchors only.
-  const parts = msg.text.split(/(https?:\/\/[^\s<]+)/g);
-  for (const part of parts) {
-    if (/^https?:\/\//.test(part)) { const a = document.createElement('a'); a.href = part; a.textContent = part; a.target = '_blank'; a.rel = 'noopener noreferrer'; txt.append(a); }
-    else if (part) txt.append(document.createTextNode(part));
+  const scope = msg.scope === 'every' ? 'every' : 'guests';
+  const sc = document.createElement('span');
+  sc.className = 'msg-scope' + (scope === 'every' ? ' every' : '');
+  sc.textContent = scope === 'every' ? 'Every chat' : 'Guests only';
+  who.append(sc);
+  const body = [];
+  if (msg.text) {
+    const txt = document.createElement('div'); txt.className = 'txt';
+    const parts = String(msg.text).split(/(https?:\/\/[^\s<]+)/g);
+    for (const part of parts) {
+      if (/^https?:\/\//.test(part)) { const a = document.createElement('a'); a.href = part; a.textContent = part; a.target = '_blank'; a.rel = 'noopener noreferrer'; txt.append(a); }
+      else if (part) txt.append(document.createTextNode(part));
+    }
+    body.push(txt);
   }
-  const fm = { id: msg.id, src: 'studio', name: msg.name, color: '', text: msg.text, ts: msg.ts };
+  if (msg.file?.id) body.push(attachFileCard(msg.file));
+  const fm = { id: msg.id, src: 'studio', name: msg.name, color: '', text: msg.text || (msg.file?.name ? `📎 ${msg.file.name}` : ''), ts: msg.ts };
   pushFeed(fm);
   setMsgData(li, fm);
-  li.append(who, txt, msgActions(fm));
+  li.append(who, ...body, msgActions(fm));
   chatShell(li, { id: msg.id, name: msg.name, ts: msg.ts });
   appendLog(li);
   applyModeration(li);
@@ -4265,19 +4876,222 @@ function appendLog(li) {
   $('#chatEmpty').hidden = true;
   if (atBottom || li.classList.contains('me')) body.scrollTop = body.scrollHeight;
 }
+function renderChatOpts() {
+  const opts = { guestFiles: true, defaultScope: 'guests', ...(S.state.chatOpts || {}) };
+  const host = isHost(), inside = !!S.studio;
+  const wc = watchCfg();
+  if ($('#optGuestFiles')) { $('#optGuestFiles').checked = opts.guestFiles !== false; $('#optGuestFiles').disabled = !host; }
+  if ($('#optWatchChat')) { $('#optWatchChat').checked = wc.chat !== false; $('#optWatchChat').disabled = !host; }
+  $$('#optDefaultScope [data-scope]').forEach((b) => {
+    const on = b.dataset.scope === opts.defaultScope;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+    b.disabled = !host;
+  });
+  if ($('#optEditBriefBtn')) $('#optEditBriefBtn').disabled = !inside || !host;
+  const scope = host ? (S.chatScope || opts.defaultScope) : 'guests';
+  $$('#chatScopeSeg [data-scope]').forEach((b) => {
+    const on = b.dataset.scope === scope;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  const canAttach = inside && (host || opts.guestFiles !== false);
+  if ($('#chatFileBtn')) $('#chatFileBtn').hidden = !canAttach;
+  if ($('#chatFileChip')) {
+    $('#chatFileChip').hidden = !S.pendingChatFile;
+    if (S.pendingChatFile) {
+      $('#chatFileChip').innerHTML = `${icon('paperclip', { size: 'sm' })}<span></span><button type="button" aria-label="Remove attachment">${icon('x', { size: 'sm' })}</button>`;
+      $('#chatFileChip span').textContent = S.pendingChatFile.name;
+      $('#chatFileChip button').onclick = () => { S.pendingChatFile = null; renderChatOpts(); };
+    }
+  }
+  if ($('#chatComposerTop')) $('#chatComposerTop').hidden = !inside || (!host && !S.pendingChatFile);
+  if ($('#chatHint')) {
+    $('#chatHint').textContent = !inside
+      ? 'Enter a studio to chat.'
+      : host && scope === 'every'
+      ? 'Sending to studio guests & Watch Party viewers · @Sam asks AI'
+      : 'Shared with invited studio guests only · @Sam asks AI';
+  }
+}
+$('#chatOptsBtn')?.addEventListener('click', (ev) => {
+  togglePopover($('#chatOptsPop'), ev.currentTarget, 'bottom');
+});
+$('#optGuestFiles')?.addEventListener('change', (e) => {
+  if (!isHost()) return;
+  const chatOpts = { guestFiles: e.target.checked, defaultScope: S.state.chatOpts?.defaultScope === 'every' ? 'every' : 'guests' };
+  setStage({ chatOpts });
+  toast(e.target.checked ? 'Studio guests can share files in chat.' : 'Guest file uploads paused.');
+});
+$('#optWatchChat')?.addEventListener('change', (e) => {
+  if (!isHost()) return;
+  setWatch({ chat: e.target.checked });
+  toast(e.target.checked ? 'Watch Party chat enabled.' : 'Watch Party chat paused.');
+});
+$$('#optDefaultScope [data-scope]').forEach((b) => b.addEventListener('click', () => {
+  if (!isHost()) return;
+  const scope = b.dataset.scope === 'every' ? 'every' : 'guests';
+  S.chatScope = scope;
+  setStage({ chatOpts: { guestFiles: S.state.chatOpts?.guestFiles !== false, defaultScope: scope } });
+}));
+$$('#chatScopeSeg [data-scope]').forEach((b) => b.addEventListener('click', () => {
+  if (!isHost()) return;
+  S.chatScope = b.dataset.scope === 'every' ? 'every' : 'guests';
+  renderChatOpts();
+}));
+$('#chatFileBtn')?.addEventListener('click', () => {
+  if (!S.studio) return toast('Enter a studio to upload files.');
+  $('#chatFileInput').click();
+});
+$('#chatFileInput')?.addEventListener('change', async (e) => {
+  const f = e.target.files?.[0]; e.target.value = '';
+  if (!f || !S.studio) return;
+  if (f.size > 2_000_000) return toast('Keep shared studio files under 2 MB.', { err: true });
+  busy($('#chatFileBtn'));
+  try {
+    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+    const uploaded = await api('chatFilePut', { ...creds(), name: f.name, mime: f.type, data });
+    S.pendingChatFile = { id: uploaded.id, name: uploaded.name, mime: uploaded.mime, size: uploaded.size };
+    renderChatOpts();
+    toast(`${uploaded.name} ready to send.`);
+  } catch (err) { toast(err.message, { err: true }); }
+  finally { busy($('#chatFileBtn'), false); }
+});
+
+function renderGuestBrief() {
+  const bar = $('#guestBriefBar');
+  if (!bar) return;
+  const b = S.brief;
+  if (!S.studio || !b || (!b.note && !b.links?.length && !b.files?.length)) { bar.hidden = true; return; }
+  bar.hidden = false;
+  const count = (b.links?.length || 0) + (b.files?.length || 0);
+  const head = document.createElement('button');
+  head.type = 'button'; head.className = 'gb-head'; head.setAttribute('aria-expanded', String(S.briefExpanded));
+  head.innerHTML = `<span class="gb-title">${icon('lock', { size: 'sm' })}<span>Guest-only brief</span></span><span class="gb-meta">${count ? `${count} item${count === 1 ? '' : 's'} · ` : ''}${S.briefExpanded ? 'Hide' : 'Show'}</span>`;
+  head.onclick = () => { S.briefExpanded = !S.briefExpanded; renderGuestBrief(); };
+  const body = document.createElement('div');
+  body.className = 'gb-body'; body.hidden = !S.briefExpanded;
+  if (b.note) { const p = document.createElement('p'); p.className = 'gb-note'; p.textContent = b.note; body.append(p); }
+  if (b.links?.length) {
+    const wrap = document.createElement('div'); wrap.className = 'gb-links';
+    for (const l of b.links) {
+      const a = document.createElement('a'); a.className = 'gb-link'; a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.innerHTML = `${icon('arrow-up-right', { size: 'sm' })}<span></span>`;
+      $('span', a).textContent = l.label || l.url;
+      wrap.append(a);
+    }
+    body.append(wrap);
+  }
+  if (b.files?.length) {
+    const wrap = document.createElement('div'); wrap.className = 'gb-files';
+    for (const f of b.files) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'gb-file';
+      btn.innerHTML = `${icon('paperclip', { size: 'sm' })}<span></span>`;
+      $('span', btn).textContent = f.name || 'Download file';
+      btn.onclick = async () => {
+        try {
+          const res = await getChatFile(f.id);
+          if (!res?.data) return;
+          const a = document.createElement('a'); a.href = res.data; a.download = f.name || 'file'; a.click();
+        } catch (err) { toast(err.message, { err: true }); }
+      };
+      wrap.append(btn);
+    }
+    body.append(wrap);
+  }
+  if (isHost()) {
+    const edBtn = document.createElement('button'); edBtn.type = 'button'; edBtn.className = 'btn sm ghost gb-edit-btn';
+    edBtn.textContent = 'Edit guest brief';
+    edBtn.onclick = openGuestBrief;
+    body.append(edBtn);
+  }
+  bar.replaceChildren(head, body);
+}
+
+let draftBriefFiles = [];
+function addBriefLinkRow(label = '', url = '') {
+  const list = $('#gbLinksEdit');
+  if (!list) return;
+  const row = document.createElement('div'); row.className = 'gb-link-row';
+  const lbl = document.createElement('input'); lbl.className = 'input sm'; lbl.maxLength = 50; lbl.placeholder = 'Label (e.g. Sponsor deck)'; lbl.value = label;
+  const u = document.createElement('input'); u.className = 'input sm'; u.maxLength = 400; u.placeholder = 'https://…'; u.spellcheck = false; u.value = url;
+  const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn sm'; del.innerHTML = icon('x', { size: 'sm' }); del.setAttribute('aria-label', 'Remove link');
+  del.onclick = () => row.remove();
+  row.append(lbl, u, del);
+  list.append(row);
+}
+function renderBriefDraftFiles() {
+  const wrap = $('#gbFilesEdit');
+  if (!wrap) return;
+  wrap.replaceChildren(...draftBriefFiles.map((f, i) => {
+    const row = document.createElement('div'); row.className = 'gb-file-row';
+    const sp = document.createElement('span'); sp.textContent = `${f.name} (${fmtBytes(f.size)})`;
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn sm'; del.innerHTML = icon('x', { size: 'sm' }); del.setAttribute('aria-label', 'Remove file');
+    del.onclick = () => { draftBriefFiles.splice(i, 1); renderBriefDraftFiles(); };
+    row.append(sp, del);
+    return row;
+  }));
+}
+function openGuestBrief() {
+  if (!isHost() || !S.studio) return toast('Enter a studio as host to share a guest brief.');
+  try { $('#chatOptsPop')?.hidePopover?.(); } catch {}
+  const b = S.brief || { note: '', links: [], files: [] };
+  $('#gbNote').value = b.note || '';
+  $('#gbLinksEdit').innerHTML = '';
+  if (b.links?.length) b.links.forEach((l) => addBriefLinkRow(l.label, l.url));
+  else addBriefLinkRow();
+  draftBriefFiles = [...(b.files || [])];
+  renderBriefDraftFiles();
+  $('#guestBriefDlg').showModal();
+}
+$('#optEditBriefBtn')?.addEventListener('click', openGuestBrief);
+$('#gbAddLink')?.addEventListener('click', () => addBriefLinkRow());
+$('#gbPickFile')?.addEventListener('click', () => $('#gbFileInput').click());
+$('#gbFileInput')?.addEventListener('change', async (e) => {
+  const f = e.target.files?.[0]; e.target.value = '';
+  if (!f || !S.studio) return;
+  if (f.size > 2_000_000) return toast('Keep studio files under 2 MB.', { err: true });
+  busy($('#gbPickFile'));
+  try {
+    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+    const uploaded = await api('chatFilePut', { ...creds(), name: f.name, mime: f.type, data });
+    draftBriefFiles.push({ id: uploaded.id, name: uploaded.name, mime: uploaded.mime, size: uploaded.size });
+    renderBriefDraftFiles();
+  } catch (err) { toast(err.message, { err: true }); }
+  finally { busy($('#gbPickFile'), false); }
+});
+$('#gbClear')?.addEventListener('click', () => {
+  wsSend({ type: 'guestBrief', brief: null });
+  $('#guestBriefDlg').close();
+  toast('Guest brief cleared.');
+});
+$('#guestBriefForm')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const note = $('#gbNote').value.trim();
+  const links = $$('#gbLinksEdit .gb-link-row').map((r) => {
+    const [lbl, u] = r.querySelectorAll('input');
+    return { label: lbl.value.trim(), url: u.value.trim() };
+  }).filter((l) => l.url);
+  wsSend({ type: 'guestBrief', brief: { note, links, files: draftBriefFiles } });
+  $('#guestBriefDlg').close();
+  toast('Guest brief updated.');
+});
+
 $('#chatForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const v = $('#chatInput').value.trim();
-  if (!v) return;
+  if (!v && !S.pendingChatFile) return;
   if (!S.studio) return toast('Enter a studio to chat.');
   // "@Sam …" in the chat goes to your AI instead (host only).
-  const at = isHost() && new RegExp('^@' + (S.aiName || 'Sam').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b[\\s,:]*', 'i').exec(v);
+  const at = isHost() && !S.pendingChatFile && new RegExp('^@' + (S.aiName || 'Sam').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b[\\s,:]*', 'i').exec(v);
   if (at && v.length > at[0].length) {
     $('#chatInput').value = ''; autoGrow($('#chatInput'));
     $('#aiInput').value = v.slice(at[0].length); $('#aiForm').requestSubmit(); return;
   }
-  wsSend({ type: 'chat', text: v });
+  const scope = isHost() ? (S.chatScope || S.state.chatOpts?.defaultScope || 'guests') : 'guests';
+  wsSend({ type: 'chat', text: v, scope, ...(S.pendingChatFile ? { file: S.pendingChatFile } : {}) });
   $('#chatInput').value = ''; autoGrow($('#chatInput'));
+  if (S.pendingChatFile) { S.pendingChatFile = null; renderChatOpts(); }
 });
 
 // ---------------------------------------------------------------- rendering
@@ -4290,7 +5104,7 @@ function setPhase(p) {
   pill.hidden = p === 'online';
   renderAll();
 }
-function renderAll() { renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
+function renderAll() { renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
 function renderHeader() {
   // The studio name belongs to the studio you're in; outside one the header is just the wordmark.
   const inside = !!S.studio || S.phase === 'reconnecting';
@@ -4317,6 +5131,7 @@ function renderCrew() {
   const people = S.studio ? participants() : [];
   $('#crewCount').textContent = `${people.length} / ${MAX}`;
   $('#peopleTabCount').textContent = people.length || '';
+  if ($('#inviteDlg')?.open && S.studio) renderInviteDialog();
   const keep = new Set(people.map((p) => 'card-' + cssId(p.id)));
   for (const li of $$('.crew-card', list)) if (!keep.has(li.id)) li.remove();
   const host = isHost();
@@ -4479,9 +5294,10 @@ function renderPanels() {
   $('#bannerHint').textContent = host ? 'Banners appear on every participant’s stage and in recordings.' : 'Only the host can show banners. You’ll see them on your stage.';
   $('#brandHint').textContent = host ? 'Brand changes apply to everyone in the studio.' : 'Only the host can change the brand.';
   const b = S.state.brand;
+  applyAdaptiveAccent(b.color);
   $$('#swatches button').forEach((x) => x.classList.toggle('on', x.dataset.color.toLowerCase() === b.color.toLowerCase()));
   $$('#bgs button').forEach((x) => x.classList.toggle('on', x.dataset.bg === b.bg));
-  $('#colorPick').value = b.color;
+  $('#colorPick').value = normalizeHex(b.color) || '#5b7cff';
   $('#namesChk').checked = b.names;
   if (document.activeElement !== $('#titleInput')) $('#titleInput').value = S.state.title || '';
   renderPresets();
@@ -4783,6 +5599,7 @@ function applyTheme(t) {
   const dark = t === 'dark';
   $('meta[name="theme-color"]').setAttribute('content', dark ? '#0d1117' : '#ffffff');
   $$('#themeSeg button').forEach((b) => { const on = b.dataset.themeOpt === t; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  applyAdaptiveAccent(S.state?.brand?.color);
 }
 $$('#themeSeg button').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.themeOpt)));
 applyTheme(store.get('theme', 'dark'));
@@ -4982,14 +5799,13 @@ function leave(why) {
   teardownPeers();
   stopPresentation(); stopBgMusic(); stopCam(); stopMic();
   sceneFade.active = false;
-  S.studio = null; S.id = null; S.tok = null; S.host = null;
+  S.studio = null; S.id = null; S.tok = null; S.host = null; S.short = ""; S.shortInvite = "";
   S.state = localState();
   S.local.camOn = S.prefs.startCam; S.local.micOn = S.prefs.startMic; S.local.hand = false; S.local.autoMuted = false;
   autoMuteState.peerLastSpeech.clear(); autoMuteState.peerSpeechMs.clear(); autoMuteState.peerMutedAt.clear(); resetAutoMuteTimer();
   $$('#msgs > *').forEach((n) => n.remove());
   $$('.crew-card').forEach((n) => n.remove());
   S.feed = []; seenFeed.clear(); editor.sel = null; if (editor.on) setEditing(false);
-  resetMoodTrend();
   sceneSuggestState.suppressedKey = ''; sceneSuggestState.autoAppliedKey = ''; sceneSuggestState.lastCount = 1; hideSceneSuggestion();
   rumble.url = ''; clearTimeout(rumble.timer); stopYouTube();
   S.local.avatarId = ''; S.local.offbgId = ''; S.prePres = null; cap.lines.clear(); S.lobby = []; speechHub.ptt = false;
@@ -5529,6 +6345,14 @@ async function runActions(actions) {
         const els = elementsCopy().filter((e) => !(e.type === 'timer' && e.mode === 'countdown'));
         els.push(withDefaults({ type: 'timer', mode: 'countdown', target: Date.now() + m * 60000 }));
         setStage({ elements: els });
+      } else if (a.type === 'spotlight') {
+        const aiSpotlight = {
+          head: String(a.head || '').slice(0, 100),
+          bullets: Array.isArray(a.bullets) ? a.bullets.map((x) => String(x || '').slice(0, 160)).filter(Boolean).slice(0, 6) : [],
+          links: Array.isArray(a.links) ? a.links.filter((l) => l?.url).slice(0, 4) : [],
+          updatedAt: Date.now(),
+        };
+        setStage({ aiSpotlight });
       } else if (a.type === 'open' && /^https?:\/\//i.test(String(a.url || ''))) offerOpen(String(a.url), a.label);
     } catch (e) { toast(e.message, { err: true }); }
   }
@@ -5719,6 +6543,7 @@ async function openEnter(mode, code) {
   $('#enterGo').disabled = false;
   $('#enterDlg').showModal();
   checkServer();
+  if (acct.token) acctApi('me').then((r) => setUser(r.user)).catch(() => {});
   (S.name ? (mode === 'join' && !code ? $('#enterCode') : $('#enterGo')) : $('#enterName')).focus();
   previewing = true;
   audioCtx();
@@ -5758,7 +6583,7 @@ function setEnterMode(m) {
   enterMode = m;
   $$('#enterForm .seg button[data-mode]').forEach((b) => { const on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#codeFld').hidden = m !== 'join';
-  $('#enterGo').textContent = m === 'join' ? 'Join studio' : 'Create studio';
+  $('#enterGo').textContent = m === 'join' ? 'Join studio' : 'Go Live Now';
   $('#enterErr').hidden = true;
 }
 $$('#enterForm .seg button[data-mode]').forEach((b) => b.addEventListener('click', () => setEnterMode(b.dataset.mode)));
@@ -5767,25 +6592,200 @@ $('#enterForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('#enterName').value.trim();
   if (!name) { $('#enterErr').textContent = 'Add your name so people know who you are.'; $('#enterErr').hidden = false; return $('#enterName').focus(); }
-  if (enterMode !== 'join' && !S.pendingStream && S.requireAccount && !acct.user) { $('#enterDlg').close(); return needAccountThen(() => openEnter('create')); }
+  if (enterMode !== 'join' && !S.pendingStream && S.requireAccount && !acct.user) {
+    if (acct.token) {
+      try { await acctBootP; } catch {}
+      if (!acct.user && acct.token) try { setUser((await acctApi('me')).user); } catch {}
+    }
+    if (!acct.user) { $('#enterDlg').close(); return needAccountThen(() => openEnter('create')); }
+  }
   let code = enterMode === 'join' ? parseCode($('#enterCode').value) : (S.pendingStream?.code || newCode());
   if (!code) { $('#enterErr').textContent = 'Paste the studio code your host sent you.'; $('#enterErr').hidden = false; return $('#enterCode').focus(); }
   S.name = name; store.set('name', name); $('#nameInput').value = name;
   busy($('#enterGo'));
   try { await join(code, { callin: S.callin && enterMode === 'join', create: enterMode !== 'join' }); }
-  catch (err) { setEnterMode(enterMode); showEnterErr(err.message); setPhase('offline'); }
+  catch (err) {
+    if (err.handled) { toast(err.message, { err: true }); return; }
+    setEnterMode(enterMode); showEnterErr(err.message); setPhase('offline');
+  }
   finally { busy($('#enterGo'), false); }
 });
 $('#enterDlg').addEventListener('close', () => {
   if (!S.studio) { previewing = false; stopCam(); stopMic(); renderStageUI(); renderDock(); }
 });
 
-// ---------------------------------------------------------------- invite
-function openInvite() {
-  if (!S.studio) return openEnter('create');
+// ---------------------------------------------------------------- invite (Broadcast Pass)
+let invQrMode = 'guest';
+
+function flashBtn(btn, msg) {
+  if (!btn) return;
+  const span = btn.querySelector('span');
+  const use = btn.querySelector('svg use');
+  if (!btn.dataset.origLabel && span) btn.dataset.origLabel = span.textContent;
+  if (!btn.dataset.origIcon && use) btn.dataset.origIcon = use.getAttribute('href') || '';
+  btn.classList.add('inv-copied');
+  if (span) span.textContent = msg;
+  if (use) use.setAttribute('href', '/icons.svg#i-check');
+  clearTimeout(btn._invT);
+  btn._invT = setTimeout(() => {
+    btn.classList.remove('inv-copied');
+    if (span && btn.dataset.origLabel) span.textContent = btn.dataset.origLabel;
+    if (use && btn.dataset.origIcon) use.setAttribute('href', btn.dataset.origIcon);
+  }, 1800);
+}
+
+async function renderInviteQr() {
+  const cv = $('#inviteQrCanvas');
+  if (!cv || !S.studio) return;
+  const url = invQrMode === 'watch' ? watchLinkUrl() : preferredInviteUrl();
+  if ($('#inviteQrTitle')) {
+    $('#inviteQrTitle').textContent = invQrMode === 'watch' ? 'Audience watch QR' : 'Scan with phone camera';
+  }
+  if ($('#inviteQrCap')) {
+    $('#inviteQrCap').textContent = invQrMode === 'watch'
+      ? 'Audience watch page: show, live chat & voice questions'
+      : 'Scan from a phone or second camera to join the green room';
+  }
+  const q = await qrReadyFor(url);
+  if (!q) return;
+  const size = 240, pad = 8;
+  cv.width = size; cv.height = size;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  const n = q.getModuleCount();
+  const cell = Math.max(1, Math.floor((size - pad * 2) / n));
+  const real = cell * n;
+  const ox = Math.floor((size - real) / 2), oy = Math.floor((size - real) / 2);
+  ctx.fillStyle = '#070c1a';
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (q.isDark(i, j)) ctx.fillRect(ox + j * cell, oy + i * cell, cell, cell);
+}
+
+function renderInviteSeats(list) {
+  const box = $('#inviteSeats');
+  if (!box) return;
+  const slots = [];
+  const accent = normalizeHex(S.state?.brand?.color) || '#5b7cff';
+  const palette = [accent, '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+  for (let i = 0; i < MAX; i++) {
+    const p = list[i];
+    if (p) {
+      const el = document.createElement('div');
+      el.className = 'inv-seat live';
+      const av = document.createElement('span');
+      av.className = 'inv-seat-av';
+      const bg = palette[i % palette.length];
+      av.style.background = bg;
+      av.style.color = hexLuminance(bg) > 0.42 ? '#070c1a' : '#ffffff';
+      av.textContent = (p.name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
+      const nm = document.createElement('span');
+      nm.className = 'inv-seat-name';
+      nm.textContent = p.me ? `${p.name} (You)` : p.name;
+      el.append(av, nm);
+      slots.push(el);
+    } else {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'inv-seat open';
+      btn.setAttribute('aria-label', `Seat ${i + 1} open — click to copy guest invite link`);
+      btn.title = 'Click to copy guest invite link';
+      const av = document.createElement('span');
+      av.className = 'inv-seat-av';
+      av.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg>';
+      const nm = document.createElement('span');
+      nm.className = 'inv-seat-name';
+      nm.textContent = 'Open';
+      btn.append(av, nm);
+      btn.onclick = () => {
+        copy(preferredInviteUrl(), 'Invite link copied.');
+        guideMark('invited');
+        btn.classList.add('copied');
+        nm.textContent = 'Copied';
+        setTimeout(() => { btn.classList.remove('copied'); nm.textContent = 'Open'; }, 1500);
+      };
+      slots.push(btn);
+    }
+  }
+  box.replaceChildren(...slots);
+}
+
+function renderInviteShort() {
+  const shortUrl = shortInviteUrl();
+  const has = !!shortUrl;
+  if ($('#inviteShortIdle')) $('#inviteShortIdle').hidden = has;
+  if ($('#inviteShortReady')) $('#inviteShortReady').hidden = !has;
+  if ($('#inviteShortMeta')) {
+    if (has) {
+      const saved = inviteLink().length - shortUrl.length;
+      $('#inviteShortMeta').textContent = saved > 0 ? `${shortUrl.length} chars (-${saved})` : `${shortUrl.length} chars`;
+    } else {
+      $('#inviteShortMeta').textContent = 'Compact /s/ URL';
+    }
+  }
+  if ($('#inviteShortUrl')) {
+    $('#inviteShortUrl').textContent = has ? shortUrl.replace(/^https?:\/\/(www\.)?/, '') : '—';
+    $('#inviteShortUrl').title = shortUrl || '';
+  }
+}
+
+async function generateShortInvite(rotate = false) {
+  if (!S.studio) return '';
+  const trigger = rotate ? $('#regenShortLink') : $('#genShortLink');
+  busy(trigger);
+  try {
+    const r = await api('inviteShort', { ...creds(), rotate });
+    S.shortInvite = r.short || '';
+    renderInviteDialog();
+    toast(rotate ? 'Generated a new short invite link.' : 'Short SMS invite link ready.');
+    return shortInviteUrl();
+  } catch (e) {
+    toast(e.message || 'Could not generate short link.', { err: true });
+    return '';
+  } finally {
+    busy(trigger, false);
+  }
+}
+
+function renderInviteDialog() {
+  if (!S.studio) return;
+  const list = participants(), n = list.length;
   $('#inviteCode').textContent = S.studio;
-  const n = participants().length;
+  if ($('#inviteFullUrl')) $('#inviteFullUrl').textContent = inviteLink().replace(/^https?:\/\/(www\.)?/, '');
+  $('#inviteWatch').textContent = watchLinkText();
+  if ($('#inviteSeatCount')) $('#inviteSeatCount').textContent = `${n} / ${MAX} live`;
   $('#inviteFine').textContent = `Anyone with this code can join. ${n} of ${MAX} seats taken.${isHost() ? ' Keep this tab open while hosting.' : ''}`;
+  if ($('#shareInviteBtn')) $('#shareInviteBtn').hidden = !navigator.share;
+  renderInviteShort();
+  renderInviteSeats(list);
+  renderInviteQr();
+  renderSocialMatrix($('#invSocialMatrix'));
+}
+
+let invStep = 1;
+function setInviteStep(step) {
+  invStep = Math.max(1, Math.min(3, Number(step) || 1));
+  for (const b of $$('#invStepper .inv-step-btn')) {
+    const active = Number(b.dataset.invstep) === invStep;
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+  for (const p of $$('#inviteDlg .inv-step-pane')) {
+    p.hidden = Number(p.dataset.invPane) !== invStep;
+  }
+  if ($('#invBackBtn')) $('#invBackBtn').hidden = invStep === 1;
+  if ($('#invNextBtn')) $('#invNextBtn').hidden = invStep === 3;
+  if ($('#invDoneBtn')) $('#invDoneBtn').hidden = invStep !== 3;
+  if ($('#invStepMeta')) $('#invStepMeta').textContent = `Step ${invStep} of 3`;
+  if (invStep === 2 && S.studio) renderInviteQr();
+}
+for (const b of $$('#invStepper .inv-step-btn')) b.onclick = () => setInviteStep(Number(b.dataset.invstep));
+if ($('#invBackBtn')) $('#invBackBtn').onclick = () => setInviteStep(invStep - 1);
+if ($('#invNextBtn')) $('#invNextBtn').onclick = () => setInviteStep(invStep + 1);
+if ($('#invDoneBtn')) $('#invDoneBtn').onclick = () => $('#inviteDlg').close();
+
+function openInvite() {
+  if (!S.studio) return openWizard('now');
+  setInviteStep(1);
+  renderInviteDialog();
   inviteOpener = document.activeElement !== document.body ? document.activeElement : null;
   $('#inviteDlg').showModal();
 }
@@ -5798,14 +6798,69 @@ $('#inviteDlg').addEventListener('close', () => {
 });
 $('#autoStage').checked = store.get('autoStage', false);
 $('#autoStage').onchange = (e) => store.set('autoStage', e.target.checked);
-$('#noteLink').onclick = () => { copy(inviteLink(), 'Invite link copied.'); guideMark('invited'); };
+$('#noteLink').onclick = () => { copy(preferredInviteUrl(), 'Invite link copied.'); guideMark('invited'); };
 $('#noteCode').onclick = () => { copy(S.studio, 'Studio code copied.'); guideMark('invited'); };
-$('#copyCode').onclick = () => { copy(S.studio, 'Room code copied.'); guideMark('invited'); };
-$('#copyLink').onclick = () => { copy(inviteLink(), 'Invite link copied.'); guideMark('invited'); };
+$('#copyCode').onclick = () => { copy(S.studio, 'Room code copied.'); guideMark('invited'); flashBtn($('#copyCode'), 'Copied'); };
+$('#copyLink').onclick = () => { copy(inviteLink(), 'Invite link copied.'); guideMark('invited'); flashBtn($('#copyLink'), 'Copied link'); };
+$('#genShortLink').onclick = () => generateShortInvite(false);
+$('#regenShortLink').onclick = () => generateShortInvite(true);
+$('#copyShortLink').onclick = () => {
+  const url = shortInviteUrl();
+  if (!url) return;
+  copy(url, 'Short SMS link copied.');
+  guideMark('invited');
+  flashBtn($('#copyShortLink'), 'Copied');
+};
+$('#smsInviteBtn').onclick = async () => {
+  const url = shortInviteUrl() || await generateShortInvite(false);
+  if (!url) return;
+  const show = S.state?.title ? `"${S.state.title}"` : 'my live gather studio';
+  const msg = `Join ${show} in the green room: ${url}`;
+  try { await navigator.clipboard.writeText(msg); } catch {}
+  guideMark('invited');
+  flashBtn($('#smsInviteBtn'), 'SMS ready');
+  toast('SMS invite ready & copied to clipboard.');
+  const a = document.createElement('a');
+  a.href = `sms:?&body=${encodeURIComponent(msg)}`;
+  a.style.display = 'none';
+  document.body.append(a);
+  a.click();
+  a.remove();
+};
+$('#copyInviteMsg').onclick = () => {
+  const show = S.state?.title ? `"${S.state.title}"` : 'my live studio';
+  copy(`Join ${show} in the gather green room: ${preferredInviteUrl()} (Room code: ${S.studio})`, 'Invite message copied.');
+  guideMark('invited');
+  flashBtn($('#copyInviteMsg'), 'Copied');
+};
+$('#emailInviteBtn').onclick = () => {
+  const show = S.state?.title || 'Live studio on gather';
+  const sub = encodeURIComponent(`Join me live: ${show}`);
+  const body = encodeURIComponent(`Join the green room to check your camera and mic:\n${preferredInviteUrl()}\n\nRoom code: ${S.studio}`);
+  location.href = `mailto:?subject=${sub}&body=${body}`;
+  guideMark('invited');
+};
+$('#shareInviteBtn').onclick = async () => {
+  try { await navigator.share({ title: S.state?.title || 'Join my gather studio', text: `Join the green room (code: ${S.studio})`, url: preferredInviteUrl() }); guideMark('invited'); } catch {}
+};
+$$('.inv-qr-tabs button').forEach((b) => b.onclick = () => {
+  invQrMode = b.dataset.qr === 'watch' ? 'watch' : 'guest';
+  $$('.inv-qr-tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+  renderInviteQr();
+});
+$('#downloadQr').onclick = () => {
+  const cv = $('#inviteQrCanvas');
+  if (!cv) return;
+  const a = document.createElement('a');
+  a.href = cv.toDataURL('image/png');
+  a.download = invQrMode === 'watch' ? `gather-watch-qr-${watchSlug()}.png` : `gather-guest-qr-${S.shortInvite || S.studio}.png`;
+  a.click();
+  toast('QR image downloaded.');
+};
 $('#addSlot').onclick = openInvite;
 $('#enterTop').onclick = openInvite;
-$('#heroSchedule').onclick = () => openWizard();
-$('#enterStage').onclick = () => needAccountThen(() => openEnter('create'));
+$('#heroSchedule').onclick = () => openWizard('later');
+$('#enterStage').onclick = () => openWizard('now');
 $('#landJoin').addEventListener('submit', (e) => {
   e.preventDefault();
   const raw = $('#landCode').value, code = parseCode(raw), kind = linkKind(raw);
@@ -5950,7 +7005,8 @@ document.fonts?.ready.then(() => S.banner.key = '');
 setTab('chat');
 setPhase('offline');
 renderHelp();
-acctBoot();
+acctBootP = acctBoot();
+applyAdaptiveAccent(S.state?.brand?.color);
 // Bring back the last scene (and how it was arranged) before anyone joins.
 (function restoreLastScene() {
   const id = store.get('lastScene', '');
@@ -5972,8 +7028,6 @@ setInterval(() => { if (S.studio && !S.rec && S.state?.rec?.on) renderDock(); },
 // Viewers watch the program straight from this browser over WebRTC (no platform in between), chat, react, send
 // super chats paid directly to the host, and ask to join the stage. A laptop can encode and upload the program
 // for a handful of viewers, so the host sets a cap; past it, viewers fall back to the platform players.
-const WATCH_DEFAULTS = { chat: true, supers: false, join: false, queue: false, voice: true, badge: true, direct: true, cap: 6, slow: 0, min: 2, about: '', pin: '', goal: { label: '', target: 0 }, reactsOnStream: true, links: [], pay: { paypal: '', venmo: '', cashapp: '', stripe: '' } };
-const watchCfg = () => ({ ...WATCH_DEFAULTS, ...(S.state.watch || {}), pay: { ...WATCH_DEFAULTS.pay, ...(S.state.watch?.pay || {}) } });
 // Signed-in hosts with a watch-page name share gather…/w/<name>, which follows them from show to show.
 const myHandle = () => (isHost() && acct.user?.handle) || '';
 // Your claimed name, else this studio's short link (/w/k7m2x); the long studio code is only a fallback.
@@ -6169,8 +7223,112 @@ function renderWatchSec() {
   if (document.activeElement !== $('#wpQueue')) $('#wpQueue').checked = !!cfg.queue;
   if (window.__shopReady) { renderShop(); renderPoll(); renderEmotes(); }
   $('#wpNoPay').hidden = true; // replaced by #wpPayStatus
+  renderShowcaseSec();
   renderHandle();
 }
+let pendingNoticeImg = '';
+function renderShowcaseSec() {
+  if (!$('#wpStreamType')) return;
+  const host = isHost();
+  if (document.activeElement !== $('#wpStreamType')) $('#wpStreamType').value = S.state.streamType || 'live';
+  if (document.activeElement !== $('#wpHashtags')) $('#wpHashtags').value = (S.state.hashtags || []).join(', ');
+  const list = S.state.notices || [];
+  if ($('#wpNoticeCount')) $('#wpNoticeCount').textContent = list.length ? `${list.length} active` : '';
+  if ($('#wpNoticeList')) {
+    $('#wpNoticeList').replaceChildren(...list.map((n, i) => {
+      const li = document.createElement('li'); li.className = 'showcase-item';
+      const top = document.createElement('div'); top.className = 'showcase-item-top';
+      const k = document.createElement('span'); k.className = 'pill caps'; k.textContent = n.kind || 'notice';
+      const b = document.createElement('b'); b.textContent = n.head || 'Notice';
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn sm'; del.disabled = !host;
+      del.innerHTML = icon('trash-2', { size: 'sm' }); del.setAttribute('aria-label', 'Remove notice');
+      del.onclick = () => { const next = [...list]; next.splice(i, 1); store.set('notices', next); setStage({ notices: next }); };
+      top.append(k, b, del); li.append(top);
+      if (n.imgAsset) {
+        const im = assetImg(n.imgAsset);
+        if (im) { const x = document.createElement('img'); x.className = 'showcase-thumb'; x.src = im.src; x.alt = ''; li.append(x); }
+      }
+      if (n.body) { const p = document.createElement('p'); p.className = 'hint'; p.style.margin = '0'; p.textContent = n.body; li.append(p); }
+      return li;
+    }));
+  }
+  const wn = S.state.whatNext || {};
+  if (document.activeElement !== $('#wpNextTitle')) $('#wpNextTitle').value = wn.title || '';
+  if (document.activeElement !== $('#wpNextWhen')) $('#wpNextWhen').value = wn.when ? new Date(wn.when - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+  if (document.activeElement !== $('#wpNextDesc')) $('#wpNextDesc').value = wn.desc || '';
+  const sp = S.state.aiSpotlight || {};
+  if (document.activeElement !== $('#wpSpotHead')) $('#wpSpotHead').value = sp.head || '';
+  if (document.activeElement !== $('#wpSpotBullets')) $('#wpSpotBullets').value = (sp.bullets || []).join('\n');
+  if (document.activeElement !== $('#wpSpotLinks')) $('#wpSpotLinks').value = (sp.links || []).map((l) => `${l.label} | ${l.url}`).join('\n');
+}
+$('#wpStreamType')?.addEventListener('change', (e) => { if (!isHost()) return; store.set('streamType', e.target.value); setStage({ streamType: e.target.value }); });
+$('#wpHashtags')?.addEventListener('change', (e) => { if (!isHost()) return; const h = parseHashtags(e.target.value); store.set('hashtags', h); setStage({ hashtags: h }); });
+$('#wpNoticeImgBtn')?.addEventListener('click', () => $('#wpNoticeImgFile').click());
+$('#wpNoticeImgClear')?.addEventListener('click', () => {
+  pendingNoticeImg = '';
+  $('#wpNoticeImgStatus').textContent = '';
+  $('#wpNoticeImgClear').hidden = true;
+});
+$('#wpNoticeImgFile')?.addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const data = await compressImage(f);
+    pendingNoticeImg = S.studio ? await storeAsset(data) : (setAssetData('local-notice-' + uid(), data), 'local-notice-' + uid());
+    if (!S.studio) setAssetData(pendingNoticeImg, data);
+    $('#wpNoticeImgStatus').textContent = 'Image ready';
+    $('#wpNoticeImgClear').hidden = false;
+  } catch (err) { toast(err.message, { err: true }); }
+});
+$('#wpNoticeAdd')?.addEventListener('click', () => {
+  if (!isHost()) return;
+  const head = $('#wpNoticeHead').value.trim();
+  const body = $('#wpNoticeBody').value.trim();
+  let ctaUrl = $('#wpNoticeUrl').value.trim();
+  if (ctaUrl && !/^https?:\/\//i.test(ctaUrl)) ctaUrl = 'https://' + ctaUrl;
+  if (!head && !body) return toast('Add a headline or notice text first.', { err: true });
+  const item = {
+    id: uid().slice(0, 8),
+    kind: $('#wpNoticeKind').value || 'notice',
+    head: head || 'Announcement',
+    body,
+    ctaLabel: $('#wpNoticeCta').value.trim().slice(0, 30),
+    ctaUrl: /^https:\/\//i.test(ctaUrl) ? ctaUrl : '',
+    imgAsset: pendingNoticeImg || '',
+    ts: Date.now(),
+  };
+  const next = [item, ...(S.state.notices || [])].slice(0, 8);
+  for (const id of ['#wpNoticeHead', '#wpNoticeBody', '#wpNoticeCta', '#wpNoticeUrl']) $(id).value = '';
+  pendingNoticeImg = '';
+  $('#wpNoticeImgStatus').textContent = '';
+  $('#wpNoticeImgClear').hidden = true;
+  store.set('notices', next);
+  setStage({ notices: next });
+  toast('Notice published to Watch Party.');
+});
+$('#wpNextSave')?.addEventListener('click', () => {
+  if (!isHost()) return;
+  const title = $('#wpNextTitle').value.trim();
+  const when = $('#wpNextWhen').value ? new Date($('#wpNextWhen').value).getTime() : 0;
+  const whatNext = title ? { title, when: Number.isFinite(when) ? when : 0, desc: $('#wpNextDesc').value.trim() } : null;
+  store.set('whatNext', whatNext);
+  setStage({ whatNext });
+  toast('What’s Next updated.');
+});
+$('#wpSpotSave')?.addEventListener('click', () => {
+  if (!isHost()) return;
+  const head = $('#wpSpotHead').value.trim();
+  const bullets = $('#wpSpotBullets').value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 6);
+  const links = $('#wpSpotLinks').value.split('\n').map((line) => {
+    const [a, b] = line.includes('|') ? line.split('|') : ['', line];
+    let url = (b || '').trim();
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    return { label: a.trim() || url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0], url };
+  }).filter((l) => /^https:\/\//i.test(l.url)).slice(0, 4);
+  const aiSpotlight = head || bullets.length || links.length ? { head, bullets, links, updatedAt: Date.now() } : null;
+  store.set('aiSpotlight', aiSpotlight);
+  setStage({ aiSpotlight });
+  toast('AI Spotlight updated on Watch Party.');
+});
 function renderHandle() {
   const u = acct.user, h = u?.handle || '';
   $('#wpHost').textContent = '/w/'; // the full address is spelled out in the note under the field
@@ -6395,6 +7553,25 @@ function renderEmotes() {
   }));
 }
 $('#emoteAdd').onclick = () => { if (!/^[a-z0-9_]{2,20}$/i.test($('#emoteName').value.trim())) return toast('Name the emote first: 2–20 letters or numbers.', { err: true }); $('#emoteFile').click(); };
+$('#emoteAiBtn')?.addEventListener('click', async () => {
+  if (!isHost()) return toast('Only the host can add emotes.', { err: true });
+  const name = $('#emoteName').value.trim().toLowerCase();
+  if (!/^[a-z0-9_]{2,20}$/i.test(name)) return toast('Name the emote first: 2–20 letters or numbers.', { err: true });
+  if (!S.studio) return toast('Enter a studio first to save custom emotes.', { err: true });
+  const btn = $('#emoteAiBtn'); busy(btn);
+  try {
+    const col = normalizeHex(S.state.brand.color) || '#5b7cff';
+    const txt = hexLuminance(col) > 0.42 ? '#070c1a' : '#ffffff';
+    const lbl = name.slice(0, 6).toUpperCase().replace(/[<>&]/g, '');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect x="6" y="6" width="116" height="116" rx="30" fill="${col}" stroke="#ffffff" stroke-opacity="0.35" stroke-width="4"/><text x="64" y="76" text-anchor="middle" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="900" font-size="${lbl.length > 4 ? 24 : 30}" fill="${txt}">${lbl}</text></svg>`;
+    const data = await rasterizeSvg(svg, 128, 128);
+    const asset = await storeAsset(data);
+    setStage({ emotes: [...(S.state.emotes || []).filter((x) => x.name !== name), { name, asset }] });
+    $('#emoteName').value = '';
+    toast(`:${name}: emote badge generated.`);
+  } catch (err) { toast(err.message, { err: true }); }
+  finally { busy(btn, false); }
+});
 $('#emoteFile').onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f || !S.studio) return;
   if (f.size > 400_000) return toast('That image is too big. Use one under 200 KB.', { err: true });
@@ -6541,9 +7718,9 @@ $('#watchTop').onclick = (ev) => {
   copy(url, 'Watch link copied. Share it anywhere.');
   if (ev.shiftKey || ev.metaKey) window.open(url, '_blank', 'noopener');
 };
-$('#copyWatch').onclick = () => copy(watchLinkUrl(), 'Watch link copied.');
+$('#copyWatch').onclick = () => { copy(watchLinkUrl(), 'Watch link copied.'); flashBtn($('#copyWatch'), 'Copied'); };
 $('#openWatch').onclick = () => window.open(watchLinkUrl(), '_blank', 'noopener');
-$('#inviteDlg').addEventListener('toggle', () => { if ($('#inviteDlg').open && S.studio) $('#inviteWatch').textContent = watchLinkText(); });
+$('#inviteDlg').addEventListener('toggle', () => { if ($('#inviteDlg').open && S.studio) renderInviteDialog(); });
 /** On stream: "Watch & chat live · host/w/code", bottom right, unless the host turned it off or placed the QR card. */
 function drawWatchBadge() {
   S.badgeRect = null;
@@ -6701,13 +7878,13 @@ if (document.readyState === 'complete') window.gatherBoot?.done(); else addEvent
     async function loop() {
       for (;;) {
         if (!running()) { await sleep(600); continue; }
-        if (first) { first = false; feed.replaceChildren(); await sleep(350); }
+        if (first) { first = false; i = 5; await sleep(1200); }
         const m = POOL[i++ % POOL.length];
         await say(m);
         if (Math.random() < 0.55) float(1 + Math.floor(Math.random() * 2));
         if (Math.random() < 0.6) { count += 1 + Math.floor(Math.random() * 9); views.textContent = count.toLocaleString('en-US'); views.classList.remove('tick'); void views.offsetWidth; views.classList.add('tick'); }
         if (i % 3 === 0) tiles.forEach((t) => t.classList.toggle('talk')); // the speaker changes now and then
-        await sleep(i <= 3 ? 700 : 1500 + Math.random() * 900);
+        await sleep(i <= 7 ? 1100 : 1600 + Math.random() * 900);
       }
     }
     new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(win);

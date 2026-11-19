@@ -11,7 +11,7 @@ const URL0 = process.env.GATHER_URL || 'http://localhost:8080';
   const a = await mk(), b = await mk(), c = await mk();
   try {
     // Host opens a studio.
-    await a.goto(URL0 + '/'); await a.click('#enterStage'); await a.fill('#enterName', 'Alex Host'); await a.click('#enterGo');
+    await a.goto(URL0 + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Host'); await a.click('#enterGo');
     await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim();
     // Enter inside the invite dialog must not count as "close" either; Escape closes it.
     await a.keyboard.press('Escape');

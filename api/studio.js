@@ -1,7 +1,9 @@
 // Vercel serverless entry: POST /api/studio?action=join|poll|send|leave, GET /api/studio?action=config
 const { handle } = require('../lib/studio');
+const { enforceUsGeo } = require('../lib/geo');
 
 module.exports = async (req, res) => {
+  if (!enforceUsGeo(req, res, { api: true })) return;
   const action = String(req.query?.action || '');
   // The watch feed is the same for every viewer: let Vercel's CDN serve it for 2 s, so viewers cost almost nothing.
   const shared = req.method === 'GET' && (action === 'wfeed' || action === 'wemote');

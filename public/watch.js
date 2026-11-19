@@ -2,6 +2,7 @@
 // with platform embed fallback, Stream Stats HUD, Host Drawer, One-Tap Reaction Dock,
 // Live Chat Mood Meter synced with reactions, Consolidated Stage Tab, and 30s Clip Studio.
 import { configureGoogle, googleConfigured, googleSignInToken } from './google.js';
+import './ui.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
@@ -55,10 +56,50 @@ const W = {
   reactPulse: 0,
   reactMomentum: 0,
   tab: 'chat',
+  scTab: 'notices',
+  assetCache: new Map(),
+  hostAvatar: '',
   dismissedAlertKey: '',
   statsPrev: null,
   recentChat: [],
 };
+
+// ---------------------------------------------------------------- adaptive brand-synced accent
+function normalizeHex(hex) {
+  const raw = String(hex || '').trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(raw)) return '#' + raw.split('').map((c) => c + c).join('');
+  if (/^[0-9a-f]{6}$/i.test(raw)) return '#' + raw;
+  return '';
+}
+function hexRgb(hex) {
+  const h = normalizeHex(hex);
+  if (!h) return [59, 130, 246];
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+function hexLuminance(hex) {
+  const [r, gr, b] = hexRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * gr + 0.0722 * b;
+}
+function applyWatchAccent(hex) {
+  const norm = normalizeHex(hex);
+  const chosen = (!norm || norm.toLowerCase() === '#5b7cff' || norm.toLowerCase() === '#4464e8') ? '#3b82f6' : norm;
+  const [r, gr, b] = hexRgb(chosen);
+  const lum = hexLuminance(chosen);
+  const ink = lum > 0.42 ? '#070c1a' : '#ffffff';
+  const root = document.documentElement.style;
+  root.setProperty('--accent', chosen);
+  root.setProperty('--accent-ink', ink);
+  root.setProperty('--accent-hover', lum > 0.55 ? `rgb(${Math.max(0, r - 18)}, ${Math.max(0, gr - 18)}, ${Math.max(0, b - 18)})` : `rgb(${Math.min(255, r + 24)}, ${Math.min(255, gr + 24)}, ${Math.min(255, b + 24)})`);
+  root.setProperty('--accent-soft', `rgba(${r}, ${gr}, ${b}, 0.16)`);
+  root.setProperty('--accent-line', `rgba(${r}, ${gr}, ${b}, 0.42)`);
+  const textColor = lum < 0.22 ? `rgb(${Math.round(r + (255 - r) * 0.48)}, ${Math.round(gr + (255 - gr) * 0.48)}, ${Math.round(b + (255 - b) * 0.48)})` : chosen;
+  root.setProperty('--accent-text', textColor);
+}
+applyWatchAccent('');
+
 const store = {
   get(k, d) { try { const v = localStorage.getItem('gather:w:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('gather:w:' + k, JSON.stringify(v)); } catch {} },
@@ -135,6 +176,35 @@ function scoreMessageSentiment(text, meta = {}) {
   return Math.tanh(raw * 0.65);
 }
 
+const MOOD_ICONS = { idle: 'activity', hype: 'flame', warm: 'smile', steady: 'activity', mixed: 'meh', tense: 'frown' };
+
+function syncMoodUI(state, label, pct, metaText) {
+  const box = $('#wMoodBox');
+  if (box) box.dataset.mood = state;
+  if ($('#wMoodLabel')) $('#wMoodLabel').textContent = label;
+  if ($('#wMoodPct')) $('#wMoodPct').textContent = `${pct}%`;
+  if ($('#wMoodBar')) $('#wMoodBar').style.width = `${pct}%`;
+  $('#wMoodMeter')?.setAttribute('aria-valuenow', String(pct));
+  if ($('#wMoodMeta')) $('#wMoodMeta').textContent = metaText;
+  const iconHref = `/icons.svg#i-${MOOD_ICONS[state] || 'activity'}`;
+  $('#wMoodMiniIconUse')?.setAttribute('href', iconHref);
+  $('#wMoodBoxIconUse')?.setAttribute('href', iconHref);
+
+  const shortLbl = state === 'idle' ? 'Calm' : label;
+  const mini = $('#wMoodMiniBtn');
+  if (mini) {
+    mini.dataset.mood = state;
+    const desc = `Crowd sentiment: ${shortLbl} (${pct}%) — ${metaText || 'tracks live chat & reactions'}. Click for Pulse.`;
+    mini.dataset.tip = desc;
+    const tip = $('#ui-tooltip');
+    if (tip && mini.getAttribute('aria-describedby') === tip.id && tip.classList.contains('show')) tip.textContent = desc;
+  }
+  if ($('#wMoodMiniLbl')) $('#wMoodMiniLbl').textContent = shortLbl;
+  if ($('#wMoodMiniBar')) $('#wMoodMiniBar').style.width = `${pct}%`;
+  if ($('#wMoodMiniPct')) $('#wMoodMiniPct').textContent = `${pct}%`;
+  if ($('#wPulseTabPct')) $('#wPulseTabPct').textContent = `${pct}%`;
+}
+
 function renderMoodMeter(info) {
   const box = $('#wMoodBox');
   if (!box) return;
@@ -144,12 +214,7 @@ function renderMoodMeter(info) {
   const hypeFactor = Math.min(1, (reactTotal + W.reactMomentum) / 25);
 
   if (!items.length && reactTotal === 0 && W.reactMomentum === 0) {
-    box.dataset.mood = 'idle';
-    $('#wMoodLabel').textContent = 'Room Calm';
-    $('#wMoodPct').textContent = '50%';
-    $('#wMoodBar').style.width = '50%';
-    $('#wMoodMeter').setAttribute('aria-valuenow', '50');
-    $('#wMoodMeta').textContent = 'Synced with live chat & reactions';
+    syncMoodUI('idle', 'Room Calm', 50, 'Synced with live chat & reactions');
     return;
   }
 
@@ -164,22 +229,16 @@ function renderMoodMeter(info) {
   }
   const chatAvg = wSum ? weighted / wSum : 0;
   const chatPct = Math.round(((chatAvg + 1) / 2) * 100);
-  // Reactions carry uplifting room pulse; blend reaction energy cleanly with chat sentiment
   const reactWeight = items.length ? Math.min(0.45, 0.15 + hypeFactor * 0.3) : 1;
   const reactPct = Math.round(58 + hypeFactor * 40);
   const pct = Math.max(0, Math.min(100, Math.round(chatPct * (1 - reactWeight) + reactPct * reactWeight)));
 
   const state = pct >= 76 ? 'hype' : pct >= 60 ? 'warm' : pct >= 44 ? 'steady' : pct >= 28 ? 'mixed' : 'tense';
   const label = { hype: 'Hyped', warm: 'Upbeat', steady: 'Steady', mixed: 'Mixed', tense: 'Tense' }[state];
-  box.dataset.mood = state;
-  $('#wMoodLabel').textContent = label;
-  $('#wMoodPct').textContent = `${pct}%`;
-  $('#wMoodBar').style.width = `${pct}%`;
-  $('#wMoodMeter').setAttribute('aria-valuenow', String(pct));
   const parts = [];
   if (items.length) parts.push(`${items.length} msg${items.length === 1 ? '' : 's'} (${pos} positive)`);
   if (reactTotal + W.reactMomentum > 0) parts.push(`${reactTotal + Math.round(W.reactMomentum)} reactions`);
-  $('#wMoodMeta').textContent = parts.join(' · ') || 'Synced with live chat & reactions';
+  syncMoodUI(state, label, pct, parts.join(' · ') || 'Synced with live chat & reactions');
 }
 
 // ---------------------------------------------------------------- feed (cached GET shared by viewers)
@@ -217,7 +276,7 @@ function render(info) {
   const title = info.found ? info.title || 'Live show' : info.ended ? `${info.title || 'The show'} · ended` : info.offline ? `${info.name} · offline` : info.unclaimed ? 'Nobody here yet' : 'Show not found';
   $('#wTitle').textContent = title;
   document.title = `${title} · Watch live`;
-  if (info.color) document.documentElement.style.setProperty('--accent', info.color);
+  applyWatchAccent(info.color || '');
 
   const live = !!(info.found && info.live?.on);
   const onAir = live || W.direct.state === 'live';
@@ -225,14 +284,16 @@ function render(info) {
   $('#wv').classList.toggle('on-air', onAir);
   if (info.short && /^\/w\/gather-/.test(location.pathname)) history.replaceState(null, '', '/w/' + info.short + location.search);
 
+  renderStreamType(info);
   renderHost(info);
+  renderCreatorCard(info);
+  renderShowcase(info);
   $('#wLiveText').textContent = live ? 'Live · ' + clockText(info.live.since) : 'On air';
   $('#wViewers').hidden = !info.found;
   $('#wViewers').textContent = info.viewers ? `${info.viewers} watching` : '';
 
   const w = info.watch || {};
   $('#wSuperBtn').hidden = !w.supers || w.chat === false;
-  $('#wSuperStrip').hidden = $('#wSuperBtn').hidden;
   $('#wMic').hidden = w.voice === false || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
   $('#wChatState').textContent = !info.found ? '' : w.chat === false ? 'Chat off' : w.slow ? `Slow · ${w.slow}s` : '';
   $('#wCompose').hidden = !info.found || w.chat === false;
@@ -254,7 +315,7 @@ function render(info) {
   renderCaps(info);
   renderSources(info);
   floatReacts(info.reacts);
-  updateHudUptime();
+  syncHudShell();
 }
 
 function renderChat(items) {
@@ -306,7 +367,9 @@ function msgEl(m) {
   const head = document.createElement('div'); head.className = 'wv-mh';
   const b = document.createElement('b'); b.textContent = m.name; if (!mine) b.style.color = nameColor(m.name);
   const t = document.createElement('time'); const d = new Date(m.ts || Date.now()); t.dateTime = d.toISOString(); t.textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  head.append(b, t);
+  head.append(b);
+  if (m.host) { const hp = document.createElement('span'); hp.className = 'wv-host-pill'; hp.textContent = 'Host'; head.append(hp); }
+  head.append(t);
   if (m.q) { const q = document.createElement('span'); q.className = 'wv-qb'; q.innerHTML = '<svg class="i" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg>Question'; head.append(q); }
 
   const lk = document.createElement('button'); lk.type = 'button'; lk.className = 'wv-like'; lk.dataset.likeFor = m.id;
@@ -346,6 +409,7 @@ function renderTops(items) {
   for (const m of items) if (m.paid && m.status !== 'pending') by.set(m.name, (by.get(m.name) || 0) + Number(String(m.paid).replace(/[^0-9.]/g, '')));
   const top = [...by].sort((a, b) => b[1] - a[1]).slice(0, 5);
   $('#wTops').hidden = !top.length;
+  if ($('#wTopsWrap')) $('#wTopsWrap').hidden = !top.length;
   $('#wTops').replaceChildren(...top.map(([n, a], i) => { const s = document.createElement('span'); const amt = document.createElement('i'); amt.textContent = '$' + (Number.isInteger(a) ? a : a.toFixed(2)); s.append(amt, (i === 0 ? '👑 ' : '') + n); return s; }));
 }
 
@@ -462,18 +526,25 @@ $('#wVol').oninput = (e) => { const v = W.direct.video; if (!v) return; v.volume
 $('#wPip').hidden = !document.pictureInPictureEnabled;
 $('#wPip').onclick = async () => { try { if (document.pictureInPictureElement) await document.exitPictureInPicture(); else await W.direct.video?.requestPictureInPicture(); } catch {} };
 
+function setTheater(on) {
+  const next = typeof on === 'boolean' ? on : !$('#wv').classList.contains('theater');
+  $('#wv').classList.toggle('theater', next);
+  $('#wTheaterBtn')?.setAttribute('aria-pressed', String(next));
+}
+if ($('#wTheaterBtn')) $('#wTheaterBtn').onclick = () => setTheater();
+
 $('#wFull').onclick = () => {
   if (document.fullscreenElement) return document.exitFullscreen();
-  $('#wv').classList.add('theater');
+  setTheater(true);
   const go = $('#wv').requestFullscreen?.(); if (!go) return;
   go.catch(() => {});
 };
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) $('#wv').classList.remove('theater'); if (document.fullscreenElement && innerHeight > innerWidth) setFill(true); });
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) setTheater(false); if (document.fullscreenElement && innerHeight > innerWidth) setFill(true); });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!$('#wStatsPop').hidden) toggleStatsPop(false);
     if (!$('#wDrawerWrap').hidden) openHostDrawer(false);
-    if ($('#wv').classList.contains('theater') && !document.fullscreenElement) $('#wv').classList.remove('theater');
+    if ($('#wv').classList.contains('theater') && !document.fullscreenElement) setTheater(false);
   }
 });
 
@@ -508,7 +579,7 @@ addEventListener('keydown', (e) => {
   else if (k === 'm') { e.preventDefault(); setMuted(!W.direct.video?.muted); }
   else if (k === 'c') { e.preventDefault(); toggleChat(); }
   else if (k === 'i') { e.preventDefault(); openHostDrawer($('#wDrawerWrap').hidden); }
-  else if (k === 't') { e.preventDefault(); $('#wv').classList.toggle('theater'); }
+  else if (k === 't') { e.preventDefault(); setTheater(); }
   else if (k === 'h') { e.preventDefault(); sendReact('❤️'); }
   else if (e.key === '?') { e.preventDefault(); $('#wKeysDlg').showModal(); }
 });
@@ -527,6 +598,19 @@ function updateHudUptime() {
   const since = W.info?.live?.on ? W.info.live.since : W.direct.connectedAt;
   const el = $('#wStatUptime');
   if (el) el.textContent = since ? clockText(since) : '—';
+}
+
+function syncHudShell() {
+  const wrap = $('#wHudWrap'), btn = $('#wStatsHud');
+  if (!wrap || !btn) return;
+  if (!W.info?.found) { wrap.hidden = true; $('#wDelay').hidden = true; return; }
+  wrap.hidden = false;
+  updateHudUptime();
+  if (W.source === 'direct' && (!W.direct.pc || W.direct.state !== 'live')) {
+    btn.classList.add('off');
+    btn.classList.remove('warn');
+    $('#wHudSummary').textContent = W.direct.state === 'connecting' ? 'Connecting…' : 'Standby';
+  }
 }
 
 setInterval(async () => {
@@ -713,7 +797,13 @@ function renderHype(info) {
 
 // ---------------------------------------------------------------- chat
 function showErr(sel, msg) { const e = $(sel); e.textContent = msg || ''; e.hidden = !msg; }
-function renderMe() { $('#wMe').textContent = ACCT?.user?.name || (sess?.named ? sess.name : '') || 'Sign in'; }
+function renderMe() {
+  const me = $('#wMe');
+  if (!me) return;
+  const nm = ACCT?.user?.name || (sess?.named ? sess.name : '');
+  me.textContent = nm || 'Sign in';
+  me.classList.toggle('signed', !!(ACCT?.user || sess?.named));
+}
 
 let naming = null;
 async function setName(name) {
@@ -791,7 +881,6 @@ function openSuperRefresh() {
   $('#wPaid').disabled = !SC.opened;
 }
 $('#wSuperBtn').onclick = () => openSuper();
-$('#wSuperStrip').onclick = () => openSuper();
 $('#wPayGo').onclick = async () => {
   const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
   if (!handle) return;
@@ -846,27 +935,51 @@ $('#wInfoBtn').onclick = () => openHostDrawer($('#wDrawerWrap').hidden);
 $('#wDrawerClose').onclick = () => openHostDrawer(false);
 $('#wDrawerBack').onclick = () => openHostDrawer(false);
 
+function syncRailStrip() {
+  const info = W.info || {};
+  const on = !!info.found;
+  const pin = on ? (info.watch?.pin || '') : '';
+  const alertOpen = !$('#wStageAlert').hidden;
+  const pinBtn = $('#wPinMiniBtn'), hereBtn = $('#wHereMiniBtn');
+  if (pinBtn) {
+    pinBtn.hidden = alertOpen || !pin;
+    if (pin && $('#wPinMiniTxt')) $('#wPinMiniTxt').textContent = pin;
+  }
+  const n = on ? info.viewers || 0 : 0;
+  if (hereBtn) {
+    hereBtn.hidden = alertOpen || !!pin || n < 1;
+    if (n >= 1 && $('#wHereMiniN')) $('#wHereMiniN').textContent = `${n.toLocaleString()} watching`;
+  }
+}
+
 function setTab(tab) {
   tab = tab === true ? 'about' : tab === false ? 'chat' : tab;
   W.tab = tab;
   $('#wChat').classList.toggle('about', tab === 'about');
   $('#wChat').classList.toggle('shop', tab === 'shop');
   $('#wChat').classList.toggle('stage', tab === 'stage');
+  $('#wChat').classList.toggle('pulse', tab === 'pulse');
   $('#wAbout').hidden = tab !== 'about';
   $('#wShop').hidden = tab !== 'shop';
   $('#wStagePanel').hidden = tab !== 'stage';
-  for (const [id, t] of [['#wTabChat', 'chat'], ['#wTabStage', 'stage'], ['#wTabShop', 'shop'], ['#wTabAbout', 'about']]) {
+  if ($('#wPulsePanel')) $('#wPulsePanel').hidden = tab !== 'pulse';
+  for (const [id, t] of [['#wTabChat', 'chat'], ['#wTabStage', 'stage'], ['#wTabPulse', 'pulse'], ['#wTabShop', 'shop'], ['#wTabAbout', 'about']]) {
     $(id)?.setAttribute('aria-selected', String(tab === t));
   }
   if (tab === 'stage') $('#wStageAlert').hidden = true;
+  syncRailStrip();
 }
 $('#wTabChat').onclick = () => setTab('chat');
 $('#wTabStage').onclick = () => setTab('stage');
+if ($('#wTabPulse')) $('#wTabPulse').onclick = () => setTab('pulse');
 $('#wTabShop').onclick = () => setTab('shop');
 $('#wTabAbout').onclick = () => setTab('about');
 $('#wAboutShare').onclick = () => $('#wShare').click();
 $('#wStageAlertGo').onclick = () => setTab('stage');
-$('#wStageAlertX').onclick = () => { W.dismissedAlertKey = $('#wStageAlert').dataset.key || ''; $('#wStageAlert').hidden = true; };
+$('#wStageAlertX').onclick = () => { W.dismissedAlertKey = $('#wStageAlert').dataset.key || ''; $('#wStageAlert').hidden = true; syncRailStrip(); };
+if ($('#wMoodMiniBtn')) $('#wMoodMiniBtn').onclick = () => setTab('pulse');
+if ($('#wPinMiniBtn')) $('#wPinMiniBtn').onclick = () => setTab('pulse');
+if ($('#wHereMiniBtn')) $('#wHereMiniBtn').onclick = () => setTab('pulse');
 
 function updateStageStatus(info) {
   const cards = $('#wCards').children.length;
@@ -891,6 +1004,7 @@ function updateStageStatus(info) {
   } else {
     alert.hidden = true;
   }
+  syncRailStrip();
 }
 
 function renderAbout(info) {
@@ -928,7 +1042,7 @@ const QUALS = ['auto', '720', '480', '360'];
 W.q = store.get('quality', 'auto');
 function setQuality(q) {
   W.q = q; store.set('quality', q);
-  $('#wQual').textContent = q === 'auto' ? 'Auto' : q + 'p';
+  $('#wQual').textContent = q === 'auto' ? 'Quality · Auto' : `Quality · ${q}p`;
   if (sess && W.direct.state === 'live') api('wrtcSignal', { ...creds(), data: { quality: q === 'auto' ? '720' : q } }).catch(() => {});
 }
 $('#wQual').onclick = () => setQuality(QUALS[(QUALS.indexOf(W.q) + 1) % QUALS.length]);
@@ -1324,12 +1438,10 @@ $('#wClipDlg').addEventListener('close', () => {
 });
 
 $('#wClip').onclick = openClipStudio;
-$('#wClipStrip').onclick = openClipStudio;
 
 setInterval(() => {
   const ready = W.direct.state === 'live' && !!window.MediaRecorder;
   $('#wClip').hidden = !ready;
-  $('#wClipStrip').hidden = !ready;
   if (ready && !CLIP.on && (navigator.hardwareConcurrency || 2) >= 6 && !/Mobi/i.test(navigator.userAgent)) clipStart();
   if (!ready && CLIP.on) clipStop();
 }, 2000);
@@ -1437,7 +1549,10 @@ function renderSignMode() {
   $('#wSignPass').autocomplete = up ? 'new-password' : 'current-password';
   showErr('#wSignErr', '');
 }
-let googleReady = null;
+let googleReady = api('config', {}).then((c) => {
+  configureGoogle(c.googleClientId);
+  $('#wGoogle').hidden = $('#wOr').hidden = $('#wSignLegal').hidden = !googleConfigured();
+}).catch(() => {});
 function openSignIn() {
   renderSignMode();
   googleReady ||= api('config', {}).then((c) => { configureGoogle(c.googleClientId); }).catch(() => {});
@@ -1479,29 +1594,39 @@ $('#wMe').onclick = () => {
 function initialsOf(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?'; }
 function renderHost(info) {
   const card = $('#wHost'), infoBtn = $('#wInfoBtn');
-  if (!info.found && !info.ended && !(info.offline && info.host)) { card.hidden = true; infoBtn.hidden = true; return; }
+  if (!info.found && !info.ended && !(info.offline && info.host)) {
+    card.hidden = true; infoBtn.hidden = true;
+    if ($('#wEmptyHost')) $('#wEmptyHost').textContent = 'Broadcast Feed';
+    if ($('#wEmptyAv')) $('#wEmptyAv').textContent = '';
+    return;
+  }
   card.hidden = false; infoBtn.hidden = false;
   const h = info.host || {}, w = info.watch || {};
   $('#wHostTitle').textContent = info.offline ? `${h.name || 'This streamer'} isn’t live right now` : info.title || 'Live show';
   $('#wHostName').textContent = h.name || 'The host';
   $('#wInfoName').textContent = h.name || 'Show info';
+  if ($('#wEmptyHost')) $('#wEmptyHost').textContent = (h.name || 'Broadcast Host') + (h.handle ? ` · @${h.handle}` : '');
   $('#wHostHandle').textContent = h.handle ? '@' + h.handle : '';
   const live = info.live?.on || W.direct.state === 'live';
   $('#wHostLive').hidden = !live || !!info.ended || !!info.offline;
   renderSub(h);
   $('#wHostMeta').textContent = info.offline ? 'Subscribe to get an email when they go live.' : info.ended ? 'Show ended' : [live ? (info.live?.on ? `Live for ${clockText(info.live.since)}` : 'On air now') : 'Not on air', info.viewers ? `${info.viewers} watching` : ''].filter(Boolean).join(' · ');
 
-  const av = $('#wHostAv'), topAv = $('#wInfoAv');
+  const av = $('#wHostAv'), topAv = $('#wInfoAv'), slateAv = $('#wEmptyAv');
   if (!av.dataset.done) {
     const ini = initialsOf(h.name), col = nameColor(h.name || '?');
     av.textContent = ini; av.style.background = col;
     topAv.textContent = ini; topAv.style.background = col;
+    if (slateAv) { slateAv.textContent = ini; slateAv.style.background = col; }
     if (h.photo) {
       av.dataset.done = '1';
       api('havatar', {}).then((r) => {
         if (r.avatar) {
+          W.hostAvatar = r.avatar;
           const im1 = document.createElement('img'); im1.src = r.avatar; im1.alt = ''; av.replaceChildren(im1); av.style.background = 'none';
           const im2 = document.createElement('img'); im2.src = r.avatar; im2.alt = ''; topAv.replaceChildren(im2); topAv.style.background = 'none';
+          if (slateAv) { const im3 = document.createElement('img'); im3.src = r.avatar; im3.alt = ''; slateAv.replaceChildren(im3); slateAv.style.background = 'none'; }
+          if (W.info) renderCreatorCard(W.info);
         }
       }).catch(() => {});
     }
@@ -1515,6 +1640,181 @@ function renderHost(info) {
     $('#wHostLinks').replaceChildren(...links.map((l) => { const li = document.createElement('li'), a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener nofollow'; a.textContent = l.label; li.append(a); return li; }));
   }
   $('#wHostLinks').hidden = !links.length;
+}
+
+// ---------------------------------------------------------------- Watch Party Bento Hub (Creator Profile + Showcase)
+const STREAM_TYPES = {
+  live: { label: 'Live Stream', short: 'Live', icon: 'i-radio' },
+  shopping: { label: 'Live Shopping', short: 'Shopping', icon: 'i-shopping-bag' },
+  gamer: { label: 'Gamer Stream', short: 'Gamer', icon: 'i-gamepad-2' },
+};
+function fetchWAsset(id) {
+  if (!id) return Promise.resolve('');
+  if (!W.assetCache.has(id)) {
+    W.assetCache.set(id, api('wasset', { asset: id }).then((r) => r.data || '').catch(() => ''));
+  }
+  return W.assetCache.get(id);
+}
+function renderStreamType(info) {
+  const type = STREAM_TYPES[info.streamType] ? info.streamType : 'live';
+  const cfg = STREAM_TYPES[type];
+  const badge = $('#wWatchBadge');
+  if (badge) {
+    badge.dataset.type = type;
+    $('#wWatchBadgeTxt').textContent = cfg.label;
+    $('#wWatchBadgeIcon')?.setAttribute('href', `/icons.svg#${cfg.icon}`);
+  }
+  if ($('#wCreatorType')) $('#wCreatorType').textContent = cfg.short;
+}
+function renderCreatorCard(info) {
+  const card = $('#wCreatorCard');
+  if (!card) return;
+  const h = info.host || {}, w = info.watch || {};
+  $('#wCreatorName').textContent = h.name || 'Broadcast Host';
+  $('#wCreatorHandle').textContent = h.handle ? `@${h.handle}` : (info.found ? 'Live broadcast room' : 'Watch party');
+  $('#wCreatorTitle').textContent = info.title || 'Live show';
+  $('#wCreatorAbout').textContent = w.about || 'Tune in, drop live reactions in chat, and catch real-time show notices.';
+
+  const tags = Array.isArray(info.hashtags) ? info.hashtags.filter(Boolean).slice(0, 8) : [];
+  const tagsBox = $('#wCreatorTags');
+  tagsBox.hidden = !tags.length;
+  const tagKey = tags.join('|');
+  if (tagsBox.dataset.k !== tagKey) {
+    tagsBox.dataset.k = tagKey;
+    tagsBox.replaceChildren(...tags.map((t) => {
+      const s = document.createElement('span');
+      s.className = 'wv-tag';
+      s.textContent = t.startsWith('#') ? t : '#' + t;
+      return s;
+    }));
+  }
+
+  const logo = $('#wCreatorLogo');
+  const logoKey = `${info.brandLogo || ''}|${W.hostAvatar ? 'av' : ''}|${h.name || ''}`;
+  if (logo.dataset.k !== logoKey) {
+    logo.dataset.k = logoKey;
+    logo.textContent = initialsOf(h.name || info.title || 'G');
+    if (info.brandLogo) {
+      fetchWAsset(info.brandLogo).then((data) => {
+        if (!data || logo.dataset.k !== logoKey) return;
+        const im = document.createElement('img'); im.src = data; im.alt = '';
+        logo.replaceChildren(im);
+      });
+    } else if (W.hostAvatar) {
+      const im = document.createElement('img'); im.src = W.hostAvatar; im.alt = '';
+      logo.replaceChildren(im);
+    }
+  }
+}
+$('#wCardMoreBtn')?.addEventListener('click', () => openHostDrawer(true));
+
+function setShowcaseTab(tab) {
+  W.scTab = tab;
+  $$('[data-sc-tab]').forEach((b) => {
+    const on = b.dataset.scTab === tab;
+    b.setAttribute('aria-selected', String(on));
+  });
+  if ($('#wPaneNotices')) $('#wPaneNotices').hidden = tab !== 'notices';
+  if ($('#wPaneNext')) $('#wPaneNext').hidden = tab !== 'next';
+  if ($('#wPaneSpotlight')) $('#wPaneSpotlight').hidden = tab !== 'spotlight';
+}
+$$('[data-sc-tab]').forEach((b) => b.addEventListener('click', () => setShowcaseTab(b.dataset.scTab)));
+
+function renderShowcase(info) {
+  const notices = Array.isArray(info.notices) ? info.notices : [];
+  const next = info.whatNext || info.next || null;
+  const spot = info.aiSpotlight || null;
+
+  if ($('#wCntNotices')) { $('#wCntNotices').hidden = !notices.length; $('#wCntNotices').textContent = String(notices.length); }
+  if ($('#wCntNext')) $('#wCntNext').hidden = !next;
+  if ($('#wCntSpot')) $('#wCntSpot').hidden = !spot;
+
+  const nBox = $('#wNoticesList');
+  const nKey = JSON.stringify(notices);
+  if (nBox && nBox.dataset.k !== nKey) {
+    nBox.dataset.k = nKey;
+    if (!notices.length) {
+      nBox.replaceChildren(Object.assign(document.createElement('div'), { className: 'wv-sc-empty', textContent: 'No stream notices, sponsor banners, or drops pinned yet.' }));
+    } else {
+      nBox.replaceChildren(...notices.map((n) => {
+        const card = document.createElement('article');
+        card.className = 'wv-notice-card' + (n.kind === 'ad' ? ' ad' : '');
+        const top = document.createElement('div'); top.className = 'wv-notice-top';
+        const kind = document.createElement('span'); kind.className = 'wv-notice-kind'; kind.textContent = n.kind || 'notice';
+        top.append(kind);
+        card.append(top);
+        if (n.imgAsset) {
+          const im = document.createElement('img'); im.className = 'wv-notice-img'; im.alt = n.head || 'Notice media'; im.hidden = true;
+          card.append(im);
+          fetchWAsset(n.imgAsset).then((data) => { if (data) { im.src = data; im.hidden = false; } });
+        }
+        if (n.head) card.append(Object.assign(document.createElement('h3'), { textContent: n.head }));
+        if (n.body) card.append(Object.assign(document.createElement('p'), { textContent: n.body }));
+        if (n.ctaUrl) {
+          const a = document.createElement('a'); a.className = 'btn sm primary'; a.href = n.ctaUrl; a.target = '_blank'; a.rel = 'noopener nofollow';
+          a.textContent = n.ctaLabel || 'Open link';
+          card.append(a);
+        }
+        return card;
+      }));
+    }
+  }
+
+  const nextBox = $('#wNextBox');
+  const nextKey = JSON.stringify(next);
+  if (nextBox && nextBox.dataset.k !== nextKey) {
+    nextBox.dataset.k = nextKey;
+    if (!next || (!next.title && !next.when && !next.desc)) {
+      nextBox.replaceChildren(Object.assign(document.createElement('div'), { className: 'wv-sc-empty', textContent: 'No upcoming broadcast scheduled yet. Subscribe to get an alert when they go live.' }));
+    } else {
+      const card = document.createElement('div'); card.className = 'wv-next-card';
+      const top = document.createElement('div'); top.className = 'wv-next-top';
+      const h3 = document.createElement('h3'); h3.textContent = next.title || 'Next Broadcast';
+      top.append(h3);
+      if (next.when) {
+        const cd = document.createElement('span'); cd.className = 'wv-next-cd'; cd.dataset.nextCd = String(next.when);
+        cd.textContent = countdownText(Number(next.when));
+        top.append(cd);
+      }
+      card.append(top);
+      if (next.desc) card.append(Object.assign(document.createElement('p'), { textContent: next.desc }));
+      if (info.host?.alerts) {
+        const rem = document.createElement('button'); rem.type = 'button'; rem.className = 'btn sm primary';
+        rem.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg>Remind me when live';
+        rem.onclick = () => handleSubClick();
+        card.append(rem);
+      }
+      nextBox.replaceChildren(card);
+    }
+  }
+
+  const spotBox = $('#wSpotlightBox');
+  const spotKey = JSON.stringify(spot);
+  if (spotBox && spotBox.dataset.k !== spotKey) {
+    spotBox.dataset.k = spotKey;
+    if (!spot || (!spot.head && !(spot.bullets || []).length && !(spot.links || []).length)) {
+      spotBox.replaceChildren(Object.assign(document.createElement('div'), { className: 'wv-sc-empty', textContent: 'AI Spotlight highlights, show notes, and curated links will appear here once published.' }));
+    } else {
+      const card = document.createElement('div'); card.className = 'wv-spot-card';
+      if (spot.head) card.append(Object.assign(document.createElement('h3'), { textContent: spot.head }));
+      if ((spot.bullets || []).length) {
+        const ul = document.createElement('ul'); ul.className = 'wv-spot-bullets';
+        for (const pt of spot.bullets) ul.append(Object.assign(document.createElement('li'), { textContent: pt }));
+        card.append(ul);
+      }
+      if ((spot.links || []).length) {
+        const row = document.createElement('div'); row.className = 'wv-spot-links';
+        for (const l of spot.links) {
+          if (!l?.url) continue;
+          const a = document.createElement('a'); a.className = 'btn sm'; a.href = l.url; a.target = '_blank'; a.rel = 'noopener nofollow';
+          a.textContent = l.label || l.url;
+          row.append(a);
+        }
+        if (row.children.length) card.append(row);
+      }
+      spotBox.replaceChildren(card);
+    }
+  }
 }
 
 const SHARE = {
@@ -1543,16 +1843,18 @@ const subKey = (h) => (h?.handle || h?.name || '').toLowerCase();
 function renderSub(h) {
   const on = !!SUBS.get()[subKey(h)];
   W.subHost = h;
-  for (const [btnSel, txtSel] of [['#wSub', '#wSubText'], ['#wSubTop', '#wSubTopText']]) {
+  for (const [btnSel, txtSel] of [['#wSub', '#wSubText'], ['#wSubTop', '#wSubTopText'], ['#wSubCard', '#wSubCardText']]) {
     const btn = $(btnSel); if (!btn) continue;
     btn.hidden = !h?.alerts;
     btn.classList.toggle('on', on);
     btn.setAttribute('aria-pressed', String(on));
     $(txtSel).textContent = on ? 'Subscribed' : 'Subscribe';
-    btn.querySelector('use').setAttribute('href', '/icons.svg#i-' + (on ? 'bell-ring' : 'bell'));
+    btn.querySelector('use')?.setAttribute('href', '/icons.svg#i-' + (on ? 'bell-ring' : 'bell'));
   }
   const n = h?.subs || 0;
-  $('#wHostSubs').textContent = h?.alerts ? `${n.toLocaleString()} subscriber${n === 1 ? '' : 's'}` : '';
+  const subTxt = h?.alerts ? `${n.toLocaleString()} subscriber${n === 1 ? '' : 's'}` : '';
+  $('#wHostSubs').textContent = subTxt;
+  if ($('#wCreatorSubs')) $('#wCreatorSubs').textContent = subTxt;
 }
 async function handleSubClick() {
   const h = W.subHost || {}, all = SUBS.get(), t = all[subKey(h)];
@@ -1569,6 +1871,7 @@ async function handleSubClick() {
 }
 $('#wSub').onclick = handleSubClick;
 $('#wSubTop').onclick = handleSubClick;
+if ($('#wSubCard')) $('#wSubCard').onclick = handleSubClick;
 
 $('#wSubForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1622,6 +1925,7 @@ function renderRoom(info) {
   $('#wPinText').textContent = pin;
   $('#wPinBy').textContent = `Pinned by ${info.host?.name || 'the host'}`;
   $('#wMsgs').dataset.welcome = on ? `Welcome to ${info.title || 'the show'}! Say hi, ${info.host?.name || 'the host'} sees every message.` : '';
+  syncRailStrip();
 }
 
 $('#wGuest').onclick = () => {
@@ -1664,7 +1968,14 @@ function countdownText(when) {
   const at = new Date(when).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
   return `Starts in ${d ? d + 'd ' : ''}${d || h ? h + 'h ' : ''}${m}m ${d ? '' : s + 's'} · ${at}`.replace(/\s+·/, ' ·');
 }
-setInterval(() => { const i = W.info; if (i?.offline && i.next && !$('#wEmpty').hidden) $('#wEmptyP').textContent = countdownText(i.next.when); }, 1000);
+setInterval(() => {
+  const i = W.info;
+  if (i?.offline && i.next && !$('#wEmpty').hidden) $('#wEmptyP').textContent = countdownText(i.next.when);
+  for (const el of $$('[data-next-cd]')) {
+    const w = Number(el.dataset.nextCd);
+    if (w) el.textContent = countdownText(w);
+  }
+}, 1000);
 function renderEmptyExtras(info) {
   const acts = $('#wEmptyActs');
   const key = `${!!(info.offline && info.host?.alerts)}|${info.ended ? (W.last?.links || [])[0]?.url || '' : ''}`;
