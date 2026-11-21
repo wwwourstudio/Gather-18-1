@@ -52,7 +52,7 @@ server.listen(0, async () => {
   check('tool results sent back, bad input flagged as an error', results.length === 3 && results[2].is_error === true && !results[0].is_error, JSON.stringify(results.map((r) => r.is_error)));
   const first = calls[0]?.body || {};
   check('the host key is used and never sent elsewhere', calls.every((c) => /^(Bearer )?sk-ant-test-0123456789$/.test(c.key || '')), JSON.stringify(calls.map((c) => c.key)));
-  check('web search and the seven studio tools are offered', first.tools?.some((t) => t.type === 'web_search_20260209') && first.tools.filter((t) => t.input_schema).length === 7);
+  check('web search and the eight studio tools are offered', first.tools?.some((t) => t.type === 'web_search_20260209') && first.tools.filter((t) => t.input_schema).length === 8);
   check('the prompt lists the scenes', /Scenes: Solo, Interview/.test(first.system || ''));
   const j = parseJsonReply('Sure! {"reply":"Switching now.","actions":[{"type":"scene","name":"Solo"},{"type":"open","url":"http://x.com"},{"type":"countdown","minutes":500},{"type":"nope"}]}');
   check('JSON replies (ChatGPT, Gemini, Grok) keep only valid actions', j.reply === 'Switching now.' && JSON.stringify(j.actions) === '[{"type":"scene","name":"Solo"}]', JSON.stringify(j));

@@ -3864,6 +3864,9 @@ const wErr = (m) => { if (!$('#wErr')) return; $('#wErr').textContent = m; $('#w
 const wWhen = () => { const v = $('#wDate')?.value && $('#wTime')?.value ? new Date(`${$('#wDate').value}T${$('#wTime').value}`) : null; return v ? v.getTime() : 0; };
 const parseHashtags = (raw) => [...new Set(String(raw || '').split(/[\s,;]+/).map((t) => t.trim().replace(/^#+/, '')).filter(Boolean).map((t) => '#' + t.replace(/[^a-z0-9_]/gi, '')).filter((t) => t.length > 1))].slice(0, 6);
 
+// Going live now needs nothing from steps 1-3 (they're optional), so "Go Live Now" is there on every step;
+// scheduling still walks to the last step, where the date has been checked.
+function syncWizGo() { if ($('#wGo')) $('#wGo').hidden = wiz.mode === 'later' && wiz.step !== 4; }
 function setWizStep(step) {
   wiz.step = Math.max(1, Math.min(4, Number(step) || 1));
   wErr('');
@@ -3876,7 +3879,7 @@ function setWizStep(step) {
   });
   if ($('#wBackBtn')) $('#wBackBtn').hidden = wiz.step === 1;
   if ($('#wNextBtn')) $('#wNextBtn').hidden = wiz.step === 4;
-  if ($('#wGo')) $('#wGo').hidden = wiz.step !== 4;
+  syncWizGo();
   if ($('#wStepMeta')) $('#wStepMeta').textContent = `Step ${wiz.step} of 4`;
   if (wiz.step === 3) { renderKitVisualPreviews(); drawThumb(); }
   if (wiz.step === 4) { renderWizSummary(); }
@@ -4014,6 +4017,7 @@ function renderWizard() {
   $$('#wTypes [data-wtype]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.wtype === wiz.streamType)));
   $$('.w-later').forEach((el) => (el.hidden = !later));
   if ($('#wGo')) $('#wGo').textContent = later ? 'Schedule Stream' : 'Go Live Now';
+  syncWizGo();
   if ($('#wMailNote')) {
     $('#wMailNote').textContent = !acct.user
       ? 'Sign in to schedule streams and send automatic reminders.'
