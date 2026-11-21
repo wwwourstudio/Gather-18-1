@@ -306,8 +306,8 @@ function render(info) {
   renderTops(W.recentChat);
   renderAbout(info);
   renderShopUI(info);
-  renderPollCard(info);
-  renderQueueCard(info);
+  renderMode(info);
+  renderInteractive(info);
   updateStageStatus(info);
   renderHype(info);
   renderMoodMeter(info);
@@ -1189,8 +1189,8 @@ setInterval(() => {
 }, 1000);
 
 W.votes = store.get('votes:' + code, {});
-function renderPollCard(info) {
-  const p = info.poll; let card = $('#wCards [data-card="poll"]');
+function renderPollCard(info, box = $('#wCards')) {
+  const p = info.poll; let card = box.querySelector('[data-card="poll"]');
   if (!p) { card?.remove(); return; }
   const open = p.until > Date.now(), mine = W.votes[p.id], total = p.counts.reduce((a, b) => a + b, 0), show = !open || mine != null;
   const key = JSON.stringify([p.id, p.counts, open, mine, p.answer]);
@@ -1206,17 +1206,17 @@ function renderPollCard(info) {
     const bar = document.createElement('i'); bar.style.width = show ? pct + '%' : '0';
     const a = document.createElement('span'); a.textContent = (p.answer === i ? '✓ ' : mine === i ? '• ' : '') + o; const c = document.createElement('b'); c.textContent = show ? pct + '%' : '';
     b.append(bar, a, c);
-    b.onclick = async () => { try { await ensureSession(); await api('wsend', { ...creds(), type: 'vote', poll: p.id, opt: i }); W.votes[p.id] = i; store.set('votes:' + code, W.votes); renderPollCard(W.info); } catch (e) { toast(e.message, true); } };
+    b.onclick = async () => { try { await ensureSession(); await api('wsend', { ...creds(), type: 'vote', poll: p.id, opt: i }); W.votes[p.id] = i; store.set('votes:' + code, W.votes); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
     list.append(b);
   });
   fresh.append(k, q, list);
   if (p.kind === 'predict' && p.answer >= 0 && mine != null) { const res = document.createElement('small'); res.textContent = mine === p.answer ? '🎉 You called it!' : 'Not this time.'; fresh.append(res); }
-  if (card) card.replaceWith(fresh); else $('#wCards').append(fresh);
+  if (card) card.replaceWith(fresh); else box.append(fresh);
 }
 
 W.queued = store.get('queued:' + code, false);
-function renderQueueCard(info) {
-  const qi = info.queue, card = $('#wCards [data-card="queue"]');
+function renderQueueCard(info, box = $('#wCards')) {
+  const qi = info.queue, card = box.querySelector('[data-card="queue"]');
   if (!qi?.open && !W.called) { card?.remove(); if (!qi?.open) W.queued = false; return; }
   const ahead = W.queued && sess ? Math.max(0, (qi.up || []).indexOf(sess.name)) : 0;
   const key = JSON.stringify([qi.size, W.queued, W.called, ahead]);
@@ -1231,23 +1231,171 @@ function renderQueueCard(info) {
   } else if (W.queued) {
     const b = document.createElement('span'); b.textContent = ahead ? `You’re in line · ${ahead} ahead of you` : 'You’re in line. We’ll ping you when you’re up.';
     const leave = document.createElement('button'); leave.type = 'button'; leave.className = 'btn sm ghost'; leave.textContent = 'Leave the line';
-    leave.onclick = async () => { W.queued = false; store.set('queued:' + code, false); try { await api('wsend', { ...creds(), type: 'unqueue' }); } catch {} renderQueueCard(W.info); };
+    leave.onclick = async () => { W.queued = false; store.set('queued:' + code, false); try { await api('wsend', { ...creds(), type: 'unqueue' }); } catch {} renderInteractive(W.info); };
     c.append(b, leave);
   } else {
     const f = document.createElement('div'); f.className = 'wv-q';
     const inp = document.createElement('input'); inp.className = 'input'; inp.placeholder = 'Your gamertag'; inp.maxLength = 32; inp.value = store.get('gamertag', '');
     const go = document.createElement('button'); go.type = 'button'; go.className = 'btn primary'; go.textContent = 'Join the line';
-    go.onclick = async () => { try { await ensureSession(); store.set('gamertag', inp.value.trim()); await api('wsend', { ...creds(), type: 'queue', tag: inp.value.trim() }); W.queued = true; store.set('queued:' + code, true); renderQueueCard(W.info); } catch (e) { toast(e.message, true); } };
+    go.onclick = async () => { try { await ensureSession(); store.set('gamertag', inp.value.trim()); await api('wsend', { ...creds(), type: 'queue', tag: inp.value.trim() }); W.queued = true; store.set('queued:' + code, true); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
     f.append(inp, go); c.append(f);
   }
-  if (card) card.replaceWith(c); else $('#wCards').append(c);
+  if (card) card.replaceWith(c); else box.append(c);
+}
+
+// ---------------------------------------------------------------- Stream-type deck: the show's own tools under the video
+// A shopping show gets its whole shelf (and the featured product on the video); a gamer show gets the play-with-me line
+// and the live prediction side by side. A plain live show keeps the page as it was.
+const MODE_CFG = {
+  shopping: { icon: 'i-shopping-bag', title: 'Shop the show' },
+  gamer: { icon: 'i-gamepad-2', title: 'Play along' },
+};
+function renderInteractive(info) {
+  renderPollCard(info); renderQueueCard(info);
+  if (W.modeType === 'gamer') { renderPollCard(info, $('#wModePoll')); renderQueueCard(info, $('#wModeQueue')); renderPlayExtras(info); }
+  renderHotspot(info);
+}
+function scrollToMode(focusSel) {
+  const box = $('#wMode'); if (!box || box.hidden) return;
+  box.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+  box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+  if (focusSel) setTimeout(() => $(focusSel)?.focus(), 350);
+}
+const buyWithCode = (sale) => () => { if (sale?.code) navigator.clipboard?.writeText(sale.code).then(() => toast(`Code ${sale.code} copied. Paste it at checkout.`)).catch(() => {}); };
+function skuThumb(p) {
+  const im = document.createElement(p.img ? 'img' : 'div');
+  if (p.img) { im.src = p.img; im.alt = ''; im.loading = 'lazy'; } else { im.className = 'ph'; im.textContent = '🛍'; }
+  return im;
+}
+function renderShelf(info) {
+  const sh = info.shop || {}, items = sh.items || [];
+  const sale = sh.sale && sh.sale.until > Date.now() ? sh.sale : null;
+  $('#wModeSub').textContent = items.length ? `${items.length} product${items.length === 1 ? '' : 's'} · checkout on ${sh.store || 'the seller’s store'}` : 'Products show up here as the host adds them';
+  const key = JSON.stringify([sh.pinned, sale, items]);
+  const body = $('#wModeBody');
+  if (body.dataset.k === key) return;
+  body.dataset.k = key;
+  $('#wModeNav').hidden = items.length < 4;
+  if (!items.length) {
+    const e = document.createElement('p'); e.className = 'wv-mode-empty';
+    e.textContent = 'Nothing on the shelf yet. When the host features a product, you can buy it right here without leaving the stream.';
+    body.replaceChildren(e); return;
+  }
+  // Featured first, then the sale item, then the rest in the host's order.
+  const order = [...items].sort((a, b) => (b.id === sh.pinned) - (a.id === sh.pinned) || (b.id === sale?.id) - (a.id === sale?.id));
+  const ul = document.createElement('ul'); ul.className = 'wv-shelf'; ul.id = 'wShelf';
+  ul.replaceChildren(...order.map((p) => {
+    const onSale = sale?.id === p.id, featured = sh.pinned === p.id;
+    const li = document.createElement('li'); li.className = 'wv-sku' + (onSale ? ' sale' : '') + (featured ? ' featured' : '');
+    const media = document.createElement('div'); media.className = 'wv-sku-media'; media.append(skuThumb(p));
+    if (onSale || featured) {
+      const tag = document.createElement('span'); tag.className = 'wv-sku-tag';
+      tag.textContent = onSale ? `⚡ ${sale.pct ? sale.pct + '% off' : 'Flash sale'}` : 'Featured now';
+      media.append(tag);
+    }
+    const t = document.createElement('b'); t.className = 'wv-sku-t'; t.textContent = p.title;
+    const row = document.createElement('div'); row.className = 'wv-sku-row';
+    const price = document.createElement('span'); price.className = 'wv-sku-price num'; price.textContent = money(p.price) || '—';
+    row.append(price);
+    if (onSale) { const cd = document.createElement('span'); cd.className = 'wv-sku-cd num'; cd.dataset.until = sale.until; row.append(cd); }
+    const buy = document.createElement('a'); buy.className = 'btn sm wv-sku-buy' + (featured || onSale ? ' primary' : ''); buy.href = p.url; buy.target = '_blank'; buy.rel = 'noopener';
+    buy.innerHTML = '<span>Buy</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-external-link"/></svg>';
+    buy.setAttribute('aria-label', `Buy ${p.title}${p.price ? ' for ' + p.price : ''} (opens the store)`);
+    buy.onclick = buyWithCode(onSale ? sale : null);
+    li.append(media, t, row);
+    if (onSale && sale.code) { const c = document.createElement('button'); c.type = 'button'; c.className = 'wv-sku-code'; c.innerHTML = 'Code <code></code>'; c.querySelector('code').textContent = sale.code; c.setAttribute('aria-label', `Copy code ${sale.code}`); c.onclick = buyWithCode(sale); li.append(c); }
+    li.append(buy);
+    return li;
+  }));
+  body.replaceChildren(ul);
+}
+function renderPlayExtras(info) {
+  const qi = info.queue || {}, up = qi.up || [];
+  $('#wModeSub').textContent = qi.open ? (qi.size ? `${qi.size} in the play-with-me line` : 'The play-with-me line is open') + (info.poll && info.poll.until > Date.now() ? ' · prediction open' : '') : info.poll && info.poll.until > Date.now() ? 'Prediction open: make your call' : 'Polls, predictions and the play-with-me line land here';
+  const next = $('#wModeUpNext'); if (!next) return;
+  const key = JSON.stringify([qi.open, up]);
+  if (next.dataset.k === key) return;
+  next.dataset.k = key;
+  next.hidden = !qi.open || !up.length;
+  next.replaceChildren(Object.assign(document.createElement('span'), { className: 'wv-upnext-l', textContent: 'Up next' }), ...up.map((n, i) => {
+    const c = document.createElement('span'); c.className = 'wv-upnext-c' + (n === sess?.name ? ' me' : '');
+    c.append(Object.assign(document.createElement('b'), { className: 'num', textContent: String(i + 1) }), document.createTextNode(n === sess?.name ? `${n} (you)` : n));
+    return c;
+  }));
+  const qph = $('#wModeQueueEmpty'), pph = $('#wModePollEmpty');
+  if (qph) qph.hidden = !!(qi.open || W.called);
+  if (pph) pph.hidden = !!info.poll;
+}
+function renderMode(info) {
+  const type = info.found && MODE_CFG[info.streamType] ? info.streamType : '';
+  $('#wv').dataset.mode = type || 'live';
+  const box = $('#wMode');
+  box.hidden = !type;
+  if (W.modeType !== type) {
+    W.modeType = type;
+    const body = $('#wModeBody'); body.dataset.k = ''; body.replaceChildren();
+    if (type) { $('#wModeIcon').setAttribute('href', '/icons.svg#' + MODE_CFG[type].icon); $('#wModeTitle').textContent = MODE_CFG[type].title; }
+    $('#wModeNav').hidden = true;
+    if (type === 'gamer') {
+      body.innerHTML = `<div class="wv-play">
+        <div class="wv-play-col"><div class="wv-cards" id="wModeQueue"></div><div class="wv-play-empty" id="wModeQueueEmpty"><b>🎮 The line is closed</b><span>When the streamer opens it, you can join with your gamertag and get called up to play.</span></div><div class="wv-upnext" id="wModeUpNext" hidden></div></div>
+        <div class="wv-play-col"><div class="wv-cards" id="wModePoll"></div><div class="wv-play-empty" id="wModePollEmpty"><b>🔮 No prediction yet</b><span>Calls like “Do we clutch this round?” show up here. Pick a side before it locks.</span></div></div>
+      </div>`;
+    }
+  }
+  if (type === 'shopping') renderShelf(info);
+}
+$('#wModePrev')?.addEventListener('click', () => $('#wShelf')?.scrollBy({ left: -$('#wShelf').clientWidth * 0.8, behavior: 'smooth' }));
+$('#wModeNext')?.addEventListener('click', () => $('#wShelf')?.scrollBy({ left: $('#wShelf').clientWidth * 0.8, behavior: 'smooth' }));
+
+// On the video: the one thing worth acting on right now (the featured product, or the open line / prediction).
+function renderHotspot(info) {
+  const hs = $('#wHotspot'); if (!hs) return;
+  let key = 'none', build = null;
+  const sh = info.shop || {}, sale = sh.sale && sh.sale.until > Date.now() ? sh.sale : null;
+  const pinned = W.modeType === 'shopping' && (sh.items || []).find((x) => x.id === sh.pinned);
+  const qi = info.queue || {}, poll = info.poll && info.poll.until > Date.now() ? info.poll : null;
+  if (pinned && !W.hotspotHidden) {
+    const s = sale?.id === pinned.id ? sale : null;
+    key = JSON.stringify(['p', pinned, s]);
+    build = () => {
+      const a = document.createElement('div'); a.className = 'wv-hs wv-hs-prod' + (s ? ' sale' : '');
+      const txt = document.createElement('div'); txt.className = 'wv-hs-txt';
+      const k = document.createElement('span'); k.className = 'wv-hs-k'; k.textContent = s ? `⚡ ${s.pct ? s.pct + '% off' : 'Flash sale'}` : 'Featured now';
+      if (s) { const cd = document.createElement('span'); cd.className = 'num'; cd.dataset.until = s.until; k.append(' · ', cd); }
+      txt.append(k, Object.assign(document.createElement('b'), { textContent: pinned.title }), Object.assign(document.createElement('span'), { className: 'wv-hs-p num', textContent: money(pinned.price) }));
+      const buy = document.createElement('a'); buy.className = 'btn sm primary'; buy.href = pinned.url; buy.target = '_blank'; buy.rel = 'noopener'; buy.textContent = 'Buy'; buy.onclick = buyWithCode(s);
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'wv-hs-x'; x.setAttribute('aria-label', 'Hide product card'); x.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg>';
+      x.onclick = () => { W.hotspotHidden = true; renderHotspot(W.info); };
+      a.append(skuThumb(pinned), txt, buy, x);
+      return a;
+    };
+  } else if (W.modeType === 'gamer' && (W.called || (qi.open && !W.queued) || (poll && W.votes[poll.id] == null))) {
+    const mode = W.called ? 'called' : qi.open && !W.queued ? 'queue' : 'poll';
+    key = JSON.stringify(['g', mode, qi.size, poll?.id]);
+    build = () => {
+      const b = document.createElement(mode === 'called' ? 'a' : 'button'); b.className = 'wv-hs wv-hs-play' + (mode === 'called' ? ' up' : '');
+      if (mode === 'called') { b.href = '/c/' + code; b.target = '_blank'; b.rel = 'noopener'; } else b.type = 'button';
+      const ic = document.createElement('span'); ic.className = 'wv-hs-ic'; ic.textContent = mode === 'poll' ? '🔮' : '🎮';
+      const txt = document.createElement('span'); txt.className = 'wv-hs-txt';
+      txt.append(Object.assign(document.createElement('b'), { textContent: mode === 'called' ? 'You’re up! Join the stage' : mode === 'queue' ? 'Play with the streamer' : poll.q }),
+        Object.assign(document.createElement('span'), { textContent: mode === 'called' ? 'The streamer called you' : mode === 'queue' ? (qi.size ? `${qi.size} in line · join now` : 'Be first in line') : 'Prediction open · make your call' }));
+      b.append(ic, txt);
+      if (mode !== 'called') b.onclick = () => scrollToMode(mode === 'queue' ? '#wModeQueue input' : '#wModePoll .wv-vote button');
+      return b;
+    };
+  }
+  if (hs.dataset.k === key) return;
+  hs.dataset.k = key;
+  hs.hidden = !build;
+  hs.replaceChildren(...(build ? [build()] : []));
 }
 
 setInterval(async () => {
   if (!W.queued || W.called || !sess) return;
   try {
     const r = await api('wping', creds());
-    if (r.queue?.status === 'called') { W.called = true; toast('🎮 You’re up! Open Stage to join.'); try { new AudioContext().resume(); } catch {} renderQueueCard(W.info); updateStageStatus(W.info); }
+    if (r.queue?.status === 'called') { W.called = true; toast('🎮 You’re up! Open Stage to join.'); try { new AudioContext().resume(); } catch {} renderInteractive(W.info); updateStageStatus(W.info); }
   } catch {}
 }, 8000);
 
@@ -1756,7 +1904,8 @@ function renderShowcase(info) {
   const w = info.watch || {};
   const canMic = w.voice !== false && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder;
   const canTip = !!(w.supers && w.chat !== false);
-  const nKey = JSON.stringify([notices, canMic, canTip, info.found]);
+  const mode = info.found && MODE_CFG[info.streamType] ? info.streamType : '';
+  const nKey = JSON.stringify([notices, canMic, canTip, info.found, mode]);
   if (nBox && nBox.dataset.k !== nKey) {
     nBox.dataset.k = nKey;
     if (!notices.length) {
@@ -1773,6 +1922,8 @@ function renderShowcase(info) {
         return b;
       };
       const items = [
+        ...(mode === 'shopping' ? [mkAct('i-shopping-bag', 'Shop the show', 'Every product from this stream, one tap to buy', () => scrollToMode())] : []),
+        ...(mode === 'gamer' ? [mkAct('i-gamepad-2', 'Play with the streamer', 'Join the line and make your predictions', () => scrollToMode())] : []),
         mkAct('i-sparkles', 'Interactive Stage', 'Join live polls, drops, and queue games', () => setTab('stage')),
         mkAct('i-activity', 'Room Pulse', 'Check crowd sentiment, pins, and viewers', () => setTab('pulse')),
       ];

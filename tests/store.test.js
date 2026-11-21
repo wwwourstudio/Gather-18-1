@@ -45,12 +45,15 @@ const signUp = async (page, name) => {
     check('viewer: pinned product card with the sale code', await wait(v, () => /Limited hoodie/.test(document.querySelector('#wCards [data-card="shop"]')?.textContent || '') && /LIVE20/.test(document.querySelector('#wCards')?.textContent)));
     check('viewer: Shop tab lists the product', await v.isVisible('#wTabShop') && (await v.click('#wTabShop'), await v.$$eval('#wProducts li', (l) => l.length)) === 1);
     await v.screenshot({ path: SP + '/store-viewer-shop.png' });
-    await v.click('#wTabChat');
+    await v.click('#wTabStage');
     await v.click('#wCards [data-card="poll"] .wv-vote button:nth-child(2)');
     check('viewer: vote counted', await wait(v, () => document.querySelector('#wCards [data-card="poll"] .wv-vote button.mine')));
+    await v.click('#wTabChat');
     await signUp(v, 'Jordan');
+    await v.click('#wTabStage');
     await v.fill('#wCards [data-card="queue"] input', 'Jordan#42'); await v.click('#wCards [data-card="queue"] .btn.primary');
     check('viewer: in the play-with-me line', await wait(v, () => /in line/i.test(document.querySelector('#wCards [data-card="queue"]')?.textContent || '')));
+    await v.click('#wTabChat');
     await v.fill('#wText', 'This is :hype: right now'); await v.click('#wSend');
     await v.waitForTimeout(1200);
     await v.click('#wAsk'); await v.fill('#wText', 'What GPU are you using?'); await v.click('#wSend');

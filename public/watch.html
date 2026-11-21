@@ -195,6 +195,7 @@
           <div class="wv-floats" id="wFloats" aria-hidden="true"></div>
           <div class="wv-combo" id="wCombo" aria-hidden="true" hidden></div>
           <div class="wv-caps" id="wCaps" aria-live="polite" hidden></div>
+          <div class="wv-hotspot" id="wHotspot" hidden></div>
 
           <!-- Overlay Hover/Touch Controls (Clip lives strictly here) -->
           <div class="wv-ctrls" id="wCtrls">
@@ -212,6 +213,19 @@
           </div>
         </div>
       </div>
+
+      <!-- Stream-type deck: what this kind of show is for, right under the video (shopping shelf / play-along) -->
+      <section class="wv-mode" id="wMode" hidden aria-labelledby="wModeTitle">
+        <header class="wv-mode-h">
+          <span class="wv-mode-ic" aria-hidden="true"><svg class="i sm"><use id="wModeIcon" href="/icons.svg#i-shopping-bag"/></svg></span>
+          <div class="wv-mode-hd"><h2 id="wModeTitle">Shop the show</h2><span class="wv-mode-sub" id="wModeSub"></span></div>
+          <div class="wv-mode-nav" id="wModeNav" hidden>
+            <button type="button" class="icon-btn sm" id="wModePrev" aria-label="Scroll products left"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg></button>
+            <button type="button" class="icon-btn sm" id="wModeNext" aria-label="Scroll products right"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
+          </div>
+        </header>
+        <div class="wv-mode-body" id="wModeBody"></div>
+      </section>
 
       <!-- Watch Party Lower Bento Hub: 1/3 Streamer Profile + 2/3 Showcase & AI Notices -->
       <div class="wv-below" id="wBelowHub">
