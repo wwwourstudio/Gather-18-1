@@ -85,7 +85,8 @@ function hexLuminance(hex) {
 }
 function applyWatchAccent(hex) {
   const norm = normalizeHex(hex);
-  const chosen = (!norm || norm.toLowerCase() === '#5b7cff' || norm.toLowerCase() === '#4464e8') ? '#3b82f6' : norm;
+  const bad = new Set(['#5b7cff', '#4464e8', '#f3efe6', '#ffffff', '#7c6cf2']);
+  const chosen = (!norm || bad.has(norm.toLowerCase())) ? '#3b82f6' : norm;
   const [r, gr, b] = hexRgb(chosen);
   const lum = hexLuminance(chosen);
   const ink = lum > 0.42 ? '#070c1a' : '#ffffff';
@@ -202,7 +203,6 @@ function syncMoodUI(state, label, pct, metaText) {
   if ($('#wMoodMiniLbl')) $('#wMoodMiniLbl').textContent = shortLbl;
   if ($('#wMoodMiniBar')) $('#wMoodMiniBar').style.width = `${pct}%`;
   if ($('#wMoodMiniPct')) $('#wMoodMiniPct').textContent = `${pct}%`;
-  if ($('#wPulseTabPct')) $('#wPulseTabPct').textContent = `${pct}%`;
 }
 
 function renderMoodMeter(info) {
@@ -342,7 +342,7 @@ function renderChat(items) {
 $('#wMsgs').addEventListener('scroll', () => { const l = $('#wMsgs'); if (l.scrollHeight - l.scrollTop - l.clientHeight < 40) $('#wNewer').hidden = true; });
 $('#wNewer').onclick = () => { const l = $('#wMsgs'); l.scrollTop = l.scrollHeight; $('#wNewer').hidden = true; };
 
-const NAME_COLORS = ['#7fa8ff', '#f472b6', '#fbbf24', '#34d399', '#a78bfa', '#38bdf8', '#fb923c', '#f87171'];
+const NAME_COLORS = ['#7fa8ff', '#38bdf8', '#fbbf24', '#34d399', '#60a5fa', '#22d3ee', '#fb923c', '#f87171'];
 const nameColor = (n) => NAME_COLORS[[...String(n)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % NAME_COLORS.length];
 
 function msgEl(m) {
@@ -540,9 +540,20 @@ $('#wFull').onclick = () => {
   go.catch(() => {});
 };
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) setTheater(false); if (document.fullscreenElement && innerHeight > innerWidth) setFill(true); });
+function toggleKeysPop(force) {
+  const pop = $('#wKeysPop'), btn = $('#wKeysBtn');
+  if (!pop || !btn) return;
+  const next = typeof force === 'boolean' ? force : pop.hidden;
+  pop.hidden = !next;
+  btn.setAttribute('aria-expanded', String(next));
+}
+if ($('#wKeysBtn')) $('#wKeysBtn').onclick = (e) => { e.stopPropagation(); toggleKeysPop(); };
+if ($('#wKeysClose')) $('#wKeysClose').onclick = () => toggleKeysPop(false);
+
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!$('#wStatsPop').hidden) toggleStatsPop(false);
+    if ($('#wKeysPop') && !$('#wKeysPop').hidden) toggleKeysPop(false);
     if (!$('#wDrawerWrap').hidden) openHostDrawer(false);
     if ($('#wv').classList.contains('theater') && !document.fullscreenElement) setTheater(false);
   }
@@ -581,7 +592,7 @@ addEventListener('keydown', (e) => {
   else if (k === 'i') { e.preventDefault(); openHostDrawer($('#wDrawerWrap').hidden); }
   else if (k === 't') { e.preventDefault(); setTheater(); }
   else if (k === 'h') { e.preventDefault(); sendReact('❤️'); }
-  else if (e.key === '?') { e.preventDefault(); $('#wKeysDlg').showModal(); }
+  else if (e.key === '?') { e.preventDefault(); toggleKeysPop(); }
 });
 
 // ---------------------------------------------------------------- Stream Stats HUD (Bitrate, Resolution/FPS, Latency, Loss, Uptime)
@@ -592,7 +603,10 @@ function toggleStatsPop(force) {
   btn.setAttribute('aria-expanded', String(next));
 }
 $('#wStatsHud').onclick = (e) => { e.stopPropagation(); toggleStatsPop(); };
-document.addEventListener('click', (e) => { if (!e.target.closest('#wHudWrap')) toggleStatsPop(false); });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#wHudWrap')) toggleStatsPop(false);
+  if (!e.target.closest('.wv-keys-wrap')) toggleKeysPop(false);
+});
 
 function updateHudUptime() {
   const since = W.info?.live?.on ? W.info.live.since : W.direct.connectedAt;
@@ -609,7 +623,7 @@ function syncHudShell() {
   if (W.source === 'direct' && (!W.direct.pc || W.direct.state !== 'live')) {
     btn.classList.add('off');
     btn.classList.remove('warn');
-    $('#wHudSummary').textContent = W.direct.state === 'connecting' ? 'Connecting…' : 'Standby';
+    $('#wHudSummary').textContent = '';
   }
 }
 
@@ -638,7 +652,7 @@ setInterval(async () => {
     $('#wDelay').hidden = true;
     btn.classList.add('off');
     btn.classList.remove('warn');
-    $('#wHudSummary').textContent = W.direct.state === 'connecting' ? 'Connecting…' : 'Standby';
+    $('#wHudSummary').textContent = '';
     $('#wHudMode').textContent = 'Direct WebRTC';
     $('#wStatBitrate').textContent = '—';
     $('#wStatLatency').textContent = '—';
@@ -814,12 +828,21 @@ async function setName(name) {
   })();
   try { await naming; } finally { naming = null; }
 }
-$('#wNameForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function submitGuestBar() {
   const name = $('#wName').value.trim();
-  if (!name) return showErr('#wNameErr', 'Type a name.');
-  $('#wNameDlg').close(); $('#wMe').textContent = name; $('#wText').focus();
-  try { await setName(name); const next = W.guestThen; W.guestThen = null; next?.(); } catch (err) { renderMe(); showErr('#wNameErr', err.message); $('#wNameDlg').showModal(); }
+  if (!name) return showErr('#wNameErr', 'Enter a name.');
+  showErr('#wNameErr', '');
+  $('#wGuestBar').hidden = true;
+  $('#wMe').textContent = name;
+  $('#wText').focus();
+  try { await setName(name); const next = W.guestThen; W.guestThen = null; next?.(); }
+  catch (err) { renderMe(); showErr('#wNameErr', err.message); $('#wGuestBar').hidden = false; $('#wName').focus(); }
+}
+$('#wGuestSave')?.addEventListener('click', submitGuestBar);
+$('#wGuestCancel')?.addEventListener('click', () => { $('#wGuestBar').hidden = true; showErr('#wNameErr', ''); W.guestThen = null; $('#wText').focus(); });
+$('#wName')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); submitGuestBar(); }
+  else if (e.key === 'Escape') { e.preventDefault(); $('#wGuestCancel')?.click(); }
 });
 $('#wCompose').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1664,7 +1687,7 @@ function renderStreamType(info) {
     $('#wWatchBadgeTxt').textContent = cfg.label;
     $('#wWatchBadgeIcon')?.setAttribute('href', `/icons.svg#${cfg.icon}`);
   }
-  if ($('#wCreatorType')) $('#wCreatorType').textContent = cfg.short;
+  if ($('#wCreatorType')) $('#wCreatorType').textContent = cfg.label;
 }
 function renderCreatorCard(info) {
   const card = $('#wCreatorCard');
@@ -1730,11 +1753,35 @@ function renderShowcase(info) {
   if ($('#wCntSpot')) $('#wCntSpot').hidden = !spot;
 
   const nBox = $('#wNoticesList');
-  const nKey = JSON.stringify(notices);
+  const w = info.watch || {};
+  const canMic = w.voice !== false && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder;
+  const canTip = !!(w.supers && w.chat !== false);
+  const nKey = JSON.stringify([notices, canMic, canTip, info.found]);
   if (nBox && nBox.dataset.k !== nKey) {
     nBox.dataset.k = nKey;
     if (!notices.length) {
-      nBox.replaceChildren(Object.assign(document.createElement('div'), { className: 'wv-sc-empty', textContent: 'No stream notices, sponsor banners, or drops pinned yet.' }));
+      const deck = document.createElement('div');
+      deck.className = 'wv-sc-welcome';
+      const mkAct = (icon, title, sub, fn) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'wv-sc-act';
+        b.innerHTML = `<span class="wv-sc-act-ic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#${icon}"/></svg></span><span class="wv-sc-act-txt"><b></b><span></span></span>`;
+        b.querySelector('b').textContent = title;
+        b.querySelector('.wv-sc-act-txt span').textContent = sub;
+        b.onclick = fn;
+        return b;
+      };
+      const items = [
+        mkAct('i-sparkles', 'Interactive Stage', 'Join live polls, drops, and queue games', () => setTab('stage')),
+        mkAct('i-activity', 'Room Pulse', 'Check crowd sentiment, pins, and viewers', () => setTab('pulse')),
+      ];
+      if (canMic) items.push(mkAct('i-mic', 'Ask by Voice', 'Record a 45s voice question for the host', () => voiceOpen()));
+      if (canTip) items.push(mkAct('i-tip', 'Send a Super Chat', 'Highlight a tipped message on screen', () => openSuper()));
+      if (items.length < 4) items.push(mkAct('i-share-2', 'Invite Friends', 'Share this Watch Party link', () => $('#wShareTop').click()));
+      if (items.length < 4) items.push(mkAct('i-info', 'Show Details', 'View links, platforms, and host bio', () => openHostDrawer(true)));
+      deck.replaceChildren(...items.slice(0, 4));
+      nBox.replaceChildren(deck);
     } else {
       nBox.replaceChildren(...notices.map((n) => {
         const card = document.createElement('article');
@@ -1761,11 +1808,20 @@ function renderShowcase(info) {
   }
 
   const nextBox = $('#wNextBox');
-  const nextKey = JSON.stringify(next);
+  const nextKey = JSON.stringify([next, !!info.host?.alerts]);
   if (nextBox && nextBox.dataset.k !== nextKey) {
     nextBox.dataset.k = nextKey;
     if (!next || (!next.title && !next.when && !next.desc)) {
-      nextBox.replaceChildren(Object.assign(document.createElement('div'), { className: 'wv-sc-empty', textContent: 'No upcoming broadcast scheduled yet. Subscribe to get an alert when they go live.' }));
+      const em = document.createElement('div'); em.className = 'wv-sc-empty';
+      em.append(Object.assign(document.createElement('b'), { textContent: 'No upcoming schedule posted' }));
+      em.append(Object.assign(document.createElement('span'), { textContent: 'Subscribe for an instant alert the moment the host goes live next.' }));
+      if (info.host?.alerts) {
+        const subBtn = document.createElement('button'); subBtn.type = 'button'; subBtn.className = 'btn sm primary';
+        subBtn.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg>Notify me next show';
+        subBtn.onclick = () => handleSubClick();
+        em.append(subBtn);
+      }
+      nextBox.replaceChildren(em);
     } else {
       const card = document.createElement('div'); card.className = 'wv-next-card';
       const top = document.createElement('div'); top.className = 'wv-next-top';
@@ -1793,7 +1849,10 @@ function renderShowcase(info) {
   if (spotBox && spotBox.dataset.k !== spotKey) {
     spotBox.dataset.k = spotKey;
     if (!spot || (!spot.head && !(spot.bullets || []).length && !(spot.links || []).length)) {
-      spotBox.replaceChildren(Object.assign(document.createElement('div'), { className: 'wv-sc-empty', textContent: 'AI Spotlight highlights, show notes, and curated links will appear here once published.' }));
+      const em = document.createElement('div'); em.className = 'wv-sc-empty';
+      em.append(Object.assign(document.createElement('b'), { textContent: 'Show takeaways & curated links' }));
+      em.append(Object.assign(document.createElement('span'), { textContent: 'Key highlights, chapter notes, and host links surface here live during the broadcast.' }));
+      spotBox.replaceChildren(em);
     } else {
       const card = document.createElement('div'); card.className = 'wv-spot-card';
       if (spot.head) card.append(Object.assign(document.createElement('h3'), { textContent: spot.head }));
@@ -1932,7 +1991,9 @@ $('#wGuest').onclick = () => {
   W.guestThen = ACCT.then; ACCT.then = null;
   $('#wSignDlg').close();
   $('#wName').value = store.get('name', '') || '';
-  $('#wNameDlg').showModal(); $('#wName').focus();
+  showErr('#wNameErr', '');
+  $('#wGuestBar').hidden = false;
+  $('#wName').focus();
 };
 
 $('#wMsgs').addEventListener('click', (e) => {

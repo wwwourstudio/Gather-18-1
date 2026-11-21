@@ -52,16 +52,17 @@ function mkStore(get, big) {
   };
 }
 
-if (!store.get('brandBlueV2', false)) {
+const BAD_ACCENTS = new Set(['#f3efe6', '#ffffff', '#5b7cff', '#4464e8', '#7c6cf2']);
+if (!store.get('brandBlueV3', false)) {
   const curA = String(store.get('accent', '') || '').toLowerCase();
-  if (curA === '#f3efe6' || curA === '#3b82f6' || curA === '#4464e8') store.set('accent', '#3b82f6');
+  if (!curA || BAD_ACCENTS.has(curA)) store.set('accent', '#3b82f6');
   const bp = store.get('brandPrefs', {});
   const curB = String(bp?.color || '').toLowerCase();
-  if (bp && (curB === '#f3efe6' || curB === '#5b7cff' || curB === '#4464e8')) {
+  if (bp && (!curB || BAD_ACCENTS.has(curB))) {
     bp.color = '#3b82f6';
     store.set('brandPrefs', bp);
   }
-  store.set('brandBlueV2', true);
+  store.set('brandBlueV3', true);
 }
 
 const MAX = 6;
@@ -99,12 +100,15 @@ const S = {
 function localState() {
   const imgs = store.get('brandImgs', {});
   const rawAccent = String(store.get('accent', '#3b82f6') || '#3b82f6');
-  const savedAccent = (rawAccent.toLowerCase() === '#5b7cff' || rawAccent.toLowerCase() === '#4464e8') ? '#3b82f6' : rawAccent;
+  const savedAccent = BAD_ACCENTS.has(rawAccent.toLowerCase()) ? '#3b82f6' : rawAccent;
+  const rawBp = store.get('brandPrefs', {});
+  const bp = rawBp && typeof rawBp === 'object' ? { ...rawBp } : {};
+  if (bp.color && BAD_ACCENTS.has(String(bp.color).toLowerCase())) bp.color = '#3b82f6';
   return {
     layout: 'split', stage: ['me'], banner: null, ticker: '',
     chatOpts: { guestFiles: true, defaultScope: 'guests' },
     brand: { color: savedAccent, bg: store.get('bg', 'dusk'), watermark: false, names: true, font: 'jakarta', tag: 'solid', bannerStyle: 'classic', anim: 'slide', frame: 'none', dim: 0.25, logoPos: 'tr', logoSize: 0.12,
-      ...store.get('brandPrefs', {}), bgImage: imgs.bgImage ? 'local-brand-bgImage' : '', overlay: imgs.overlay ? 'local-brand-overlay' : '', logo: imgs.logo ? 'local-brand-logo' : '' },
+      ...bp, bgImage: imgs.bgImage ? 'local-brand-bgImage' : '', overlay: imgs.overlay ? 'local-brand-overlay' : '', logo: imgs.logo ? 'local-brand-logo' : '' },
     title: store.get('title', ''), elements: [], featured: null, feeds: { twitch: '' },
     streamType: store.get('streamType', 'live'),
     hashtags: store.get('hashtags', []),
@@ -141,7 +145,7 @@ function hexLuminance(hex) {
 function applyAdaptiveAccent(hex) {
   const dark = document.documentElement.getAttribute('data-theme') !== 'light';
   const norm = normalizeHex(hex);
-  const chosen = (!norm || norm.toLowerCase() === '#5b7cff' || norm.toLowerCase() === '#4464e8') ? (dark ? '#3b82f6' : '#2563eb') : norm;
+  const chosen = (!norm || BAD_ACCENTS.has(norm.toLowerCase())) ? (dark ? '#3b82f6' : '#2563eb') : norm;
   const [r, gr, b] = hexRgb(chosen);
   const lum = hexLuminance(chosen);
   const ink = lum > 0.42 ? '#070c1a' : '#ffffff';
@@ -1833,10 +1837,18 @@ function renderChatMood() {
   box.dataset.mood = m.state;
   const bar = $('#chatMoodBar');
   if (bar) bar.style.width = `${m.pct}%`;
+  const ic = $('#chatMoodIconUse');
+  if (ic) {
+    const iconId = { idle: 'i-activity', hype: 'i-flame', warm: 'i-smile', steady: 'i-activity', mixed: 'i-meh', tense: 'i-frown' }[m.state] || 'i-activity';
+    ic.setAttribute('href', `/icons.svg#${iconId}`);
+  }
   const lbl = $('#chatMoodLabel');
-  if (lbl) lbl.textContent = m.label;
+  if (lbl) lbl.textContent = m.total ? m.label : 'Quiet';
   const pctEl = $('#chatMoodPct');
-  if (pctEl) pctEl.textContent = m.displayPct;
+  if (pctEl) {
+    pctEl.hidden = !m.total;
+    pctEl.textContent = m.total ? m.displayPct : '';
+  }
   const metaEl = $('#chatMoodMeta');
   if (metaEl) metaEl.textContent = m.meta;
   const desc = m.total
@@ -3595,7 +3607,7 @@ for (const [kind, pick, file, clear] of [['bgImage', '#bgImgPick', '#bgImgFile',
   $(clear).onclick = () => clearBrandImage(kind);
 }
 function buildBgSvg(accent, promptText) {
-  const col = normalizeHex(accent) || '#5b7cff';
+  const col = normalizeHex(accent) || '#3b82f6';
   const [r, gr, b] = hexRgb(col);
   const darkAlt = `rgb(${Math.max(8, Math.round(r * 0.25))}, ${Math.max(12, Math.round(gr * 0.25))}, ${Math.max(24, Math.round(b * 0.35))})`;
   const seed = [...String(promptText || 'gather')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -3806,6 +3818,21 @@ async function loadStreams() {
   catch { S.streamsLoaded = false; }
 }
 const fmtLocal = (ms) => new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+function syncUpCarousel() {
+  const wrap = $('#upWrap'), ul = $('#upList'), prev = $('#upPrev'), next = $('#upNext');
+  if (!wrap || !ul) return;
+  const landing = wrap.closest('#landing') !== null;
+  const over = landing && ul.scrollWidth > ul.clientWidth + 4;
+  wrap.dataset.overflow = over ? 'true' : 'false';
+  if (prev) {
+    prev.hidden = !over;
+    prev.disabled = ul.scrollLeft <= 4;
+  }
+  if (next) {
+    next.hidden = !over;
+    next.disabled = ul.scrollLeft + ul.clientWidth >= ul.scrollWidth - 4;
+  }
+}
 function renderUpcoming() {
   const ul = $('#upList');
   const rows = S.streams.filter((x) => x.status === 'scheduled' || (x.status === 'live' && Date.now() - x.when < 6 * 3600e3));
@@ -3813,27 +3840,58 @@ function renderUpcoming() {
   ul.replaceChildren(...rows.map((st) => {
     const li = document.createElement('li'); li.className = 'up-item';
     const top = document.createElement('div'); top.className = 'up-top';
-    const t = document.createElement('b'); t.textContent = st.title;
+    const t = document.createElement('b'); t.textContent = st.title; t.title = st.title;
     const badge = document.createElement('span'); badge.className = 'pill caps up-badge' + (st.status === 'live' ? ' live' : ''); badge.textContent = st.status === 'live' ? 'Live' : fmtLocal(st.when);
     top.append(t, badge);
     const meta = document.createElement('p'); meta.className = 'up-meta';
-    meta.textContent = `${st.invites.length ? st.invites.length + ' invited' : 'No invites'}${st.mail?.scheduled ? ` · ${st.mail.scheduled} reminders scheduled` : ''}`;
+    meta.textContent = `${st.invites.length ? st.invites.length + ' invited' : 'No invites'}${st.mail?.scheduled ? ` · ${st.mail.scheduled} reminders` : ''}`;
     const row = document.createElement('div'); row.className = 'row';
     const btn = (label, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = label; b.onclick = fn; return b; };
-    row.append(
-      btn('Start', 'primary', () => startScheduled(st)),
-      btn('Copy link', '', () => copy(`${location.origin}/s/${st.studio}`, 'Invite link copied.')),
-      btn('Calendar', '', () => downloadIcs(st)),
-      btn('Cancel', 'danger', (ev) => {
-        const b = ev.currentTarget;
-        if (b.dataset.confirm) { cancelStream(st); return; }
-        b.dataset.confirm = '1'; b.textContent = 'Confirm cancel'; setTimeout(() => { delete b.dataset.confirm; b.textContent = 'Cancel'; }, 4000);
-      }),
+    const iconBtn = (ic, tip, cls, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'icon-btn sm up-act ' + cls;
+      b.setAttribute('aria-label', tip);
+      b.dataset.tip = tip;
+      b.innerHTML = icon(ic, { size: 'sm' });
+      b.onclick = fn;
+      return b;
+    };
+    const cancelBtn = iconBtn('trash-2', 'Cancel stream', 'danger', (ev) => {
+      const b = ev.currentTarget;
+      if (b.dataset.confirm) { cancelStream(st); return; }
+      b.dataset.confirm = '1';
+      b.className = 'btn sm danger up-act-confirm';
+      b.textContent = 'Confirm';
+      setTimeout(() => {
+        if (!b.isConnected) return;
+        delete b.dataset.confirm;
+        b.className = 'icon-btn sm up-act danger';
+        b.innerHTML = icon('trash-2', { size: 'sm' });
+      }, 4000);
+    });
+    const tools = document.createElement('div'); tools.className = 'up-tools';
+    tools.append(
+      iconBtn('copy', 'Copy invite link', '', () => copy(`${location.origin}/s/${st.studio}`, 'Invite link copied.')),
+      iconBtn('clock', 'Download calendar (.ics)', '', () => downloadIcs(st)),
+      cancelBtn,
     );
+    row.append(btn('Start', 'primary', () => startScheduled(st)), tools);
     li.append(top, meta, row);
     return li;
   }));
+  requestAnimationFrame(syncUpCarousel);
 }
+$('#upPrev')?.addEventListener('click', () => {
+  const ul = $('#upList');
+  if (ul) ul.scrollBy({ left: -Math.max(200, Math.round(ul.clientWidth * 0.72)), behavior: 'smooth' });
+});
+$('#upNext')?.addEventListener('click', () => {
+  const ul = $('#upList');
+  if (ul) ul.scrollBy({ left: Math.max(200, Math.round(ul.clientWidth * 0.72)), behavior: 'smooth' });
+});
+$('#upList')?.addEventListener('scroll', syncUpCarousel, { passive: true });
+addEventListener('resize', syncUpCarousel);
 async function cancelStream(st) {
   try { await acctApi('streamCancel', { id: st.id, notify: true }); toast('Stream cancelled. Invitees were told and reminders stopped.'); S.streamsLoaded = false; loadStreams(); }
   catch (err) { toast(err.message, { err: true }); }
@@ -3858,46 +3916,11 @@ function downloadIcs(st) {
 $('#upSigninBtn').onclick = () => openAccount('up');
 
 // ---------------------------------------------------------------- unified Go Live Now & Schedule Launchpad
-const wiz = { step: 1, mode: 'now', streamType: store.get('streamType', 'live'), photo: null, aiBg: null, upload: null, style: 'bold', logoData: null, overlayData: null };
+const wiz = { mode: 'now', streamType: store.get('streamType', 'live'), photo: null, aiBg: null, upload: null, style: 'bold', logoData: null, overlayData: null };
 const tc = $('#wThumb'), tg = tc.getContext('2d');
 const wErr = (m) => { if (!$('#wErr')) return; $('#wErr').textContent = m; $('#wErr').hidden = !m; };
 const wWhen = () => { const v = $('#wDate')?.value && $('#wTime')?.value ? new Date(`${$('#wDate').value}T${$('#wTime').value}`) : null; return v ? v.getTime() : 0; };
 const parseHashtags = (raw) => [...new Set(String(raw || '').split(/[\s,;]+/).map((t) => t.trim().replace(/^#+/, '')).filter(Boolean).map((t) => '#' + t.replace(/[^a-z0-9_]/gi, '')).filter((t) => t.length > 1))].slice(0, 6);
-
-function setWizStep(step) {
-  wiz.step = Math.max(1, Math.min(4, Number(step) || 1));
-  wErr('');
-  $$('[data-step-pane]').forEach((pane) => { pane.hidden = Number(pane.dataset.stepPane) !== wiz.step; });
-  $$('#wizStepper [data-wstep]').forEach((btn) => {
-    const s = Number(btn.dataset.wstep);
-    const on = s === wiz.step;
-    btn.classList.toggle('done', s < wiz.step);
-    btn.setAttribute('aria-selected', String(on));
-  });
-  if ($('#wBackBtn')) $('#wBackBtn').hidden = wiz.step === 1;
-  if ($('#wNextBtn')) $('#wNextBtn').hidden = wiz.step === 4;
-  if ($('#wGo')) $('#wGo').hidden = wiz.step !== 4;
-  if ($('#wStepMeta')) $('#wStepMeta').textContent = `Step ${wiz.step} of 4`;
-  if (wiz.step === 3) { renderKitVisualPreviews(); drawThumb(); }
-  if (wiz.step === 4) { renderWizSummary(); }
-}
-
-function renderWizSummary() {
-  const box = $('#wSummary');
-  if (!box) return;
-  const typeLabel = { live: 'Live Stream', shopping: 'Live Shopping', gamer: 'Gamer Stream' }[wiz.streamType] || 'Live Stream';
-  const title = $('#wTitle')?.value.trim() || autoTitle() || 'Untitled studio';
-  const when = wiz.mode === 'later' && wWhen() ? fmtLocal(wWhen()) : 'Starting right away';
-  const dests = liveDests().filter((d) => d.on).map((d) => d.kind);
-  box.innerHTML = '';
-  const mk = (k, v) => { const sp = document.createElement('span'); const b = document.createElement('b'); b.textContent = k + ': '; sp.append(b, document.createTextNode(v)); return sp; };
-  box.append(
-    mk('Format', typeLabel),
-    mk('Show', title),
-    mk('When', when),
-    mk('Destinations', dests.length ? `${dests.length} connected` : 'Watch Party'),
-  );
-}
 
 function syncWizAiBar() {
   const prov = $('#wAiProv')?.value || S.aiProv || 'claude';
@@ -3942,13 +3965,13 @@ function rasterizeSvg(svg, w, h) {
   });
 }
 function buildLogoSvg(accent, title) {
-  const col = normalizeHex(accent) || '#5b7cff';
+  const col = normalizeHex(accent) || '#3b82f6';
   const ini = initials(title || 'gather');
   const txt = hexLuminance(col) > 0.42 ? '#070c1a' : '#ffffff';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="#111827"/></linearGradient></defs><rect width="256" height="256" rx="56" fill="#070c1a"/><rect x="10" y="10" width="236" height="236" rx="48" fill="url(#lg)" opacity="0.22"/><rect x="10" y="10" width="236" height="236" rx="48" fill="none" stroke="${col}" stroke-width="6"/><circle cx="128" cy="128" r="70" fill="${col}"/><text x="128" y="147" text-anchor="middle" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="800" font-size="64" fill="${txt}">${ini.replace(/[<>&]/g, '')}</text></svg>`;
 }
 function buildOverlaySvg(accent, type, title) {
-  const col = normalizeHex(accent) || '#5b7cff';
+  const col = normalizeHex(accent) || '#3b82f6';
   const badge = type === 'shopping' ? 'LIVE DROP' : type === 'gamer' ? 'LIVE GAMEPLAY' : 'ON AIR';
   const cleanTitle = String(title || 'LIVE BROADCAST').slice(0, 32).replace(/[<>&]/g, '');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect x="18" y="18" width="1244" height="684" rx="22" fill="none" stroke="${col}" stroke-opacity="0.5" stroke-width="4"/><rect x="34" y="34" width="210" height="40" rx="10" fill="rgba(7,12,26,0.82)" stroke="${col}" stroke-opacity="0.6" stroke-width="2"/><circle cx="56" cy="54" r="6" fill="#ef4444"/><text x="72" y="60" font-family="Inter,sans-serif" font-weight="800" font-size="16" letter-spacing="1.5" fill="#ffffff">${badge}</text><rect x="34" y="638" width="520" height="48" rx="12" fill="rgba(7,12,26,0.84)" stroke="${col}" stroke-opacity="0.45" stroke-width="2"/><text x="54" y="668" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="700" font-size="20" fill="${col}">${cleanTitle}</text></svg>`;
@@ -3977,7 +4000,6 @@ function openWizard(mode = 'now') {
   renderKitVisualPreviews();
   renderWizard();
   drawThumb();
-  setWizStep(1);
   $('#wizDlg').showModal();
 }
 $('#wizOpen').onclick = () => openWizard('later');
@@ -3985,18 +4007,8 @@ $$('#wModeSeg [data-wmode]').forEach((b) => b.addEventListener('click', () => {
   wiz.mode = b.dataset.wmode === 'later' ? 'later' : 'now';
   wErr('');
   renderWizard();
-  if (wiz.mode === 'later' && wiz.step === 1) setWizStep(2);
+  if (wiz.mode === 'later') $('#wDate')?.focus();
 }));
-$$('#wizStepper [data-wstep]').forEach((b) => b.addEventListener('click', () => setWizStep(Number(b.dataset.wstep))));
-$('#wBackBtn')?.addEventListener('click', () => setWizStep(wiz.step - 1));
-$('#wNextBtn')?.addEventListener('click', () => {
-  if (wiz.step === 2 && wiz.mode === 'later') {
-    const when = wWhen();
-    if (!when || when < Date.now() + 60e3) return wErr('Pick a start date and time in the future.');
-    if (when > Date.now() + 29 * 864e5) return wErr('You can schedule up to 29 days ahead.');
-  }
-  setWizStep(wiz.step + 1);
-});
 $$('#wTypes [data-wtype]').forEach((b) => b.addEventListener('click', () => {
   wiz.streamType = b.dataset.wtype;
   renderWizard();
@@ -4022,7 +4034,6 @@ function renderWizard() {
       : 'Invitees receive calendar invites and automatic reminders based on your settings above.';
   }
   $$('#wStyle button').forEach((b) => b.classList.toggle('on', b.dataset.ws === wiz.style));
-  if (wiz.step === 4) renderWizSummary();
 }
 
 function activeWizAi() {
@@ -4121,7 +4132,7 @@ $('#wThumbAiBtn')?.addEventListener('click', async () => {
       drawThumb();
       toast('AI cover generated.');
     } else {
-      const col = S.state.brand.color || '#5b7cff';
+      const col = S.state.brand.color || '#3b82f6';
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><defs><radialGradient id="g1" cx="0.2" cy="0.2" r="0.9"><stop offset="0" stop-color="${col}" stop-opacity="0.32"/><stop offset="1" stop-color="#070c1a" stop-opacity="1"/></radialGradient></defs><rect width="1280" height="720" fill="#070c1a"/><rect width="1280" height="720" fill="url(#g1)"/><circle cx="1040" cy="180" r="240" fill="${col}" fill-opacity="0.1"/></svg>`;
       wiz.upload = null; wiz.aiBg = await loadImg(await rasterizeSvg(svg, 1280, 720));
       drawThumb();
@@ -4181,7 +4192,7 @@ function cover(gx, img, x, y, w, h) {
   gx.save(); gx.beginPath(); gx.rect(x, y, w, h); gx.clip(); gx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); gx.restore();
 }
 function drawThumb() {
-  const Wt = 1280, Ht = 720, accent = S.state.brand.color || '#5b7cff', F = stageFont();
+  const Wt = 1280, Ht = 720, accent = S.state.brand.color || '#3b82f6', F = stageFont();
   const ink = hexLuminance(accent) > 0.42 ? '#070c1a' : '#ffffff';
   tg.clearRect(0, 0, Wt, Ht);
   if (wiz.upload) { cover(tg, wiz.upload, 0, 0, Wt, Ht); return; }
@@ -5297,7 +5308,7 @@ function renderPanels() {
   applyAdaptiveAccent(b.color);
   $$('#swatches button').forEach((x) => x.classList.toggle('on', x.dataset.color.toLowerCase() === b.color.toLowerCase()));
   $$('#bgs button').forEach((x) => x.classList.toggle('on', x.dataset.bg === b.bg));
-  $('#colorPick').value = normalizeHex(b.color) || '#5b7cff';
+  $('#colorPick').value = normalizeHex(b.color) || '#3b82f6';
   $('#namesChk').checked = b.names;
   if (document.activeElement !== $('#titleInput')) $('#titleInput').value = S.state.title || '';
   renderPresets();
@@ -6476,7 +6487,7 @@ function drawOrb(cx, cy, r, t) {
   g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, rr2 * 2.2, 0, Math.PI * 2); g.fill();
   const a = t / 900;
   const og = g.createLinearGradient(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2, cx - Math.cos(a) * rr2, cy - Math.sin(a) * rr2);
-  og.addColorStop(0, '#7dd3fc'); og.addColorStop(.5, S.state.brand.color); og.addColorStop(1, '#a78bfa');
+  og.addColorStop(0, '#60a5fa'); og.addColorStop(.5, S.state.brand.color); og.addColorStop(1, '#1d4ed8');
   g.fillStyle = og; g.beginPath(); g.arc(cx, cy, rr2, 0, Math.PI * 2); g.fill();
   g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.arc(cx, cy, rr2, 0, Math.PI * 2); g.stroke();
 }
@@ -6665,8 +6676,8 @@ function renderInviteSeats(list) {
   const box = $('#inviteSeats');
   if (!box) return;
   const slots = [];
-  const accent = normalizeHex(S.state?.brand?.color) || '#5b7cff';
-  const palette = [accent, '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+  const accent = normalizeHex(S.state?.brand?.color) || '#3b82f6';
+  const palette = [accent, '#2563eb', '#10b981', '#f59e0b', '#0ea5e9', '#06b6d4'];
   for (let i = 0; i < MAX; i++) {
     const p = list[i];
     if (p) {
@@ -6761,30 +6772,10 @@ function renderInviteDialog() {
   renderSocialMatrix($('#invSocialMatrix'));
 }
 
-let invStep = 1;
-function setInviteStep(step) {
-  invStep = Math.max(1, Math.min(3, Number(step) || 1));
-  for (const b of $$('#invStepper .inv-step-btn')) {
-    const active = Number(b.dataset.invstep) === invStep;
-    b.setAttribute('aria-selected', active ? 'true' : 'false');
-  }
-  for (const p of $$('#inviteDlg .inv-step-pane')) {
-    p.hidden = Number(p.dataset.invPane) !== invStep;
-  }
-  if ($('#invBackBtn')) $('#invBackBtn').hidden = invStep === 1;
-  if ($('#invNextBtn')) $('#invNextBtn').hidden = invStep === 3;
-  if ($('#invDoneBtn')) $('#invDoneBtn').hidden = invStep !== 3;
-  if ($('#invStepMeta')) $('#invStepMeta').textContent = `Step ${invStep} of 3`;
-  if (invStep === 2 && S.studio) renderInviteQr();
-}
-for (const b of $$('#invStepper .inv-step-btn')) b.onclick = () => setInviteStep(Number(b.dataset.invstep));
-if ($('#invBackBtn')) $('#invBackBtn').onclick = () => setInviteStep(invStep - 1);
-if ($('#invNextBtn')) $('#invNextBtn').onclick = () => setInviteStep(invStep + 1);
 if ($('#invDoneBtn')) $('#invDoneBtn').onclick = () => $('#inviteDlg').close();
 
 function openInvite() {
   if (!S.studio) return openWizard('now');
-  setInviteStep(1);
   renderInviteDialog();
   inviteOpener = document.activeElement !== document.body ? document.activeElement : null;
   $('#inviteDlg').showModal();
@@ -7560,7 +7551,7 @@ $('#emoteAiBtn')?.addEventListener('click', async () => {
   if (!S.studio) return toast('Enter a studio first to save custom emotes.', { err: true });
   const btn = $('#emoteAiBtn'); busy(btn);
   try {
-    const col = normalizeHex(S.state.brand.color) || '#5b7cff';
+    const col = normalizeHex(S.state.brand.color) || '#3b82f6';
     const txt = hexLuminance(col) > 0.42 ? '#070c1a' : '#ffffff';
     const lbl = name.slice(0, 6).toUpperCase().replace(/[<>&]/g, '');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect x="6" y="6" width="116" height="116" rx="30" fill="${col}" stroke="#ffffff" stroke-opacity="0.35" stroke-width="4"/><text x="64" y="76" text-anchor="middle" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="900" font-size="${lbl.length > 4 ? 24 : 30}" fill="${txt}">${lbl}</text></svg>`;

@@ -33,8 +33,22 @@ export function placePopover(pop, anchor, prefer = 'top') {
   pop.style.left = `${Math.round(left)}px`;
   pop.dataset.side = side;
 }
+let justDismissedPop = null;
+document.addEventListener('pointerdown', (e) => {
+  const el = e.target instanceof Element ? e.target : null;
+  if (!el) return;
+  for (const p of document.querySelectorAll('.popover:popover-open')) {
+    if (!p.id) continue;
+    const ctrl = document.querySelector(`[aria-controls="${CSS.escape(p.id)}"][aria-expanded="true"]`);
+    if (ctrl && ctrl.contains(el)) {
+      justDismissedPop = p;
+      setTimeout(() => { if (justDismissedPop === p) justDismissedPop = null; }, 400);
+    }
+  }
+}, true);
 /** Open a popover anchored to an element, closing it if it is already open. */
 export function togglePopover(pop, anchor, prefer = 'top') {
+  if (justDismissedPop === pop) { justDismissedPop = null; return false; }
   if (pop.matches(':popover-open')) { pop.hidePopover(); return false; }
   pop.showPopover();
   placePopover(pop, anchor, prefer);

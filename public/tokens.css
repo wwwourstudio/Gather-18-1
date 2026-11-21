@@ -22,7 +22,7 @@
   --accent-hover: #60a5fa;
   --accent-text: #60a5fa;      /* high-contrast accent text on dark */
   --accent-ink: #ffffff;
-  --accent-2: #8b5cf6;         /* cosmic violet secondary aurora/rim */
+  --accent-2: #1d4ed8;         /* royal cobalt blue secondary aurora/rim */
   --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 46%, transparent);
   --cyan: var(--accent-text);  /* adaptive accent text alias */
@@ -103,7 +103,7 @@
   --accent-hover: #1d4ed8;
   --accent-text: #2563eb;
   --accent-ink: #ffffff;
-  --accent-2: #7c3aed;
+  --accent-2: #1e40af;
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
   --fill: rgba(15, 23, 42, 0.05);

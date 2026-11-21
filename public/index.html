@@ -19,7 +19,7 @@
 :root[data-theme="light"] .boot { background: #f4f6fb; }
 .boot::before, .boot::after { content: ""; position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(70px); opacity: .55; }
 .boot::before { left: 50%; top: 50%; margin: -30vmax 0 0 -38vmax; background: radial-gradient(closest-side, rgba(59,130,246,.32), transparent); animation: boot-drift 5s ease-in-out infinite alternate; }
-.boot::after { left: 50%; top: 50%; margin: -14vmax 0 0 -6vmax; background: radial-gradient(closest-side, rgba(139,92,246,.32), transparent); animation: boot-drift 6s ease-in-out -2s infinite alternate-reverse; }
+.boot::after { left: 50%; top: 50%; margin: -14vmax 0 0 -6vmax; background: radial-gradient(closest-side, rgba(37,99,235,.32), transparent); animation: boot-drift 6s ease-in-out -2s infinite alternate-reverse; }
 .boot-logo { position: relative; z-index: 1; width: 76px; height: 76px; display: grid; place-items: center; }
 .boot-logo::before { content: ""; position: absolute; inset: -18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(59,130,246,.30), transparent); animation: boot-breathe 1.8s ease-in-out infinite; }
 .boot-mark { position: relative; width: 76px; height: 76px; overflow: visible; filter: drop-shadow(0 6px 22px rgba(59,130,246,.30)); }
@@ -33,7 +33,7 @@
 :root[data-theme="light"] .boot-word { color: #0b1020; }
 .boot-word i { font-style: normal; color: #3b82f6; }
 .boot-bar { position: relative; z-index: 1; width: 120px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(148,163,184,.16); opacity: 0; animation: boot-in .4s .7s forwards; }
-.boot-bar i { position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #38bdf8, #3b82f6, #8b5cf6, transparent); animation: boot-slide 1.1s cubic-bezier(.65,0,.35,1) infinite; }
+.boot-bar i { position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #60a5fa, #3b82f6, #1d4ed8, transparent); animation: boot-slide 1.1s cubic-bezier(.65,0,.35,1) infinite; }
 .boot-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .boot.out { opacity: 0; visibility: hidden; }
 .boot.out .boot-logo { transform: scale(1.12); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
@@ -63,7 +63,7 @@
 </head>
 <body class="pre">
 <div class="boot" id="boot" role="status" aria-live="polite">
-  <div class="boot-logo"><svg class="brand-mark boot-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg><svg class="brand-mark boot-mark run" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-run-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-run-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg></div>
+  <div class="boot-logo"><svg class="brand-mark boot-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg><svg class="brand-mark boot-mark run" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="boot-mark-run-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#boot-mark-run-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg></div>
   <span class="boot-word">gather<i>.</i></span>
   <span class="boot-bar"><i></i></span>
   <span class="boot-sr">Loading gather</span>
@@ -89,7 +89,7 @@
 <div class="backdrop" aria-hidden="true">
   <i class="aur a1"></i><i class="aur a2"></i><i class="aur a3"></i><i class="aur-grid"></i>
   <svg class="aur-wave l" viewBox="0 0 520 520" fill="none">
-    <defs><linearGradient id="wave-g-l" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".55"/><stop offset=".55" stop-color="#3b82f6" stop-opacity=".28"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="wave-g-l" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".55"/><stop offset=".55" stop-color="#3b82f6" stop-opacity=".28"/><stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/></linearGradient></defs>
     <g stroke="url(#wave-g-l)" stroke-width="1">
       <path d="M-40 420 C 90 310, 140 160, 290 120 S 430 60, 500 20"/>
       <path d="M-40 445 C 100 330, 165 180, 315 145 S 445 90, 510 55"/>
@@ -100,7 +100,7 @@
     </g>
   </svg>
   <svg class="aur-wave r" viewBox="0 0 520 520" fill="none">
-    <defs><linearGradient id="wave-g-r" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a855f7" stop-opacity=".5"/><stop offset=".55" stop-color="#6366f1" stop-opacity=".28"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="wave-g-r" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2563eb" stop-opacity=".5"/><stop offset=".55" stop-color="#3b82f6" stop-opacity=".28"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs>
     <g stroke="url(#wave-g-r)" stroke-width="1">
       <path d="M560 420 C 430 310, 380 160, 230 120 S 90 60, 20 20"/>
       <path d="M560 445 C 420 330, 355 180, 205 145 S 75 90, 10 55"/>
@@ -138,7 +138,7 @@
       <div class="landing" id="landing">
         <div class="land-copy">
           <div class="land-mark-wrap" aria-hidden="true">
-            <svg class="brand-mark land-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="land-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".52" stop-color="#3b82f6"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs><g fill="none" stroke="url(#land-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg>
+            <svg class="brand-mark land-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="land-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".52" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#land-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg>
           </div>
           <h1>Your show, live<br><span class="land-h1-grad">from the browser.</span></h1>
           <p class="land-sub">Guests, scenes, an AI producer and a live chat that pays.<br>Stream everywhere at once. Free, nothing to install.</p>
@@ -160,7 +160,7 @@
               <span class="hz-live"><i></i>Live</span><span class="hz-time">12:48</span>
               <span class="hz-sp"></span>
               <span class="hz-chip"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-eye"/></svg><span class="hz-views">1,284</span></span>
-              <span class="hz-plats"><i style="--c:#ff2a3d"></i><i style="--c:#a855f7"></i><i style="--c:#38bdf8"></i></span>
+              <span class="hz-plats"><i style="--c:#ff2a3d"></i><i style="--c:#2563eb"></i><i style="--c:#38bdf8"></i></span>
             </div>
             <div class="hz-body">
               <div class="hz-stage">
@@ -297,9 +297,12 @@
       <section class="panel" data-panel="chat">
         <header class="panel-head chat-head"><h2>Live chat</h2>
           <div class="chat-mood" id="chatMood" data-mood="idle" tabindex="0" role="meter" aria-label="Crowd sentiment" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" aria-valuetext="Crowd sentiment: Quiet — builds as viewers chat" data-tip="Crowd sentiment: Quiet — measures viewer chat positivity &amp; hype in real time." data-tip-delay="100" data-tip-side="bottom">
+            <svg class="i sm mood-ic" aria-hidden="true"><use id="chatMoodIconUse" href="/icons.svg#i-activity"/></svg>
+            <span class="mood-lbl" id="chatMoodLabel">Quiet</span>
             <div class="mood-track" id="chatMoodMeter">
               <div class="mood-fill" id="chatMoodBar" style="width: 50%"></div>
             </div>
+            <span class="mood-pct num" id="chatMoodPct">50%</span>
           </div>
           <button type="button" class="icon-btn sm host-only chat-opts-btn" id="chatOptsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="chatOptsPop" aria-label="Chat options" data-tip="Chat options"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
           <div class="popover glass raised chat-opts-pop" id="chatOptsPop" popover="auto" role="dialog" aria-label="Live chat options">
@@ -573,13 +576,13 @@
               <button type="button" class="btn" id="resetScene"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg>Reset</button>
             </div>
             <div class="stage-toolbar" id="stageToolbar" role="toolbar" aria-label="Selected layer alignment and actions">
-              <button type="button" class="icon-btn sm" data-tb="align-l" aria-label="Align left" data-tip="Align left"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg></button>
-              <button type="button" class="icon-btn sm" data-tb="align-cx" aria-label="Center horizontally" data-tip="Center X"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
-              <button type="button" class="icon-btn sm" data-tb="align-r" aria-label="Align right" data-tip="Align right"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
-              <button type="button" class="icon-btn sm" data-tb="align-cy" aria-label="Center vertically" data-tip="Center Y"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-maximize"/></svg></button>
+              <button type="button" class="icon-btn sm" data-tb="align-l" aria-label="Align left" data-tip="Align left"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-align-left"/></svg></button>
+              <button type="button" class="icon-btn sm" data-tb="align-cx" aria-label="Center horizontally" data-tip="Center X"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-align-center-h"/></svg></button>
+              <button type="button" class="icon-btn sm" data-tb="align-r" aria-label="Align right" data-tip="Align right"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-align-right"/></svg></button>
+              <button type="button" class="icon-btn sm" data-tb="align-cy" aria-label="Center vertically" data-tip="Center Y"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-align-center-v"/></svg></button>
               <button type="button" class="icon-btn sm" data-tb="fit-safe" aria-label="Fit inside safe area" data-tip="Fit safe frame"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg></button>
               <span class="tb-sep" aria-hidden="true"></span>
-              <button type="button" class="icon-btn sm" data-tb="toggle-stack" aria-label="Allow overlap" aria-pressed="false" data-tip="Toggle overlap"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-repeat"/></svg></button>
+              <button type="button" class="icon-btn sm" data-tb="toggle-stack" aria-label="Allow overlap" aria-pressed="false" data-tip="Toggle overlap"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-layers"/></svg></button>
               <button type="button" class="icon-btn sm" data-tb="layer-up" aria-label="Bring forward" data-tip="Bring forward"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-arrow-up"/></svg></button>
               <button type="button" class="icon-btn sm" data-tb="layer-down" aria-label="Send back" data-tip="Send back"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-arrow-down"/></svg></button>
               <button type="button" class="icon-btn sm" data-tb="duplicate" aria-label="Duplicate layer" data-tip="Duplicate layer"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg></button>
@@ -633,11 +636,11 @@
             <div class="swatches" id="swatches">
               <button style="--c:#3b82f6" data-color="#3b82f6" aria-label="Electric Blue"></button>
               <button style="--c:#22b8cf" data-color="#22b8cf" aria-label="Cyan"></button>
-              <button style="--c:#7c6cf2" data-color="#7c6cf2" aria-label="Indigo"></button>
+              <button style="--c:#1d4ed8" data-color="#1d4ed8" aria-label="Royal Blue"></button>
               <button style="--c:#2f9e77" data-color="#2f9e77" aria-label="Green"></button>
               <button style="--c:#e8794a" data-color="#e8794a" aria-label="Orange"></button>
               <button style="--c:#e5484d" data-color="#e5484d" aria-label="Red"></button>
-              <button style="--c:#f3efe6" data-color="#f3efe6" aria-label="Champagne"></button>
+              <button style="--c:#0ea5e9" data-color="#0ea5e9" aria-label="Sky Blue"></button>
             </div>
             <input type="color" id="colorPick" value="#3b82f6" aria-label="Custom accent colour">
           </div>
@@ -653,12 +656,12 @@
           <div class="look-asset-card">
             <img id="bgImgPreview" class="look-bg-thumb" alt="Stage background preview" hidden>
             <div class="look-ai-row">
-              <input class="input sm grow" id="bgImgPrompt" maxlength="140" placeholder="Describe AI backdrop, e.g. neon Austin skyline…" aria-label="AI background prompt">
-              <button type="button" class="btn sm primary" id="bgImgAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
-            </div>
-            <div class="row">
-              <button type="button" class="btn sm" id="bgImgPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload backdrop</button>
-              <button type="button" class="btn ghost sm" id="bgImgClear" hidden>Remove</button>
+              <input class="input sm" id="bgImgPrompt" maxlength="140" placeholder="Describe AI backdrop, e.g. neon Austin skyline…" aria-label="AI background prompt">
+              <div class="row">
+                <button type="button" class="btn sm primary" id="bgImgAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI backdrop</button>
+                <button type="button" class="btn sm" id="bgImgPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload</button>
+                <button type="button" class="btn ghost sm" id="bgImgClear" hidden>Remove</button>
+              </div>
             </div>
             <label class="fld" id="bgDimRow" hidden><span>Dim backdrop</span><input type="range" id="bgDim" min="0" max="0.85" step="0.05"></label>
           </div>
@@ -670,12 +673,12 @@
               <img id="logoPreviewLook" class="look-logo-thumb" alt="Logo preview">
               <div class="grow form" style="gap:4px">
                 <div class="look-ai-row">
-                  <input class="input sm grow" id="logoPrompt" maxlength="80" placeholder="Badge text or icon vibe…" aria-label="Logo prompt">
-                  <button type="button" class="btn sm primary" id="logoAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
-                </div>
-                <div class="row">
-                  <button type="button" class="btn sm" id="logoPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload logo</button>
-                  <button type="button" class="btn ghost sm" id="logoClear" hidden>Remove</button>
+                  <input class="input sm" id="logoPrompt" maxlength="80" placeholder="Badge text or icon vibe…" aria-label="Logo prompt">
+                  <div class="row">
+                    <button type="button" class="btn sm primary" id="logoAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI logo</button>
+                    <button type="button" class="btn sm" id="logoPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload</button>
+                    <button type="button" class="btn ghost sm" id="logoClear" hidden>Remove</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -731,12 +734,12 @@
             <div class="look-asset-card">
               <img id="overlayPreviewLook" class="look-overlay-thumb" alt="Full-stage overlay preview">
               <div class="look-ai-row">
-                <input class="input sm grow" id="overlayPrompt" maxlength="140" placeholder="Overlay theme, e.g. minimalist HUD &amp; live badge…" aria-label="AI overlay prompt">
-                <button type="button" class="btn sm primary" id="overlayAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI overlay</button>
-              </div>
-              <div class="row">
-                <button type="button" class="btn sm" id="overlayPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload PNG overlay</button>
-                <button type="button" class="btn ghost sm" id="overlayClear" hidden>Remove</button>
+                <input class="input sm" id="overlayPrompt" maxlength="140" placeholder="Overlay theme, e.g. minimalist HUD &amp; live badge…" aria-label="AI overlay prompt">
+                <div class="row">
+                  <button type="button" class="btn sm primary" id="overlayAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI overlay</button>
+                  <button type="button" class="btn sm" id="overlayPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload PNG</button>
+                  <button type="button" class="btn ghost sm" id="overlayClear" hidden>Remove</button>
+                </div>
               </div>
               <input type="file" id="overlayFile" accept="image/png,image/webp,image/gif" hidden>
             </div>
@@ -942,7 +945,6 @@
   <div class="modal-card glass raised wide">
     <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
     <h2 id="liveH">Go live</h2>
-    <p class="live-lede">Stream to any mix of platforms at once. Your watch page streams too, always.</p>
     <div class="form live-body">
       <section class="live-sec" id="liveSec" aria-label="Where to stream">
         <h3 class="live-label">Stream to</h3>
@@ -983,7 +985,12 @@
       <div class="live-later" id="upBlock">
         <div class="live-later-row"><span>Not today?</span><button type="button" class="btn link" id="wizOpen">Plan a stream for later</button></div>
         <div id="upSignin" class="soft-card"><p>Sign in to schedule streams, email invites and keep them here.</p><button type="button" class="btn sm" id="upSigninBtn">Create an account or sign in</button></div>
-        <div id="upWrap" hidden><ul class="up-list" id="upList"></ul><p class="hint" id="upEmpty" hidden>Nothing scheduled.</p></div>
+        <div id="upWrap" hidden>
+          <button type="button" class="icon-btn sm round up-nav-btn prev" id="upPrev" hidden aria-label="Previous scheduled streams"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg></button>
+          <ul class="up-list" id="upList"></ul>
+          <button type="button" class="icon-btn sm round up-nav-btn next" id="upNext" hidden aria-label="Next scheduled streams"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
+          <p class="hint" id="upEmpty" hidden>Nothing scheduled.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1193,9 +1200,7 @@
     <div class="inv-glow" aria-hidden="true"></div>
     <header class="enter-head">
       <div class="enter-head-copy">
-        <span class="enter-kicker num">Green room</span>
         <h2 id="enterH">Step into the studio.</h2>
-        <p class="sub">Check how you look and sound. Nobody sees you until you go in.</p>
       </div>
       <button type="button" class="icon-btn sm modal-close" value="cancel" data-close aria-label="Close" formnovalidate><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
     </header>
@@ -1226,7 +1231,7 @@
           <button type="button" role="tab" aria-selected="true" data-mode="create" class="on">Go Live Now</button>
           <button type="button" role="tab" aria-selected="false" data-mode="join">Join studio</button>
         </div>
-        <div class="enter-id-card">
+        <div class="enter-id-row">
           <div class="who-row">
             <button type="button" class="avatar-pick" id="avatarBtn" aria-label="Add a profile photo">
               <img id="avatarImg" alt="" hidden>
@@ -1234,12 +1239,11 @@
             </button>
             <label class="fld grow"><span>Your name</span><input id="enterName" maxlength="24" placeholder="Alex Morgan" required></label>
           </div>
-          <p class="hint who-hint"><button type="button" class="btn link" id="avatarHint">Add a photo</button> · shown when your camera is off <button type="button" class="btn link quiet" id="avatarClear">Remove</button></p>
+          <p class="hint who-hint"><button type="button" class="btn link" id="avatarHint">Add a photo</button> <button type="button" class="btn link quiet" id="avatarClear">Remove</button></p>
         </div>
         <label class="fld" id="codeFld" hidden><span>Studio code</span><input id="enterCode" maxlength="40" placeholder="gather-3f9a2c1d7e04" spellcheck="false"></label>
         <p class="err" id="enterErr" hidden></p>
         <button class="btn primary lg block enter-go" id="enterGo" value="go">Go Live Now</button>
-        <p class="fine enter-fine">Up to six people on stage. Direct peer-to-peer WebRTC audio &amp; video.</p>
       </div>
     </div>
   </form>
@@ -1252,7 +1256,7 @@
     <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
     <aside class="ac-side" aria-hidden="true">
       <div class="ac-mark-wrap">
-        <svg class="brand-mark ac-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="ac-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset=".52" stop-color="#3b82f6"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs><g fill="none" stroke="url(#ac-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg>
+        <svg class="brand-mark ac-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="ac-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".52" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#ac-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg>
       </div>
       <p class="ac-side-h">Host your show from the browser.</p>
       <ul class="ac-side-list">
@@ -1336,162 +1340,125 @@
   <div class="modal-card glass raised wide wiz-card">
     <div class="inv-glow" aria-hidden="true"></div>
     <header class="wiz-head">
-      <div class="wiz-head-copy">
-        <h2 id="wH">Broadcast Launchpad</h2>
-        <p class="sub" id="wSub">Set your format, generate an AI stream kit with your own key, connect platforms, and launch.</p>
-      </div>
+      <h2 id="wH">Start a broadcast</h2>
       <div class="seg sm wiz-mode-seg" id="wModeSeg" role="tablist" aria-label="Broadcast timing">
         <button type="button" role="tab" data-wmode="now" aria-selected="true" class="on">Go Live Now</button>
-        <button type="button" role="tab" data-wmode="later" aria-selected="false">Schedule Stream</button>
+        <button type="button" role="tab" data-wmode="later" aria-selected="false">Schedule</button>
       </div>
       <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
     </header>
 
-    <div id="wSteps" class="form">
-      <!-- 4-Step Wizard Navigation -->
-      <nav class="wiz-stepper" id="wizStepper" role="tablist" aria-label="Launchpad steps">
-        <button type="button" role="tab" class="wiz-step-btn" data-wstep="1" aria-selected="true"><span class="wiz-step-num num">01</span><span>Format &amp; AI</span></button>
-        <button type="button" role="tab" class="wiz-step-btn" data-wstep="2" aria-selected="false"><span class="wiz-step-num num">02</span><span>Show &amp; Time</span></button>
-        <button type="button" role="tab" class="wiz-step-btn" data-wstep="3" aria-selected="false"><span class="wiz-step-num num">03</span><span>Stream Kit</span></button>
-        <button type="button" role="tab" class="wiz-step-btn" data-wstep="4" aria-selected="false"><span class="wiz-step-num num">04</span><span>Platforms &amp; Go</span></button>
-      </nav>
-
-      <!-- Step 1: Stream Type & BYO AI Key -->
-      <div class="wiz-step-pane" data-step-pane="1">
-        <section class="wiz-panel" aria-label="Stream format and AI setup">
-          <div class="wiz-sec-h"><b>Stream Format</b><span>Tunes stage scenes &amp; Watch Party cards</span></div>
-          <div class="wiz-types" id="wTypes" role="group" aria-label="Stream type">
-            <button type="button" class="wiz-type" data-wtype="live" aria-pressed="true">
-              <svg class="i" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg>
-              <b>Live Stream</b>
-              <small>Talk shows, interviews &amp; Q&amp;A</small>
-            </button>
-            <button type="button" class="wiz-type" data-wtype="shopping" aria-pressed="false">
-              <svg class="i" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg>
-              <b>Live Shopping</b>
-              <small>Product drops &amp; flash sales</small>
-            </button>
-            <button type="button" class="wiz-type" data-wtype="gamer" aria-pressed="false">
-              <svg class="i" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg>
-              <b>Gamer Stream</b>
-              <small>60fps motion &amp; player queue</small>
-            </button>
+    <div id="wSteps" class="wiz-body">
+      <div class="wiz-canvas">
+        <div class="wiz-col-setup">
+          <div class="wiz-types" id="wTypes" role="group" aria-label="Stream format">
+            <button type="button" class="wiz-type" data-wtype="live" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span>Live</span></button>
+            <button type="button" class="wiz-type" data-wtype="shopping" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span>Shopping</span></button>
+            <button type="button" class="wiz-type" data-wtype="gamer" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg><span>Gamer</span></button>
           </div>
 
-          <div class="wiz-ai-bar" aria-label="Bring your own AI key">
-            <div class="wiz-sec-h"><b>BYO AI Studio Kit</b><span>Uses your local key only</span></div>
-            <div class="wiz-ai-keyrow">
-              <select class="input sm" id="wAiProv" aria-label="AI provider">
-                <option value="claude">Claude</option>
-                <option value="openai">ChatGPT</option>
-                <option value="gemini">Gemini</option>
-                <option value="grok">Grok</option>
-              </select>
-              <input class="input sm" id="wAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key">
-              <button type="button" class="btn sm" id="wAiKeySave">Use key</button>
-            </div>
-            <div class="wiz-ai-btns">
-              <button type="button" class="btn sm" id="wAiCopyBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Generate Copy &amp; Hashtags</button>
-              <button type="button" class="btn sm primary" id="wAiKitBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg>Generate Full Stream Kit</button>
-            </div>
-            <p class="hint" id="wAiNote" style="margin:0">Paste your own Claude, OpenAI, Gemini, or Grok key to auto-craft titles, #hashtags, cover art, logo &amp; overlays.</p>
-          </div>
-        </section>
-      </div>
+          <label class="fld"><span>Title</span><input id="wTitle" maxlength="100" placeholder="Episode 12: Building in public"></label>
 
-      <!-- Step 2: Show Copy, Schedule & Guest Invites -->
-      <div class="wiz-step-pane" data-step-pane="2" hidden>
-        <section class="wiz-panel" aria-label="Show copy and timing">
-          <div class="wiz-sec-h"><b>Show Identity &amp; Copy</b><span>Shown on stage &amp; Watch Party</span></div>
-          <label class="fld"><span>Show title</span><input id="wTitle" maxlength="100" placeholder="Episode 12: Building in public"></label>
-          <label class="fld"><span>Description <em>optional</em></span><textarea id="wDesc" rows="2" maxlength="1000" placeholder="What the stream covers, featured topics, or special guests"></textarea></label>
-          <label class="fld"><span>Hashtags <em>up to 5 tags</em></span><input id="wTags" maxlength="140" placeholder="#livestream, #creator, #qa"></label>
+          <div class="wiz-row2">
+            <label class="fld"><span>Hashtags</span><input id="wTags" maxlength="140" placeholder="#live, #qa"></label>
+            <label class="fld"><span>Invite guests</span><input id="wInvites" maxlength="320" placeholder="jordan@example.com, sam@example.com"></label>
+          </div>
 
           <div class="w-sched-box w-later" hidden>
-            <div class="wiz-sec-h"><b>Schedule &amp; Reminders</b><span>Up to 29 days ahead</span></div>
             <div class="row3">
               <label class="fld"><span>Date</span><input type="date" id="wDate"></label>
-              <label class="fld"><span>Go live clock</span><input type="time" id="wTime"></label>
-              <label class="fld"><span>Length</span><select id="wDur"><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option></select></label>
+              <label class="fld"><span>Time</span><input type="time" id="wTime"></label>
+              <label class="fld"><span>Length</span><select id="wDur"><option value="30">30m</option><option value="60" selected>1h</option><option value="90">1.5h</option><option value="120">2h</option><option value="180">3h</option></select></label>
             </div>
             <div class="wiz-notifs">
-              <label><input type="checkbox" id="wNotifyEmail" checked> Email guest invites</label>
-              <label><input type="checkbox" id="wNotify24h" checked> 24h reminder</label>
-              <label><input type="checkbox" id="wNotify15m" checked> 15m reminder</label>
+              <label><input type="checkbox" id="wNotifyEmail" checked> Email invites</label>
+              <label><input type="checkbox" id="wNotify24h" checked> 24h alert</label>
+              <label><input type="checkbox" id="wNotify15m" checked> 15m alert</label>
             </div>
             <p class="hint" id="wMailNote" style="margin:0"></p>
           </div>
 
-          <label class="fld"><span>Invite guests <em>emails, optional</em></span><textarea id="wInvites" rows="2" placeholder="jordan@example.com, sam@example.com"></textarea></label>
-        </section>
-      </div>
+          <details class="wiz-fold">
+            <summary>Description &amp; AI Stream Kit</summary>
+            <div class="wiz-fold-body">
+              <label class="fld"><span>Description</span><textarea id="wDesc" rows="2" maxlength="1000" placeholder="Topics or guests"></textarea></label>
+              <div class="wiz-ai-bar" aria-label="BYO AI key">
+                <div class="wiz-ai-keyrow">
+                  <select class="input sm" id="wAiProv" aria-label="AI provider">
+                    <option value="claude">Claude</option>
+                    <option value="openai">ChatGPT</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="grok">Grok</option>
+                  </select>
+                  <input class="input sm" id="wAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Your AI API key">
+                  <button type="button" class="btn sm" id="wAiKeySave">Save</button>
+                </div>
+                <div class="wiz-ai-btns">
+                  <button type="button" class="btn sm" id="wAiCopyBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI Copy</button>
+                  <button type="button" class="btn sm primary" id="wAiKitBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg>Full AI Kit</button>
+                </div>
+                <p class="hint" id="wAiNote" style="margin:0"></p>
+              </div>
+            </div>
+          </details>
 
-      <!-- Step 3: Stream Kit Visuals (Cover, Logo & Stage Overlay) -->
-      <div class="wiz-step-pane" data-step-pane="3" hidden>
-        <section class="wiz-panel" aria-label="Stream kit visuals">
-          <div class="wiz-sec-h"><b>Stream Kit Visuals</b><span>16:9 Cover · 1:1 Logo · PNG Overlay</span></div>
-          <div class="wiz-kit-previews">
-            <div class="wiz-asset-card">
-              <canvas id="wThumb" width="1280" height="720" class="w-thumb" aria-label="Thumbnail preview"></canvas>
-              <input class="input sm" id="wHeadline" maxlength="80" placeholder="Cover headline (3–6 words)">
-              <div class="seg sm block" id="wStyle"><button type="button" data-ws="bold">Bold</button><button type="button" data-ws="split">Split</button><button type="button" data-ws="center">Center</button></div>
+          <div class="wiz-sec">
+            <div class="wiz-sec-h"><span>Stream to</span></div>
+            <div class="social-matrix" id="wizSocialMatrix"></div>
+          </div>
+        </div>
+
+        <div class="wiz-col-media">
+          <div class="wiz-cover-wrap">
+            <canvas id="wThumb" width="1280" height="720" class="w-thumb" aria-label="Thumbnail preview"></canvas>
+            <input class="input sm" id="wHeadline" maxlength="80" placeholder="Cover headline">
+            <div class="wiz-media-bar">
+              <div class="seg sm" id="wStyle"><button type="button" data-ws="bold">Bold</button><button type="button" data-ws="split">Split</button><button type="button" data-ws="center">Center</button></div>
               <div class="wiz-asset-acts">
-                <button type="button" class="btn sm" id="wSnap">Camera</button>
+                <button type="button" class="btn sm" id="wSnap">Cam</button>
                 <button type="button" class="btn sm" id="wPhotoPick">Photo</button>
-                <button type="button" class="btn sm" id="wUploadPick">Upload cover</button>
-                <button type="button" class="btn sm" id="wThumbAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI cover</button>
+                <button type="button" class="btn sm" id="wUploadPick">Upload</button>
+                <button type="button" class="btn sm" id="wThumbAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
                 <input type="file" id="wPhotoFile" accept="image/*" hidden>
                 <input type="file" id="wUploadFile" accept="image/*" hidden>
               </div>
             </div>
-            <div class="wiz-kit-sub">
-              <div class="wiz-asset-card">
-                <div class="row nowrap" style="align-items:center">
-                  <img id="wLogoPreview" class="wiz-logo-box" alt="Studio logo preview">
-                  <div class="grow form" style="gap:3px">
-                    <b style="font-size:12.5px">Brand Logo</b>
-                    <span class="hint" style="margin:0;font-size:11px">1:1 watch &amp; stage badge</span>
-                  </div>
-                </div>
+          </div>
+
+          <div class="wiz-brand-strip">
+            <div class="wiz-mini-asset">
+              <img id="wLogoPreview" class="wiz-logo-box" alt="Brand logo">
+              <div class="wiz-mini-meta">
+                <b>Logo</b>
                 <div class="wiz-asset-acts">
                   <button type="button" class="btn sm" id="wLogoPick">Upload</button>
-                  <button type="button" class="btn sm" id="wLogoAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
+                  <button type="button" class="btn sm" id="wLogoAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
                   <button type="button" class="btn sm ghost" id="wLogoClear" hidden>Clear</button>
                   <input type="file" id="wLogoFile" accept="image/*" hidden>
                 </div>
               </div>
-              <div class="wiz-asset-card">
-                <img id="wOverlayPreview" class="wiz-overlay-box" alt="Stream overlay preview">
-                <div class="wiz-sec-h"><b style="font-size:12.5px">Stage Overlay</b><span style="font-size:11px">Transparent PNG</span></div>
+            </div>
+            <div class="wiz-mini-asset">
+              <img id="wOverlayPreview" class="wiz-overlay-box" alt="Stage overlay">
+              <div class="wiz-mini-meta">
+                <b>Overlay</b>
                 <div class="wiz-asset-acts">
                   <button type="button" class="btn sm" id="wOverlayPick">Upload</button>
-                  <button type="button" class="btn sm" id="wOverlayAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
+                  <button type="button" class="btn sm" id="wOverlayAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
                   <button type="button" class="btn sm ghost" id="wOverlayClear" hidden>Clear</button>
                   <input type="file" id="wOverlayFile" accept="image/*" hidden>
                 </div>
               </div>
             </div>
           </div>
-        </section>
-      </div>
-
-      <!-- Step 4: Connect Social Platforms & Launch -->
-      <div class="wiz-step-pane" data-step-pane="4" hidden>
-        <section class="wiz-panel" aria-label="Connect social platforms">
-          <div class="wiz-sec-h"><b>Connect Social Platforms</b><span>Syncs to live broadcast destinations</span></div>
-          <div class="social-matrix" id="wizSocialMatrix"></div>
-          <div class="wiz-summary" id="wSummary"></div>
-        </section>
+        </div>
       </div>
 
       <p class="err" id="wErr" hidden></p>
       <div class="w-nav">
-        <button type="button" class="btn sm" id="wBackBtn" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg>Back</button>
         <button type="button" class="btn sm ghost" id="wSaveDefaults"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-check"/></svg>Save defaults</button>
-        <span class="wiz-step-meta num" id="wStepMeta">Step 1 of 4</span>
         <span class="grow"></span>
-        <button type="button" class="btn primary" id="wNextBtn"><span>Next</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
-        <button type="button" class="btn primary lg" id="wGo" hidden>Go Live Now</button>
+        <button type="button" class="btn primary lg" id="wGo">Go Live Now</button>
       </div>
     </div>
 
@@ -1504,37 +1471,23 @@
   </div>
 </dialog>
 
-<!-- ================= INVITE (BROADCAST PASS · 3-STEP LIGHTBOX) ================= -->
+<!-- ================= INVITE (SINGLE-SCREEN BROADCAST PASS) ================= -->
 <dialog class="modal" id="inviteDlg" aria-labelledby="inviteH">
   <form method="dialog" class="modal-card glass raised inv-card">
     <div class="inv-glow" aria-hidden="true"></div>
 
     <header class="inv-head">
-      <div class="inv-head-copy">
-        <div class="inv-title-row">
-          <h2 id="inviteH">Broadcast Pass &amp; Guests</h2>
-          <span class="inv-seats-readout num" id="inviteSeatCount">1 / 6 live</span>
-        </div>
-        <p class="sub" id="inviteSubtitle">Invite co-hosts step by step, send SMS or QR passes, and sync live social platforms.</p>
+      <div class="inv-title-row">
+        <h2 id="inviteH">Invite &amp; Watch</h2>
+        <span class="inv-seats-readout num" id="inviteSeatCount">1 / 6 live</span>
       </div>
       <button type="button" class="icon-btn sm modal-close" value="cancel" data-close aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
     </header>
 
-    <nav class="inv-stepper" id="invStepper" role="tablist" aria-label="Broadcast Pass steps">
-      <button type="button" role="tab" class="inv-step-btn" data-invstep="1" aria-selected="true"><span class="inv-step-num num">01</span><span>Stage &amp; Link</span></button>
-      <button type="button" role="tab" class="inv-step-btn" data-invstep="2" aria-selected="false"><span class="inv-step-num num">02</span><span>SMS &amp; QR Pass</span></button>
-      <button type="button" role="tab" class="inv-step-btn" data-invstep="3" aria-selected="false"><span class="inv-step-num num">03</span><span>Watch &amp; Social</span></button>
-    </nav>
+    <div class="inv-seats" id="inviteSeats" role="group" aria-label="Studio seat availability"></div>
 
-    <!-- Step 1: Stage Roster, Invite Link & Room Code -->
-    <div class="inv-step-pane" data-inv-pane="1">
-      <section class="inv-card-box" aria-label="Stage seats and backstage invite">
-        <div class="inv-sec-h">
-          <b>Stage seats</b>
-          <span>Tap any open seat to copy</span>
-        </div>
-        <div class="inv-seats" id="inviteSeats" role="group" aria-label="Studio seat availability"></div>
-
+    <div class="inv-grid-2">
+      <section class="inv-col" aria-label="Backstage guest invite">
         <div class="inv-sec-h">
           <b>Green room link</b>
           <span>Co-hosts &amp; backstage guests</span>
@@ -1548,28 +1501,21 @@
         </div>
 
         <div class="inv-coderow">
-          <span class="inv-codelbl">Room code</span>
+          <span class="inv-codelbl">Code</span>
           <output class="inv-code num" id="inviteCode">—</output>
           <button type="button" class="btn sm inv-codecopy" id="copyCode">
             <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg>
-            <span>Copy code</span>
+            <span>Copy</span>
           </button>
         </div>
-        <p class="fine inv-fine" id="inviteFine">Anyone with this code can join. Maximum six participants. Keep this tab open while hosting.</p>
-      </section>
-    </div>
 
-    <!-- Step 2: SMS Short Link & Scannable QR Pass -->
-    <div class="inv-step-pane" data-inv-pane="2" hidden>
-      <div class="inv-grid-2">
-        <section class="inv-shortbox" id="inviteShortBox" aria-label="SMS short link generator">
+        <div class="inv-shortbox" id="inviteShortBox" aria-label="SMS short link">
           <div class="inv-short-head">
-            <b>SMS &amp; mobile short link</b>
-            <span class="inv-short-meta num" id="inviteShortMeta">Compact /s/ URL</span>
+            <b>SMS short link</b>
+            <span class="inv-short-meta num" id="inviteShortMeta">/s/ URL</span>
           </div>
           <div class="inv-short-idle" id="inviteShortIdle">
-            <p class="inv-short-hint">Generate a clean 5-character link for SMS, WhatsApp, or iMessage.</p>
-            <button type="button" class="btn primary inv-short-gen" id="genShortLink">
+            <button type="button" class="btn sm inv-short-gen" id="genShortLink">
               <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>
               <span>Generate short SMS link</span>
             </button>
@@ -1577,97 +1523,61 @@
           <div class="inv-short-ready" id="inviteShortReady" hidden>
             <output class="inv-url num inv-short-url" id="inviteShortUrl">—</output>
             <div class="inv-short-acts">
-              <button type="button" class="btn primary inv-short-copy" id="copyShortLink">
-                <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg>
-                <span>Copy short link</span>
-              </button>
-              <button type="button" class="btn inv-short-sms" id="smsInviteBtn">
-                <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-send"/></svg>
-                <span>Send SMS</span>
-              </button>
-              <button type="button" class="icon-btn sm inv-short-regen" id="regenShortLink" aria-label="Generate a new short link" data-tip="New short link">
-                <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg>
-              </button>
+              <button type="button" class="btn primary sm inv-short-copy" id="copyShortLink"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span>Copy</span></button>
+              <button type="button" class="btn sm inv-short-sms" id="smsInviteBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-send"/></svg><span>SMS</span></button>
+              <button type="button" class="icon-btn sm inv-short-regen" id="regenShortLink" aria-label="New short link" data-tip="New short link"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg></button>
             </div>
           </div>
-          <div class="inv-quick" role="group" aria-label="Quick invite actions">
-            <button type="button" class="btn sm inv-qbtn" id="copyInviteMsg">
-              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg>
-              <span>Copy message</span>
-            </button>
-            <button type="button" class="btn sm inv-qbtn" id="emailInviteBtn">
-              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-mail"/></svg>
-              <span>Email invite</span>
-            </button>
-            <button type="button" class="btn sm inv-qbtn" id="shareInviteBtn" hidden>
-              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg>
-              <span>Share</span>
-            </button>
-          </div>
-        </section>
+        </div>
 
-        <section class="inv-card-box" aria-label="QR pass">
-          <div class="inv-qr-top">
-            <div class="inv-qr-tabs" role="tablist" aria-label="QR code target">
-              <button type="button" role="tab" id="invQrGuest" aria-selected="true" data-qr="guest">Guest QR</button>
-              <button type="button" role="tab" id="invQrWatch" aria-selected="false" data-qr="watch">Watch QR</button>
-            </div>
-            <button type="button" class="icon-btn sm inv-qr-dl" id="downloadQr" aria-label="Download QR code image" data-tip="Download PNG">
-              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-download"/></svg>
-            </button>
-          </div>
+        <div class="inv-quick" role="group" aria-label="Quick invite actions">
+          <button type="button" class="btn sm inv-qbtn" id="copyInviteMsg"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><span>Copy message</span></button>
+          <button type="button" class="btn sm inv-qbtn" id="emailInviteBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-mail"/></svg><span>Email</span></button>
+          <button type="button" class="btn sm inv-qbtn" id="shareInviteBtn" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg><span>Share</span></button>
+        </div>
+      </section>
 
-          <div class="inv-qr-stage">
-            <div class="inv-qr-mat">
-              <canvas id="inviteQrCanvas" width="240" height="240" aria-label="Scannable studio QR code"></canvas>
-            </div>
-            <div class="inv-qr-copy">
-              <b id="inviteQrTitle">Scan with phone camera</b>
-              <span class="inv-qr-cap" id="inviteQrCap">Scan from a phone or second camera to join the green room</span>
-            </div>
+      <section class="inv-col" aria-label="QR code and audience watch page">
+        <div class="inv-qr-top">
+          <div class="inv-qr-tabs" role="tablist" aria-label="QR code target">
+            <button type="button" role="tab" id="invQrGuest" aria-selected="true" data-qr="guest">Guest QR</button>
+            <button type="button" role="tab" id="invQrWatch" aria-selected="false" data-qr="watch">Watch QR</button>
           </div>
-        </section>
-      </div>
-    </div>
+          <button type="button" class="icon-btn sm inv-qr-dl" id="downloadQr" aria-label="Download QR image" data-tip="Download PNG"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-download"/></svg></button>
+        </div>
 
-    <!-- Step 3: Audience Watch Page & Social Platforms -->
-    <div class="inv-step-pane" data-inv-pane="3" hidden>
-      <div class="inv-grid-2">
-        <section class="inv-card-box" aria-label="Audience watch page">
-          <div class="inv-sec-h">
-            <b>Audience watch page</b>
-            <span>Watch, chat &amp; voice Q&amp;A</span>
+        <div class="inv-qr-stage">
+          <div class="inv-qr-mat">
+            <canvas id="inviteQrCanvas" width="240" height="240" aria-label="Scannable studio QR code"></canvas>
           </div>
+          <div class="inv-qr-copy">
+            <b id="inviteQrTitle">Scan with phone</b>
+            <span class="inv-qr-cap" id="inviteQrCap">Join backstage from phone</span>
+          </div>
+        </div>
+
+        <div class="inv-watch-box">
+          <div class="inv-sec-h"><b>Watch Party</b><span>Public stream &amp; chat</span></div>
           <output class="inv-url num" id="inviteWatch">—</output>
           <div class="inv-watch-acts">
-            <button type="button" class="btn primary inv-watch-copy" id="copyWatch">
-              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg>
-              <span>Copy watch link</span>
-            </button>
-            <button type="button" class="btn inv-watch-open" id="openWatch">
-              <span>Open page</span>
-              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-arrow-up-right"/></svg>
-            </button>
+            <button type="button" class="btn sm inv-watch-copy" id="copyWatch"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span>Copy watch link</span></button>
+            <button type="button" class="btn sm inv-watch-open" id="openWatch"><span>Open</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-arrow-up-right"/></svg></button>
           </div>
-          <p class="fine inv-fine">Share your Watch Party link publicly so viewers can watch in HD, send Super Chats, vote in polls, and raise a hand.</p>
-        </section>
+        </div>
 
-        <section class="inv-card-box" aria-label="Connected broadcast platforms">
-          <div class="inv-sec-h">
-            <b>Connect social platforms</b>
-            <span>Stream live simultaneously</span>
+        <details class="wiz-fold">
+          <summary>Multistream platforms</summary>
+          <div class="wiz-fold-body">
+            <div class="social-matrix" id="invSocialMatrix"></div>
           </div>
-          <div class="social-matrix" id="invSocialMatrix"></div>
-        </section>
-      </div>
+        </details>
+      </section>
     </div>
 
     <footer class="inv-nav">
-      <button type="button" class="btn sm" id="invBackBtn" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg><span>Back</span></button>
-      <span class="inv-step-meta num" id="invStepMeta">Step 1 of 3</span>
+      <span class="inv-fine fine" id="inviteFine">1 of 6 seats taken.</span>
       <span class="grow"></span>
-      <button type="button" class="btn primary" id="invNextBtn"><span>Next</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
-      <button type="button" class="btn primary" id="invDoneBtn" value="cancel" data-close hidden><span>Done</span></button>
+      <button type="button" class="btn primary sm" id="invDoneBtn" value="cancel" data-close><span>Done</span></button>
     </footer>
   </form>
 </dialog>
