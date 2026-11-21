@@ -214,19 +214,6 @@
         </div>
       </div>
 
-      <!-- Stream-type deck: what this kind of show is for, right under the video (shopping shelf / play-along) -->
-      <section class="wv-mode" id="wMode" hidden aria-labelledby="wModeTitle">
-        <header class="wv-mode-h">
-          <span class="wv-mode-ic" aria-hidden="true"><svg class="i sm"><use id="wModeIcon" href="/icons.svg#i-shopping-bag"/></svg></span>
-          <div class="wv-mode-hd"><h2 id="wModeTitle">Shop the show</h2><span class="wv-mode-sub" id="wModeSub"></span></div>
-          <div class="wv-mode-nav" id="wModeNav" hidden>
-            <button type="button" class="icon-btn sm" id="wModePrev" aria-label="Scroll products left"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg></button>
-            <button type="button" class="icon-btn sm" id="wModeNext" aria-label="Scroll products right"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
-          </div>
-        </header>
-        <div class="wv-mode-body" id="wModeBody"></div>
-      </section>
-
       <!-- Watch Party Lower Bento Hub: 1/3 Streamer Profile + 2/3 Showcase & AI Notices -->
       <div class="wv-below" id="wBelowHub">
         <!-- 1/3 Creator Profile & Subscribe Card -->
@@ -319,6 +306,17 @@
 
       <!-- Inline Sentiment Bar & Stage Activity Ribbon -->
       <div class="wv-rail-meta" id="wRailMeta">
+          <!-- Stream-type panel: the live shop (Featured · Lookbook · Bag) or the play-along (line + prediction) -->
+          <section class="wv-mode" id="wMode" hidden aria-labelledby="wModeTitle">
+            <header class="wv-mode-h">
+              <span class="wv-mode-ic" aria-hidden="true"><svg class="i sm"><use id="wModeIcon" href="/icons.svg#i-shopping-bag"/></svg></span>
+              <div class="wv-mode-hd"><h2 id="wModeTitle">Shop the live drop</h2><span class="wv-mode-sub" id="wModeSub"></span></div>
+              <button type="button" class="wv-bag-btn" id="wBagBtn" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span class="num" id="wBagBtnTxt">Bag (0)</span></button>
+              <button type="button" class="icon-btn sm wv-mode-min" id="wModeMin" aria-expanded="true" aria-label="Collapse panel"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
+            </header>
+            <nav class="wv-mode-tabs" id="wModeTabs" role="tablist" aria-label="Shop views" hidden></nav>
+            <div class="wv-mode-body" id="wModeBody"></div>
+          </section>
         <div class="wv-rail-strip" id="wRailStrip">
           <button type="button" class="wv-mood-mini" id="wMoodMiniBtn" data-mood="idle" data-tip="Crowd sentiment: Calm (50%) — tracks live chat positivity &amp; reactions. Click for Pulse." data-tip-delay="100" data-tip-side="bottom">
             <svg class="i sm wv-mood-ic" aria-hidden="true"><use id="wMoodMiniIconUse" href="/icons.svg#i-activity"/></svg>

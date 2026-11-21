@@ -1009,7 +1009,7 @@ function updateStageStatus(info) {
   const badge = $('#wStageBadge');
   badge.hidden = cards === 0;
   badge.textContent = String(cards);
-  const sale = info?.shop?.sale && info.shop.sale.until > Date.now();
+  const sale = info?.shop?.sale && info.shop.sale.until > Date.now() ? info.shop.sale : null;
   badge.classList.toggle('hot', !!(sale || W.called));
 
   // Surface a slim one-line banner in Chat when something active is happening on Stage
@@ -1019,6 +1019,7 @@ function updateStageStatus(info) {
   else if (info?.poll && info.poll.until > Date.now()) { msg = `📊 ${info.poll.q}`; alertKey = 'poll:' + info.poll.id; }
   else if (info?.queue?.open) { msg = `🎮 Play-with-me queue is open (${info.queue.size})`; alertKey = 'queue:open'; }
 
+  if (W.modeType && alertKey !== 'called') msg = ''; // the shop / play-along panel already shows it
   const alert = $('#wStageAlert');
   if (msg && W.tab === 'chat' && W.dismissedAlertKey !== alertKey) {
     alert.dataset.key = alertKey;
@@ -1247,7 +1248,7 @@ function renderQueueCard(info, box = $('#wCards')) {
 // A shopping show gets its whole shelf (and the featured product on the video); a gamer show gets the play-with-me line
 // and the live prediction side by side. A plain live show keeps the page as it was.
 const MODE_CFG = {
-  shopping: { icon: 'i-shopping-bag', title: 'Shop the show' },
+  shopping: { icon: 'i-shopping-bag', title: 'Shop the live drop' },
   gamer: { icon: 'i-gamepad-2', title: 'Play along' },
 };
 function renderInteractive(info) {
@@ -1267,47 +1268,136 @@ function skuThumb(p) {
   if (p.img) { im.src = p.img; im.alt = ''; im.loading = 'lazy'; } else { im.className = 'ph'; im.textContent = '🛍'; }
   return im;
 }
-function renderShelf(info) {
-  const sh = info.shop || {}, items = sh.items || [];
+// The live shop, after Gather-18-2's "Shop the live drop": Featured (the drop, its flash sale, Buy now / Add to bag and
+// a switcher for the other products), Lookbook (everything), and a Bag kept on this device for this show. Checkout is
+// the seller's own store: Buy opens it with the sale code copied; nothing here takes payment.
+const parsePrice = (str) => { const m = String(str || '').replace(/,/g, '').match(/(\d+(?:\.\d+)?)/); return m ? Number(m[1]) : NaN; };
+const priceSym = (str) => (String(str || '').match(/^[^\d\s]+/) || ['$'])[0];
+const fmtPrice = (n, like) => `${priceSym(like)}${n % 1 ? n.toFixed(2) : n}`;
+function salePriceOf(p, sale) {
+  if (!sale || sale.id !== p.id || !sale.pct) return null;
+  const n = parsePrice(p.price); return Number.isFinite(n) ? fmtPrice(Math.round(n * (100 - sale.pct)) / 100, p.price) : null;
+}
+const bagKey = () => 'bag:' + code;
+const getBag = () => { const b = store.get(bagKey(), []); return Array.isArray(b) ? b : []; };
+function setBag(b) { store.set(bagKey(), b); renderShopDrop(W.info, true); }
+function addToBag(p, open) {
+  const b = getBag(), it = b.find((x) => x.id === p.id);
+  if (it) it.qty = Math.min(9, it.qty + 1); else b.push({ id: p.id, qty: 1 });
+  W.addedId = p.id; setTimeout(() => { if (W.addedId === p.id) { W.addedId = null; renderShopDrop(W.info, true); } }, 1400);
+  if (open) W.shopTab = 'bag';
+  setBag(b);
+}
+function buyLink(p, sale, label, cls) {
+  const a = document.createElement('a'); a.className = cls; a.href = p.url; a.target = '_blank'; a.rel = 'noopener';
+  a.textContent = label; a.setAttribute('aria-label', `${label}: ${p.title} (opens the store)`); a.onclick = buyWithCode(sale?.id === p.id ? sale : null);
+  return a;
+}
+function priceEl(p, sale, cls) {
+  const box = document.createElement('span'); box.className = cls;
+  const now = salePriceOf(p, sale);
+  box.append(Object.assign(document.createElement('b'), { className: 'num', textContent: now || money(p.price) || '—' }));
+  if (now) box.append(Object.assign(document.createElement('s'), { className: 'num', textContent: money(p.price) }));
+  return box;
+}
+function renderShopDrop(info, force) {
+  const sh = info?.shop || {}, items = sh.items || [];
   const sale = sh.sale && sh.sale.until > Date.now() ? sh.sale : null;
-  $('#wModeSub').textContent = items.length ? `${items.length} product${items.length === 1 ? '' : 's'} · checkout on ${sh.store || 'the seller’s store'}` : 'Products show up here as the host adds them';
-  const key = JSON.stringify([sh.pinned, sale, items]);
+  const bag = getBag().filter((x) => items.some((p) => p.id === x.id));
+  const count = bag.reduce((n, x) => n + x.qty, 0);
+  $('#wBagBtn').hidden = !items.length;
+  $('#wBagBtnTxt').textContent = `Bag (${count})`;
+  $('#wBagBtn').classList.toggle('on', W.shopTab === 'bag');
+  $('#wModeSub').textContent = items.length ? `Checkout on ${sh.store || 'the seller’s store'}` : 'Products show up here as the host adds them';
+  if (!W.shopTab) W.shopTab = 'drop';
+  if (!items.some((p) => p.id === W.dropId)) W.dropId = null;
+  const drop = items.find((p) => p.id === (W.dropId || sh.pinned)) || items.find((p) => p.id === sale?.id) || items[0];
+  const key = JSON.stringify([W.shopTab, drop?.id, sh.pinned, sale, items, bag, W.addedId]);
   const body = $('#wModeBody');
-  if (body.dataset.k === key) return;
+  if (!force && body.dataset.k === key) return;
   body.dataset.k = key;
-  $('#wModeNav').hidden = items.length < 4;
-  if (!items.length) {
-    const e = document.createElement('p'); e.className = 'wv-mode-empty';
-    e.textContent = 'Nothing on the shelf yet. When the host features a product, you can buy it right here without leaving the stream.';
-    body.replaceChildren(e); return;
-  }
-  // Featured first, then the sale item, then the rest in the host's order.
-  const order = [...items].sort((a, b) => (b.id === sh.pinned) - (a.id === sh.pinned) || (b.id === sale?.id) - (a.id === sale?.id));
-  const ul = document.createElement('ul'); ul.className = 'wv-shelf'; ul.id = 'wShelf';
-  ul.replaceChildren(...order.map((p) => {
-    const onSale = sale?.id === p.id, featured = sh.pinned === p.id;
-    const li = document.createElement('li'); li.className = 'wv-sku' + (onSale ? ' sale' : '') + (featured ? ' featured' : '');
-    const media = document.createElement('div'); media.className = 'wv-sku-media'; media.append(skuThumb(p));
-    if (onSale || featured) {
-      const tag = document.createElement('span'); tag.className = 'wv-sku-tag';
-      tag.textContent = onSale ? `⚡ ${sale.pct ? sale.pct + '% off' : 'Flash sale'}` : 'Featured now';
-      media.append(tag);
-    }
-    const t = document.createElement('b'); t.className = 'wv-sku-t'; t.textContent = p.title;
-    const row = document.createElement('div'); row.className = 'wv-sku-row';
-    const price = document.createElement('span'); price.className = 'wv-sku-price num'; price.textContent = money(p.price) || '—';
-    row.append(price);
-    if (onSale) { const cd = document.createElement('span'); cd.className = 'wv-sku-cd num'; cd.dataset.until = sale.until; row.append(cd); }
-    const buy = document.createElement('a'); buy.className = 'btn sm wv-sku-buy' + (featured || onSale ? ' primary' : ''); buy.href = p.url; buy.target = '_blank'; buy.rel = 'noopener';
-    buy.innerHTML = '<span>Buy</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-external-link"/></svg>';
-    buy.setAttribute('aria-label', `Buy ${p.title}${p.price ? ' for ' + p.price : ''} (opens the store)`);
-    buy.onclick = buyWithCode(onSale ? sale : null);
-    li.append(media, t, row);
-    if (onSale && sale.code) { const c = document.createElement('button'); c.type = 'button'; c.className = 'wv-sku-code'; c.innerHTML = 'Code <code></code>'; c.querySelector('code').textContent = sale.code; c.setAttribute('aria-label', `Copy code ${sale.code}`); c.onclick = buyWithCode(sale); li.append(c); }
-    li.append(buy);
-    return li;
+  const tabs = $('#wModeTabs');
+  tabs.hidden = !items.length || W.shopTab === 'bag';
+  tabs.replaceChildren(...[['drop', 'Featured'], ['all', `Lookbook (${items.length})`]].map(([id, label]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.role = 'tab'; b.textContent = label;
+    b.setAttribute('aria-selected', String(W.shopTab === id)); b.onclick = () => { W.shopTab = id; renderShopDrop(W.info, true); };
+    return b;
   }));
-  body.replaceChildren(ul);
+  if (!items.length) { body.replaceChildren(Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'Nothing in the drop yet. When the host features a product, you can buy it right here without leaving the stream.' })); return; }
+  const out = [];
+  if (W.shopTab === 'drop') {
+    if (sale && sale.id === drop.id) {
+      const bar = document.createElement('div'); bar.className = 'wv-drop-sale';
+      bar.append(Object.assign(document.createElement('span'), { textContent: `⚡ Flash sale${sale.pct ? ' · ' + sale.pct + '% off' : ''}` }));
+      const cd = document.createElement('span'); cd.className = 'num'; cd.dataset.until = sale.until; bar.append(cd); out.push(bar);
+    }
+    const row = document.createElement('div'); row.className = 'wv-drop';
+    const t = document.createElement('div'); t.className = 'wv-drop-t';
+    t.append(Object.assign(document.createElement('h3'), { textContent: drop.title }),
+      Object.assign(document.createElement('p'), { textContent: drop.id === sh.pinned ? 'Featured live right now' : `From ${sh.store || 'the seller’s store'}` }),
+      priceEl(drop, sale, 'wv-drop-price'));
+    row.append(skuThumb(drop), t); out.push(row);
+    if (sale?.id === drop.id && sale.code) { const c = document.createElement('button'); c.type = 'button'; c.className = 'wv-sku-code'; c.innerHTML = 'Use code <code></code> at checkout · tap to copy'; c.querySelector('code').textContent = sale.code; c.onclick = buyWithCode(sale); out.push(c); }
+    const acts = document.createElement('div'); acts.className = 'wv-drop-acts';
+    acts.append(buyLink(drop, sale, `Buy now · ${salePriceOf(drop, sale) || money(drop.price)}`, 'btn wv-drop-buy'));
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'btn wv-drop-add'; add.textContent = W.addedId === drop.id ? 'Added ✓' : 'Add to bag'; add.onclick = () => addToBag(drop);
+    acts.append(add); out.push(acts);
+    if (items.length > 1) {
+      const sw = document.createElement('div'); sw.className = 'wv-drop-switch';
+      sw.replaceChildren(...items.slice(0, 4).map((p) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'wv-drop-chip' + (p.id === drop.id ? ' on' : '');
+        b.setAttribute('aria-pressed', String(p.id === drop.id)); b.setAttribute('aria-label', `Show ${p.title}`);
+        const tx = document.createElement('span'); tx.append(Object.assign(document.createElement('b'), { textContent: p.title }), Object.assign(document.createElement('small'), { className: 'num', textContent: salePriceOf(p, sale) || money(p.price) }));
+        b.append(skuThumb(p), tx); b.onclick = () => { W.dropId = p.id; renderShopDrop(W.info, true); };
+        return b;
+      }));
+      if (items.length > 4) { const more = document.createElement('button'); more.type = 'button'; more.className = 'wv-drop-more'; more.textContent = `See all ${items.length} in the Lookbook`; more.onclick = () => { W.shopTab = 'all'; renderShopDrop(W.info, true); }; sw.append(more); }
+      out.push(sw);
+    }
+  } else if (W.shopTab === 'all') {
+    const ul = document.createElement('ul'); ul.className = 'wv-look';
+    ul.replaceChildren(...items.map((p, i) => {
+      const li = document.createElement('li'); li.className = sale?.id === p.id ? 'sale' : '';
+      const tx = document.createElement('div'); tx.className = 'wv-look-t';
+      tx.append(Object.assign(document.createElement('span'), { className: 'wv-look-k num', textContent: `${String(i + 1).padStart(2, '0')} · ${p.id === sh.pinned ? 'Featured' : sale?.id === p.id ? 'Flash sale' : sh.store || 'Store'}` }),
+        Object.assign(document.createElement('b'), { textContent: p.title }));
+      const foot = document.createElement('div'); foot.className = 'wv-look-f';
+      const add = document.createElement('button'); add.type = 'button'; add.className = 'btn sm'; add.textContent = W.addedId === p.id ? 'Added ✓' : '+ Bag'; add.onclick = () => addToBag(p);
+      foot.append(priceEl(p, sale, 'wv-look-price'), add, buyLink(p, sale, 'Buy', 'btn sm primary'));
+      tx.append(foot); li.append(skuThumb(p), tx);
+      return li;
+    }));
+    out.push(ul);
+  } else {
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'wv-bag-back'; back.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg><span>Back to the drop</span>';
+    back.onclick = () => { W.shopTab = 'drop'; renderShopDrop(W.info, true); }; out.push(back);
+    if (!bag.length) {
+      out.push(Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'Your bag is empty. Add pieces from the drop and check out when you’re ready.' }));
+    } else {
+      const ul = document.createElement('ul'); ul.className = 'wv-bag';
+      let total = 0, sym = '$', known = true;
+      ul.replaceChildren(...bag.map((x) => {
+        const p = items.find((q) => q.id === x.id);
+        const unit = parsePrice(salePriceOf(p, sale) || p.price); if (Number.isFinite(unit)) { total += unit * x.qty; sym = priceSym(p.price); } else known = false;
+        const li = document.createElement('li');
+        const tx = document.createElement('div'); tx.className = 'wv-bag-t';
+        tx.append(Object.assign(document.createElement('b'), { textContent: p.title }), priceEl(p, sale, 'wv-look-price'));
+        const q = document.createElement('div'); q.className = 'wv-qty';
+        const minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', `One fewer ${p.title}`);
+        minus.onclick = () => { const b = getBag(); const it = b.find((y) => y.id === p.id); if (it) { it.qty -= 1; setBag(b.filter((y) => y.qty > 0)); } };
+        const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', `One more ${p.title}`);
+        plus.onclick = () => { const b = getBag(); const it = b.find((y) => y.id === p.id); if (it) { it.qty = Math.min(9, it.qty + 1); setBag(b); } };
+        q.append(minus, Object.assign(document.createElement('span'), { className: 'num', textContent: String(x.qty) }), plus);
+        li.append(skuThumb(p), tx, q, buyLink(p, sale, 'Checkout', 'btn sm primary'));
+        return li;
+      }));
+      out.push(ul);
+      const sum = document.createElement('div'); sum.className = 'wv-bag-sum';
+      sum.append(Object.assign(document.createElement('span'), { textContent: `${count} item${count === 1 ? '' : 's'}` }), Object.assign(document.createElement('b'), { className: 'num', textContent: known ? fmtPrice(Math.round(total * 100) / 100, sym) : '' }));
+      out.push(sum, Object.assign(document.createElement('p'), { className: 'wv-bag-note', textContent: `Each Checkout opens ${sh.store || 'the seller’s store'}${sale?.code ? `, with code ${sale.code} copied for the sale item` : ''}. Your bag stays on this device.` }));
+    }
+  }
+  body.replaceChildren(...out);
 }
 function renderPlayExtras(info) {
   const qi = info.queue || {}, up = qi.up || [];
@@ -1335,7 +1425,8 @@ function renderMode(info) {
     W.modeType = type;
     const body = $('#wModeBody'); body.dataset.k = ''; body.replaceChildren();
     if (type) { $('#wModeIcon').setAttribute('href', '/icons.svg#' + MODE_CFG[type].icon); $('#wModeTitle').textContent = MODE_CFG[type].title; }
-    $('#wModeNav').hidden = true;
+    $('#wModeTabs').hidden = true; $('#wBagBtn').hidden = true; W.shopTab = 'drop';
+    $('#wTabShop').classList.toggle('mode-hidden', type === 'shopping');
     if (type === 'gamer') {
       body.innerHTML = `<div class="wv-play">
         <div class="wv-play-col"><div class="wv-cards" id="wModeQueue"></div><div class="wv-play-empty" id="wModeQueueEmpty"><b>🎮 The line is closed</b><span>When the streamer opens it, you can join with your gamertag and get called up to play.</span></div><div class="wv-upnext" id="wModeUpNext" hidden></div></div>
@@ -1343,10 +1434,13 @@ function renderMode(info) {
       </div>`;
     }
   }
-  if (type === 'shopping') renderShelf(info);
+  if (type === 'shopping') renderShopDrop(info);
 }
-$('#wModePrev')?.addEventListener('click', () => $('#wShelf')?.scrollBy({ left: -$('#wShelf').clientWidth * 0.8, behavior: 'smooth' }));
-$('#wModeNext')?.addEventListener('click', () => $('#wShelf')?.scrollBy({ left: $('#wShelf').clientWidth * 0.8, behavior: 'smooth' }));
+$('#wModeMin')?.addEventListener('click', () => {
+  const min = !$('#wMode').classList.toggle('min');
+  $('#wModeMin').setAttribute('aria-expanded', String(min)); $('#wModeMin').setAttribute('aria-label', min ? 'Collapse panel' : 'Expand panel');
+});
+$('#wBagBtn')?.addEventListener('click', () => { W.shopTab = W.shopTab === 'bag' ? 'drop' : 'bag'; $('#wMode').classList.remove('min'); renderShopDrop(W.info, true); });
 
 // On the video: the one thing worth acting on right now (the featured product, or the open line / prediction).
 function renderHotspot(info) {
@@ -1363,7 +1457,7 @@ function renderHotspot(info) {
       const txt = document.createElement('div'); txt.className = 'wv-hs-txt';
       const k = document.createElement('span'); k.className = 'wv-hs-k'; k.textContent = s ? `⚡ ${s.pct ? s.pct + '% off' : 'Flash sale'}` : 'Featured now';
       if (s) { const cd = document.createElement('span'); cd.className = 'num'; cd.dataset.until = s.until; k.append(' · ', cd); }
-      txt.append(k, Object.assign(document.createElement('b'), { textContent: pinned.title }), Object.assign(document.createElement('span'), { className: 'wv-hs-p num', textContent: money(pinned.price) }));
+      txt.append(k, Object.assign(document.createElement('b'), { textContent: pinned.title }), Object.assign(document.createElement('span'), { className: 'wv-hs-p num', textContent: salePriceOf(pinned, s) || money(pinned.price) }));
       const buy = document.createElement('a'); buy.className = 'btn sm primary'; buy.href = pinned.url; buy.target = '_blank'; buy.rel = 'noopener'; buy.textContent = 'Buy'; buy.onclick = buyWithCode(s);
       const x = document.createElement('button'); x.type = 'button'; x.className = 'wv-hs-x'; x.setAttribute('aria-label', 'Hide product card'); x.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg>';
       x.onclick = () => { W.hotspotHidden = true; renderHotspot(W.info); };
