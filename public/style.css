@@ -2616,3 +2616,104 @@ html:not(.booting) body.pre .land-plats, html:not(.booting) body.pre .land-foot 
   .gb-link-row { grid-template-columns: minmax(0, 1fr) auto; }
   .gb-link-row input:first-child { grid-column: 1 / -1; }
 }
+
+/* ================================================================ V8: landing refresh
+   One calmer, richer hero: an eyebrow, a headline whose gradient flows, a preview that tips up into place inside a
+   slowly turning halo and a lit border, two floating callouts, colour-coded feature cards with a pointer spotlight,
+   and platform chips in their own colours. Every motion stops under prefers-reduced-motion. */
+@property --land-ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --cta-ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+/* backdrop: a deeper sky, a warmer third light and a soft horizon under the hero */
+body.pre .backdrop::before { content: ""; position: absolute; inset: 0; pointer-events: none; background:
+  radial-gradient(120% 70% at 50% -10%, rgba(37, 99, 235, 0.22), transparent 60%),
+  radial-gradient(60% 40% at 50% 46%, rgba(99, 102, 241, 0.10), transparent 70%); }
+body.pre .backdrop .a3 { background: radial-gradient(closest-side, rgba(129, 140, 248, 0.26), rgba(56, 189, 248, 0.10) 60%, transparent); }
+:root[data-theme="light"] body.pre .backdrop::before { background: radial-gradient(120% 70% at 50% -10%, rgba(59, 130, 246, 0.14), transparent 60%); }
+
+/* eyebrow */
+.land-eyebrow { position: relative; display: inline-flex; align-items: center; gap: 10px; height: 34px; padding: 0 16px 0 12px; border-radius: 999px; font: 500 13px/1 var(--font-ui); color: var(--ink-2); background: linear-gradient(180deg, rgba(23, 37, 84, 0.62), rgba(12, 19, 42, 0.62)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 30px -14px rgba(37, 99, 235, 0.7); }
+.land-eyebrow::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; background: conic-gradient(from var(--land-ang), rgba(96, 165, 250, 0.15), rgba(125, 211, 252, 0.9), rgba(129, 140, 248, 0.5), rgba(96, 165, 250, 0.15) 40%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: land-spin 6s linear infinite; }
+.land-eyebrow b { font-weight: 700; color: #e0ecff; }
+.land-eyebrow > span { color: var(--ink-3); }
+.land-eyebrow-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 10px #34d399; }
+.land-eyebrow-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid #34d399; opacity: 0; animation: land-ping 2s var(--ease-out) infinite; }
+:root[data-theme="light"] .land-eyebrow { background: rgba(255, 255, 255, 0.78); box-shadow: 0 10px 30px -16px rgba(37, 99, 235, 0.45); }
+:root[data-theme="light"] .land-eyebrow b { color: #0b1020; }
+@media (max-width: 560px) { .land-eyebrow > span { display: none; } }
+
+/* headline: bigger, tighter, with a gradient that drifts and a glow beneath */
+.land-copy h1 { font-size: clamp(38px, 6vw, 76px); letter-spacing: -0.045em; line-height: 1.0; text-wrap: balance; }
+.land-h1-grad { position: relative; display: inline-block; padding-bottom: 0.06em; background: linear-gradient(100deg, #7dd3fc 0%, #60a5fa 22%, #818cf8 44%, #3b82f6 62%, #38bdf8 82%, #7dd3fc 100%) 0 0 / 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: land-flow 9s ease-in-out infinite alternate; }
+.land-h1-grad::after { content: ""; position: absolute; left: 8%; right: 8%; bottom: -0.12em; height: 0.5em; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, rgba(59, 130, 246, 0.45), transparent); filter: blur(18px); }
+:root[data-theme="light"] .land-h1-grad { background: linear-gradient(100deg, #0284c7 0%, #2563eb 30%, #4f46e5 55%, #1d4ed8 78%, #0284c7 100%) 0 0 / 220% 100%; -webkit-background-clip: text; background-clip: text; }
+:root[data-theme="light"] .land-h1-grad::after { opacity: 0.4; }
+.land-sub { color: color-mix(in srgb, var(--ink-2) 92%, #9ab4ff); }
+
+/* actions: the primary button gets a moving gradient and a lit edge; the join field becomes one pill */
+#enterStage { position: relative; isolation: isolate; height: 52px; padding: 0 26px; border-radius: 14px; border: 0; font-weight: 700; font-size: 15.5px; color: #fff; background: linear-gradient(120deg, #2563eb, #3b82f6 40%, #6366f1 75%, #2563eb) 0 0 / 220% 100%; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 14px 34px -12px rgba(37, 99, 235, 0.85), 0 0 0 1px rgba(147, 197, 253, 0.35); transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out), background-position 0.8s var(--ease-out); animation: land-flow 7s ease-in-out infinite alternate; }
+#enterStage::before { content: ""; position: absolute; inset: -6px; z-index: -1; border-radius: 18px; background: conic-gradient(from var(--cta-ang), transparent 0 60%, rgba(125, 211, 252, 0.7) 75%, rgba(129, 140, 248, 0.7) 85%, transparent 100%); filter: blur(10px); opacity: 0.75; animation: land-cta-spin 4s linear infinite; }
+#enterStage:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.3) inset, 0 20px 44px -14px rgba(59, 130, 246, 0.95), 0 0 0 1px rgba(191, 219, 254, 0.55); }
+#enterStage:active { transform: translateY(0) scale(0.985); }
+#enterStage .i { transition: transform 0.3s var(--ease-out); }
+#enterStage:hover .i { transform: scale(1.12) rotate(-6deg); }
+.land-join { position: relative; gap: 0; height: 52px; padding: 5px; border-radius: 14px; background: rgba(12, 19, 40, 0.66); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18), 0 12px 30px -18px rgba(0, 0, 0, 0.8); transition: box-shadow 0.25s var(--ease-out); }
+.land-join:focus-within { box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.75), 0 0 0 4px rgba(59, 130, 246, 0.18), 0 12px 30px -18px rgba(0, 0, 0, 0.8); }
+.land-join .land-join-box { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; box-shadow: none; }
+.land-join .land-join-box input, .land-join .land-join-box input:focus { height: 100%; background: transparent; border: 0; box-shadow: none; outline: none; }
+.land-join #landJoinGo { height: 100%; border-radius: 10px; padding: 0 18px; }
+:root[data-theme="light"] .land-join { background: rgba(255, 255, 255, 0.85); box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12), 0 12px 30px -20px rgba(15, 23, 42, 0.4); }
+
+/* the preview: a halo that turns, a border lit from a moving point, a 3-D tip into place, callouts that float */
+.land-art { perspective: 1600px; }
+.land-halo { position: absolute; left: 50%; top: 48%; width: 115%; aspect-ratio: 1.6; translate: -50% -50%; z-index: -1; border-radius: 50%; pointer-events: none; background: conic-gradient(from var(--land-ang), rgba(37, 99, 235, 0.0), rgba(59, 130, 246, 0.32), rgba(129, 140, 248, 0.26), rgba(56, 189, 248, 0.28), rgba(37, 99, 235, 0.0)); filter: blur(70px); opacity: 0.85; animation: land-spin 18s linear infinite; }
+:root[data-theme="light"] .land-halo { opacity: 0.45; }
+.land-art .hz-win { border-radius: 22px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 50px 120px -40px rgba(2, 6, 23, 0.95), 0 30px 80px -50px rgba(59, 130, 246, 0.75); }
+.land-art .hz-win::after { padding: 1.5px; background: conic-gradient(from var(--land-ang), rgba(148, 163, 184, 0.14) 0 20%, rgba(125, 211, 252, 0.95) 30%, rgba(129, 140, 248, 0.6) 38%, rgba(148, 163, 184, 0.14) 50% 70%, rgba(96, 165, 250, 0.7) 82%, rgba(148, 163, 184, 0.14) 92%); animation: land-spin 10s linear infinite; }
+html:not(.booting) body.pre .land-art { animation: land-tilt 1s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both; transform-origin: 50% 0; }
+.land-callout { position: absolute; z-index: 3; display: inline-flex; align-items: center; gap: 10px; padding: 9px 14px 9px 9px; border-radius: 14px; text-align: left; background: linear-gradient(160deg, rgba(22, 34, 68, 0.86), rgba(10, 16, 34, 0.86)); -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 50px -20px rgba(0, 0, 0, 0.85); pointer-events: none; }
+.land-callout > span { display: grid; gap: 2px; }
+.land-callout b { font: 700 12.5px/1.2 var(--font-ui); color: #f1f5ff; white-space: nowrap; }
+.land-callout em { font: 500 11px/1.2 var(--font-ui); font-style: normal; color: #94a3b8; white-space: nowrap; }
+.land-callout.c1 { left: -46px; top: 30%; }
+.land-callout.c2 { right: -40px; bottom: 16%; }
+.lc-ic { width: 30px; height: 30px; flex: none; border-radius: 10px; display: grid; place-items: center; }
+.lc-ic.orb { border-radius: 50%; background: conic-gradient(from var(--land-ang), #60a5fa, #818cf8, #3b82f6, #38bdf8, #60a5fa); box-shadow: 0 0 18px -2px rgba(96, 165, 250, 0.8); animation: land-spin 5s linear infinite; }
+.lc-ic.plats { display: flex; gap: 3px; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.lc-ic.plats i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 7px var(--c); }
+html:not(.booting) body.pre .land-callout.c1 { animation: land-pop 0.6s cubic-bezier(0.2, 0.9, 0.25, 1.2) 0.7s both, land-bob 6s ease-in-out 1.3s infinite; }
+html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-bezier(0.2, 0.9, 0.25, 1.2) 0.9s both, land-bob 7s ease-in-out -2s infinite; }
+@media (max-width: 1140px) { .land-callout.c1 { left: -12px; } .land-callout.c2 { right: -10px; } }
+@media (max-width: 900px) { .land-callout { display: none; } }
+
+/* feature cards: each has its own colour; a light follows the pointer */
+.land-feats li { --mx: 50%; --my: 0%; overflow: hidden; padding: 22px 20px 22px; border-radius: 18px; transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), background 0.35s var(--ease-out); }
+.land-feats li::before { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: radial-gradient(260px circle at var(--mx) var(--my), color-mix(in srgb, var(--fh, #60a5fa) 22%, transparent), transparent 70%); opacity: 0.55; transition: opacity 0.35s var(--ease-out); }
+.land-feats li:hover::before { opacity: 1; }
+.land-feats li::after { background: linear-gradient(135deg, color-mix(in srgb, var(--fh, #60a5fa) 60%, transparent), rgba(148, 163, 184, 0.08) 45%, color-mix(in srgb, var(--fh2, #2563eb) 40%, transparent)) !important; }
+.land-feats li > * { position: relative; }
+.land-feats .i { width: 20px; height: 20px; color: #fff; background: linear-gradient(140deg, var(--fh, #60a5fa), var(--fh2, #2563eb)); box-shadow: 0 10px 24px -10px var(--fh, #60a5fa), inset 0 1px 0 rgba(255, 255, 255, 0.35); transition: transform 0.35s var(--ease-out); }
+.land-feats li:hover .i { transform: translateY(-2px) rotate(-6deg) scale(1.06); }
+.land-feats li:hover { transform: translateY(-5px); box-shadow: 0 28px 56px -26px rgba(0, 0, 0, 0.85), 0 0 46px -18px var(--fh, #60a5fa); }
+:root[data-theme="light"] .land-feats .i { color: #fff; }
+
+/* platforms: chips in their own colours */
+.land-plats { gap: 8px; padding: 10px 14px; }
+.land-plats i { display: none; }
+.land-plats b { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13px; color: var(--ink-2); background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12); transition: color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s var(--ease-out); }
+.land-plats b::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.land-plats b:hover { color: var(--ink); transform: translateY(-1px); background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+:root[data-theme="light"] .land-plats b { background: rgba(15, 23, 42, 0.03); box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08); }
+
+@keyframes land-spin { to { --land-ang: 360deg; } }
+@keyframes land-cta-spin { to { --cta-ang: 360deg; } }
+@keyframes land-flow { to { background-position: 100% 0; } }
+@keyframes land-ping { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes land-tilt { from { opacity: 0; transform: rotateX(22deg) translateY(40px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes land-pop { from { opacity: 0; transform: translateY(14px) scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes land-bob { 50% { translate: 0 -8px; } }
+@media (prefers-reduced-motion: reduce) {
+  .land-eyebrow::before, .land-eyebrow-dot::after, .land-h1-grad, #enterStage, #enterStage::before, .land-halo, .land-art .hz-win::after, .lc-ic.orb { animation: none !important; }
+  html:not(.booting) body.pre .land-callout { animation: none !important; }
+  .land-feats li:hover, #enterStage:hover, .land-plats b:hover { transform: none; }
+}

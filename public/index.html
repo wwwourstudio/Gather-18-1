@@ -137,9 +137,7 @@
       <!-- Landing: what you see before you're in a studio -->
       <div class="landing" id="landing">
         <div class="land-copy">
-          <div class="land-mark-wrap" aria-hidden="true">
-            <svg class="brand-mark land-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="land-mark-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".52" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><g fill="none" stroke="url(#land-mark-g)" stroke-width="5.6" stroke-linejoin="round" stroke-linecap="round"><path class="t" pathLength="1" d="M9 13.96L8 49.56A8.6 8.6 0 0 0 21 57.19L51.6 38.99A8.6 8.6 0 0 0 51.56 24.19L21.96 6.79A8.6 8.6 0 0 0 9 13.96Z"/><path class="l l0" pathLength="1" d="M28.6 31.6L12.92 21.41A8.6 8.6 0 1 1 26.12 13.06Z"/><path class="l l1" pathLength="1" d="M28.6 31.6L25.07 51.32A8.6 8.6 0 1 1 11.87 42.62Z"/><path class="l l2" pathLength="1" d="M28.6 31.6L43.22 23.97A8.6 8.6 0 1 1 43.22 39.23Z"/></g></svg>
-          </div>
+          <span class="land-eyebrow" aria-hidden="true"><i class="land-eyebrow-dot"></i><b>Live in your browser</b><span>Up to 6 on stage · AI producer · Multistream</span></span>
           <h1>Your show, live<br><span class="land-h1-grad">from the browser.</span></h1>
           <p class="land-sub">Guests, scenes, an AI producer and a live chat that pays.<br>Stream everywhere at once. Free, nothing to install.</p>
           <div class="land-cta">
@@ -155,6 +153,9 @@
           <button class="btn link" id="heroSchedule"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-clock"/></svg><span>Schedule a show for later</span></button>
         </div>
         <div class="land-art" aria-hidden="true">
+          <span class="land-halo"></span>
+          <span class="land-callout c1"><i class="lc-ic orb"></i><span><b>Sam, your AI producer</b><em>Answering on air</em></span></span>
+          <span class="land-callout c2"><i class="lc-ic plats"><i style="--c:#ff2a3d"></i><i style="--c:#9146ff"></i><i style="--c:#53fc18"></i></i><span><b>Streaming to 3</b><em>YouTube · Twitch · Kick</em></span></span>
           <div class="hz-win">
             <div class="hz-bar">
               <span class="hz-live"><i></i>Live</span><span class="hz-time">12:48</span>
@@ -198,12 +199,12 @@
           </div>
         </div>
         <ul class="land-feats">
-          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg><b>Scenes in one click</b><span>Cameras, slides, banners, your brand.</span></li>
-          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>An AI producer</b><span>Answers on air, runs the show.</span></li>
-          <li><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><b>Chat that pays</b><span>Every platform in one chat, plus super chats.</span></li>
+          <li style="--fh:#60a5fa;--fh2:#2563eb"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg><b>Scenes in one click</b><span>Cameras, slides, banners, your brand.</span></li>
+          <li style="--fh:#a78bfa;--fh2:#6366f1"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>An AI producer</b><span>Answers on air, runs the show.</span></li>
+          <li style="--fh:#4ade80;--fh2:#0ea5e9"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><b>Chat that pays</b><span>Every platform in one chat, plus super chats.</span></li>
         </ul>
         <div class="land-plats" aria-label="Stream to">
-          <span>Stream to</span><b>YouTube</b><i></i><b>Twitch</b><i></i><b>Kick</b><i></i><b>Facebook</b><i></i><b>X</b><i></i><b>Your own page</b>
+          <span>Stream to</span><b style="--c:#ff2a3d">YouTube</b><b style="--c:#9146ff">Twitch</b><b style="--c:#53fc18">Kick</b><b style="--c:#1877f2">Facebook</b><b style="--c:#e7e9ea">X</b><b style="--c:#60a5fa">Your own page</b>
         </div>
         <footer class="land-foot">
           <span class="land-tx" aria-label="Made in Texas, United States only">
@@ -216,6 +217,12 @@
           <span class="land-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
         </footer>
       </div>
+      <script>
+  // Landing: the feature cards' light follows the pointer. Decorative only; nothing depends on it.
+  (function () { var ul = document.querySelector('.land-feats'); if (!ul || !window.matchMedia('(hover: hover)').matches) return;
+    ul.addEventListener('pointermove', function (e) { var li = e.target.closest('li'); if (!li) return; var r = li.getBoundingClientRect();
+      li.style.setProperty('--mx', (e.clientX - r.left) + 'px'); li.style.setProperty('--my', (e.clientY - r.top) + 'px'); }); })();
+</script>
       <div class="stage-card glass">
 
         <div class="stage-wrap">
