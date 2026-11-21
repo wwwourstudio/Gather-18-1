@@ -2728,3 +2728,20 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
   html:not(.booting) body.pre .land-callout { animation: none !important; }
   .land-feats li:hover, #enterStage:hover, .land-plats b:hover { transform: none; }
 }
+
+/* Light mode: the sign-in dialog and the landing header (they had a fixed dark-navy surface, so dark text sat on dark). */
+:root[data-theme="light"] .ac-card {
+  border-color: rgba(15, 23, 42, 0.10);
+  background:
+    radial-gradient(88% 58% at 8% -4%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 64%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(243, 246, 252, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 28px 72px -18px rgba(15, 23, 42, 0.35);
+}
+:root[data-theme="light"] .ac-side {
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 62%),
+    radial-gradient(90% 70% at 100% 100%, rgba(37, 99, 235, 0.08), transparent 65%),
+    rgba(236, 241, 250, 0.9);
+  border-right-color: rgba(15, 23, 42, 0.08);
+}
+:root[data-theme="light"] body.pre .top.glass { background: rgba(255, 255, 255, 0.72); }
