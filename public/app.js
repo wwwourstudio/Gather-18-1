@@ -2016,7 +2016,7 @@ function renderGoogle() {
 }
 api('config').then((c) => {
   configureGoogle(c.googleClientId); renderGoogle();
-  S.houseAI = c.houseAI || null; S.houseVoice = c.houseVoice || null; renderAIPanel(); renderProducerUI(); renderVoiceNames();
+  S.houseAI = c.houseAI || null; S.houseVoice = c.houseVoice || null; S.houseImages = c.houseImages || null; if ($('#wAiTarget')) renderAiPanel(); renderAIPanel(); renderProducerUI(); renderVoiceNames();
   S.relayOn = !!c.relay; renderLive();
   S.requireAccount = !!c.requireAccount;
   if (c.builtInTurn) $('#turnHint').textContent = 'gather’s built-in relay already connects guests on strict corporate and mobile networks. Add your own only if you need to.';
@@ -3929,9 +3929,11 @@ function syncWizAiBar() {
   if ($('#wAiKey') && document.activeElement !== $('#wAiKey')) $('#wAiKey').value = savedKey;
   if ($('#wAiNote') && !$('#wAiNote').dataset.busy) {
     $('#wAiNote').textContent = savedKey
-      ? `${AI_NAME[prov] || prov} key connected locally. House key is untouched.`
-      : `Paste your own ${AI_NAME[prov] || prov} key to auto-craft titles, #hashtags, cover art, logo & overlays.`;
+      ? `${AI_NAME[prov] || prov} key saved in this browser.`
+      : prov === 'gemini' ? 'Get a free Gemini key at aistudio.google.com/apikey and paste it here. It stays in this browser.'
+        : `Paste your ${AI_NAME[prov] || prov} key. It stays in this browser.`;
   }
+  if ($('#wAiTarget')) renderAiPanel();
 }
 
 function renderKitVisualPreviews() {
@@ -4026,6 +4028,7 @@ function renderWizard() {
   });
   $$('#wTypes [data-wtype]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.wtype === wiz.streamType)));
   $$('.w-later').forEach((el) => (el.hidden = !later));
+  if (later && $('#wMoreFold')) $('#wMoreFold').open = true; // scheduling: the guest list matters
   if ($('#wGo')) $('#wGo').textContent = later ? 'Schedule Stream' : 'Go Live Now';
   if ($('#wMailNote')) {
     $('#wMailNote').textContent = !acct.user
@@ -4060,7 +4063,8 @@ $('#wAiKeySave')?.addEventListener('click', () => {
 async function generateWizKit(withVisuals) {
   const { prov, key } = activeWizAi();
   if (!key) {
-    $('#wAiNote').textContent = `Add your own ${AI_NAME[prov] || prov} API key above first so we never burn shared house keys.`;
+    showAiKeys(true);
+    $('#wAiNote').textContent = `Add your own ${AI_NAME[prov] || prov} API key to write titles, descriptions and hashtags.`;
     $('#wAiKey')?.focus();
     return toast(`Paste your ${AI_NAME[prov] || prov} key to generate AI assets.`, { err: true });
   }
@@ -4089,21 +4093,20 @@ async function generateWizKit(withVisuals) {
     if (kit.headline) { $('#wHeadline').value = kit.headline; $('#wHeadline').dataset.touched = '1'; }
     if (normalizeHex(kit.color)) setStage({ brand: { color: normalizeHex(kit.color) } });
     if (withVisuals) {
-      const canImg = prov === 'openai' || prov === 'gemini' || prov === 'grok';
-      if (canImg) {
-        const bgRes = await fetch('/api/ai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'image', provider: prov, apiKey: key, prompt: kit.thumbPrompt || `${wiz.streamType} broadcast stage background, editorial dark aesthetic` }),
-        }).then((r) => r.json()).catch(() => ({}));
-        if (bgRes.data) wiz.aiBg = await loadImg(bgRes.data);
+      if (aiImageSource()) {
+        // Cover, logo and overlay in parallel; any that fails falls back to the drawn version below.
+        const got = await Promise.allSettled([
+          generateAiAsset('cover', kit.thumbPrompt), generateAiAsset('logo', kit.logoPrompt), generateAiAsset('overlay', kit.overlayPrompt),
+        ]);
+        if (got[1].status === 'rejected') wiz.logoData = null;
+        if (got[2].status === 'rejected') wiz.overlayData = null;
       }
-      wiz.logoData = await rasterizeSvg(buildLogoSvg(kit.color || S.state.brand.color, kit.title || $('#wTitle').value || S.name || 'G'), 256, 256);
-      wiz.overlayData = await rasterizeSvg(buildOverlaySvg(kit.color || S.state.brand.color, wiz.streamType, kit.headline || kit.title || 'LIVE'), 1280, 720);
+      if (!wiz.logoData) wiz.logoData = await rasterizeSvg(buildLogoSvg(kit.color || S.state.brand.color, kit.title || $('#wTitle').value || S.name || 'G'), 256, 256);
+      if (!wiz.overlayData) wiz.overlayData = await rasterizeSvg(buildOverlaySvg(kit.color || S.state.brand.color, wiz.streamType, kit.headline || kit.title || 'LIVE'), 1280, 720);
       const imgs = savedBrandImgs();
       imgs.logo = wiz.logoData; imgs.overlay = wiz.overlayData;
       try { rawSet('brandImgs', imgs); } catch {}
-      renderKitVisualPreviews();
+      renderKitVisualPreviews(); renderAiPanel();
     }
     drawThumb();
     toast(withVisuals ? 'Full AI stream kit generated.' : 'AI copy & hashtags ready.');
@@ -4119,39 +4122,137 @@ async function generateWizKit(withVisuals) {
 
 $('#wAiCopyBtn')?.addEventListener('click', () => generateWizKit(false));
 $('#wAiKitBtn')?.addEventListener('click', () => generateWizKit(true));
-$('#wThumbAiBtn')?.addEventListener('click', async () => {
-  const { prov, key } = activeWizAi();
-  if (!key) { $('#wAiKey')?.focus(); return toast('Paste your own AI key first to generate cover art.', { err: true }); }
-  const btn = $('#wThumbAiBtn'); busy(btn);
-  try {
-    if (prov === 'openai' || prov === 'gemini' || prov === 'grok') {
-      const prompt = `${wiz.streamType} livestream 16:9 broadcast background for "${$('#wTitle').value.trim() || 'Live Show'}", dark editorial lighting, crisp minimal aesthetic`;
-      const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: prov, apiKey: key, prompt }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || 'Image request failed.');
-      wiz.upload = null; wiz.aiBg = await loadImg(j.data);
-      drawThumb();
-      toast('AI cover generated.');
-    } else {
-      const col = S.state.brand.color || '#3b82f6';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><defs><radialGradient id="g1" cx="0.2" cy="0.2" r="0.9"><stop offset="0" stop-color="${col}" stop-opacity="0.32"/><stop offset="1" stop-color="#070c1a" stop-opacity="1"/></radialGradient></defs><rect width="1280" height="720" fill="#070c1a"/><rect width="1280" height="720" fill="url(#g1)"/><circle cx="1040" cy="180" r="240" fill="${col}" fill-opacity="0.1"/></svg>`;
-      wiz.upload = null; wiz.aiBg = await loadImg(await rasterizeSvg(svg, 1280, 720));
-      drawThumb();
-      toast('Editorial vector cover generated with your Claude setup.');
-    }
-  } catch (err) { toast(err.message, { err: true }); }
-  finally { busy(btn, false); }
+// ---------------------------------------------------------------- Create with AI: covers, logos and overlays
+// One panel for all three. Gemini's image model by default: the server's built-in Google key when there is one
+// (Google AI Studio provides it), else the host's own key. ChatGPT and Grok keys work too.
+const AI_IMG_PROVS = ['gemini', 'openai', 'grok'];
+const AI_STYLES = {
+  cover: ['Cinematic studio', 'Neon night', 'Clean minimal', 'Bold gradient', 'Retro VHS', 'Natural daylight'],
+  logo: ['Monogram', 'Geometric mark', 'Mascot', 'Badge', 'Neon sign'],
+  overlay: ['Corner brackets', 'Thin glow frame', 'Neon edge', 'Glass panel', 'Sports broadcast'],
+};
+const AI_TARGET_LABEL = { cover: 'cover', logo: 'logo', overlay: 'overlay' };
+Object.assign(wiz, { aiTarget: 'cover', aiStyle: { cover: 'Cinematic studio', logo: 'Monogram', overlay: 'Corner brackets' }, aiResults: { cover: [], logo: [], overlay: [] }, aiPrompt: {} });
+function aiImageSource() {
+  const prov = $('#wAiProv')?.value || 'gemini';
+  const key = ($('#wAiKey')?.value.trim()) || store.get('aiKey:' + prov, '');
+  if (key && AI_IMG_PROVS.includes(prov)) return { provider: prov, apiKey: key, label: `${AI_NAME[prov] || prov} · your key` };
+  if (S.houseImages) return { provider: 'gemini', apiKey: '', label: `Gemini · built-in (${S.houseImages.daily} a day)` };
+  const gkey = store.get('aiKey:gemini', '');
+  if (gkey) return { provider: 'gemini', apiKey: gkey, label: 'Gemini · your key' };
+  return null;
+}
+function aiDefaultPrompt(t) {
+  const title = $('#wTitle')?.value.trim() || (S.name ? `${S.name}’s show` : 'my show');
+  const kind = { live: 'live talk show', shopping: 'live shopping show', gamer: 'gaming stream' }[wiz.streamType] || 'live show';
+  return t === 'cover' ? `Cover art for “${title}”, a ${kind}`
+    : t === 'logo' ? `A logo for “${title}”, a ${kind}`
+      : `A stage frame for “${title}”, a ${kind}`;
+}
+function renderAiPanel() {
+  const t = wiz.aiTarget, src = aiImageSource();
+  $$('#wAiTarget [data-ai]').forEach((b) => { const on = b.dataset.ai === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+  const p = $('#wAiPrompt');
+  if (document.activeElement !== p) p.value = wiz.aiPrompt[t] ?? aiDefaultPrompt(t);
+  p.placeholder = `Describe the ${AI_TARGET_LABEL[t]} you want`;
+  $('#wAiChips').replaceChildren(...AI_STYLES[t].map((st) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'wiz-ai-chip' + (wiz.aiStyle[t] === st ? ' on' : ''); b.textContent = st;
+    b.setAttribute('aria-pressed', String(wiz.aiStyle[t] === st));
+    b.onclick = () => { wiz.aiStyle[t] = wiz.aiStyle[t] === st ? '' : st; renderAiPanel(); };
+    return b;
+  }));
+  const refSrc = t === 'cover' ? (wiz.photo || wiz.upload) : (wiz.logoData || savedBrandImgs().logo);
+  $('#wAiRefWrap').hidden = !refSrc || src?.provider !== 'gemini';
+  $('#wAiRefTxt').textContent = t === 'cover' ? 'Use my photo as a reference' : 'Use my logo as a reference';
+  $('#wAiWho').textContent = src ? src.label : 'Add a key';
+  $('#wAiWho').classList.toggle('warn', !src);
+  $('#wAiGo').querySelector('span').textContent = `Generate ${AI_TARGET_LABEL[t]}`;
+  const res = wiz.aiResults[t];
+  $('#wAiResults').hidden = !res.length;
+  $('#wAiResults').replaceChildren(...res.map((r, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'wiz-ai-res' + (r.applied ? ' on' : '');
+    b.setAttribute('aria-label', `Use result ${i + 1}`); b.style.aspectRatio = t === 'logo' ? '1' : '16 / 9';
+    const im = document.createElement('img'); im.src = r.data; im.alt = ''; b.append(im);
+    b.onclick = () => applyAiResult(t, r);
+    return b;
+  }));
+}
+function setAiOpen(open) { $('#wAi').classList.toggle('closed', !open); $('#wAiToggle').setAttribute('aria-expanded', String(open)); }
+function openAi(t) {
+  setAiOpen(true); wiz.aiTarget = t; renderAiPanel();
+  $('#wAi').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('#wAi').classList.remove('flash'); void $('#wAi').offsetWidth; $('#wAi').classList.add('flash');
+  setTimeout(() => $('#wAiPrompt').focus(), 250);
+}
+function showAiKeys(open = true) {
+  if (open) setAiOpen(true);
+  $('#wAiKeyBar').hidden = !open; $('#wAiSetup').setAttribute('aria-expanded', String(open));
+  if (open) syncWizAiBar();
+}
+const imgToDataUrl = (src, max = 512) => new Promise((resolve) => {
+  const go = (im) => { const k = Math.min(1, max / Math.max(im.naturalWidth || im.width, im.naturalHeight || im.height)); const c = document.createElement('canvas'); c.width = Math.round((im.naturalWidth || im.width) * k); c.height = Math.round((im.naturalHeight || im.height) * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', 0.85)); };
+  if (typeof src === 'string') loadImg(src).then(go).catch(() => resolve('')); else go(src);
 });
-$('#wLogoAiBtn')?.addEventListener('click', async () => {
-  wiz.logoData = await rasterizeSvg(buildLogoSvg(S.state.brand.color, $('#wTitle').value.trim() || S.name || 'G'), 256, 256);
-  const imgs = savedBrandImgs(); imgs.logo = wiz.logoData; try { rawSet('brandImgs', imgs); } catch {}
-  renderKitVisualPreviews(); toast('Brand logo generated.');
+// An overlay must let the video through: keep the generated art in a band around the edges and cut a soft hole in the middle.
+async function cutOverlay(data) {
+  const im = await loadImg(data), W = 1280, H = 720, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'); g.drawImage(im, 0, 0, W, H);
+  g.globalCompositeOperation = 'destination-out';
+  const x = W * 0.075, y = H * 0.1, w = W - x * 2, h = H - y * 2, r = 22, f = 26;
+  g.filter = `blur(${f / 2}px)`; g.fillStyle = '#000';
+  g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
+  g.filter = 'none'; g.beginPath(); g.roundRect(x + f / 2, y + f / 2, w - f, h - f, r); g.fill();
+  return c.toDataURL('image/png');
+}
+async function squareLogo(data) {
+  const im = await loadImg(data), c = document.createElement('canvas'); c.width = c.height = 256;
+  const s = Math.min(im.naturalWidth, im.naturalHeight), g = c.getContext('2d');
+  g.drawImage(im, (im.naturalWidth - s) / 2, (im.naturalHeight - s) / 2, s, s, 0, 0, 256, 256);
+  return c.toDataURL('image/png');
+}
+async function applyAiResult(t, r) {
+  wiz.aiResults[t].forEach((x) => { x.applied = x === r; });
+  if (t === 'cover') { wiz.upload = null; wiz.aiBg = await loadImg(r.data); drawThumb(); }
+  else {
+    const imgs = savedBrandImgs();
+    if (t === 'logo') { wiz.logoData = r.data; imgs.logo = r.data; } else { wiz.overlayData = r.data; imgs.overlay = r.data; }
+    try { rawSet('brandImgs', imgs); } catch {}
+    renderKitVisualPreviews();
+  }
+  renderAiPanel();
+}
+async function generateAiAsset(t, promptOverride) {
+  const src = aiImageSource();
+  if (!src) { showAiKeys(true); $('#wAiKey').focus(); throw new Error('Add a Gemini key (free at aistudio.google.com) to make images. ChatGPT and Grok keys work too.'); }
+  const style = wiz.aiStyle[t];
+  const prompt = [promptOverride || $('#wAiPrompt').value.trim() || aiDefaultPrompt(t), style ? `Style: ${style}` : '', S.state.brand.color ? `Accent colour ${S.state.brand.color}` : ''].filter(Boolean).join('. ');
+  let ref = '';
+  if (!promptOverride && $('#wAiRef').checked && !$('#wAiRefWrap').hidden) ref = await imgToDataUrl(t === 'cover' ? (wiz.photo || wiz.upload) : (wiz.logoData || savedBrandImgs().logo));
+  const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: src.provider, apiKey: src.apiKey, prompt, purpose: t === 'cover' ? 'thumb' : t, ...(ref ? { ref } : {}) }) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.data) throw new Error(j.error || 'The image request failed. Try again.');
+  const data = t === 'overlay' ? await cutOverlay(j.data) : t === 'logo' ? await squareLogo(j.data) : j.data;
+  const r = { data };
+  wiz.aiResults[t] = [r, ...wiz.aiResults[t]].slice(0, 4);
+  await applyAiResult(t, r);
+  return r;
+}
+$$('#wAiTarget [data-ai]').forEach((b) => b.addEventListener('click', () => { wiz.aiTarget = b.dataset.ai; renderAiPanel(); }));
+$('#wAiPrompt').addEventListener('input', () => { wiz.aiPrompt[wiz.aiTarget] = $('#wAiPrompt').value; });
+$('#wAiPrompt').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('#wAiGo').click(); } });
+$('#wAiSetup').addEventListener('click', () => { setAiOpen(true); showAiKeys($('#wAiKeyBar').hidden); });
+$('#wAiToggle').addEventListener('click', () => setAiOpen($('#wAi').classList.contains('closed')));
+$('#wAiGo').addEventListener('click', async () => {
+  const t = wiz.aiTarget, btn = $('#wAiGo'); busy(btn);
+  $('#wAi').classList.add('working');
+  try { await generateAiAsset(t); toast(`New ${AI_TARGET_LABEL[t]} ready.`); }
+  catch (err) { toast(err.message, { err: true }); }
+  finally { busy(btn, false); $('#wAi').classList.remove('working'); renderAiPanel(); }
 });
-$('#wOverlayAiBtn')?.addEventListener('click', async () => {
-  wiz.overlayData = await rasterizeSvg(buildOverlaySvg(S.state.brand.color, wiz.streamType, $('#wHeadline').value.trim() || $('#wTitle').value.trim() || 'LIVE'), 1280, 720);
-  const imgs = savedBrandImgs(); imgs.overlay = wiz.overlayData; try { rawSet('brandImgs', imgs); } catch {}
-  renderKitVisualPreviews(); toast('Stage overlay generated.');
-});
+$('#wThumbAiBtn')?.addEventListener('click', () => openAi('cover'));
+$('#wLogoAiBtn')?.addEventListener('click', () => openAi('logo'));
+$('#wOverlayAiBtn')?.addEventListener('click', () => openAi('overlay'));
+$('#wTitle')?.addEventListener('input', () => { if (!wiz.aiPrompt[wiz.aiTarget]) renderAiPanel(); });
 $('#wLogoPick')?.addEventListener('click', () => $('#wLogoFile').click());
 $('#wLogoFile')?.addEventListener('change', async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -4232,7 +4333,7 @@ function drawThumb() {
   tg.font = '800 20px Inter, sans-serif';
   const pw = tg.measureText(typeLbl).width + 32;
   const px = st === 'center' ? (Wt - pw) / 2 : 70;
-  tg.fillStyle = accent; rr(px, 54, pw, 38, 8); tg.fill();
+  tg.fillStyle = accent; tg.beginPath(); tg.roundRect(px, 54, pw, 38, 8); tg.fill(); // on the cover canvas (rr() draws on the stage's)
   tg.fillStyle = ink; tg.fillText(typeLbl, px + 16, 80);
 }
 

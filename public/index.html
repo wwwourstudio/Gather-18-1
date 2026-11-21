@@ -1359,17 +1359,12 @@
       <div class="wiz-canvas">
         <div class="wiz-col-setup">
           <div class="wiz-types" id="wTypes" role="group" aria-label="Stream format">
-            <button type="button" class="wiz-type" data-wtype="live" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span>Live</span></button>
-            <button type="button" class="wiz-type" data-wtype="shopping" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span>Shopping</span></button>
-            <button type="button" class="wiz-type" data-wtype="gamer" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg><span>Gamer</span></button>
+            <button type="button" class="wiz-type" data-wtype="live" title="Talk, interviews, Q&amp;A" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span>Live</span></button>
+            <button type="button" class="wiz-type" data-wtype="shopping" title="Products &amp; flash sales" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span>Shopping</span></button>
+            <button type="button" class="wiz-type" data-wtype="gamer" title="Play-with-me &amp; predictions" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg><span>Gamer</span></button>
           </div>
 
-          <label class="fld"><span>Title</span><input id="wTitle" maxlength="100" placeholder="Episode 12: Building in public"></label>
-
-          <div class="wiz-row2">
-            <label class="fld"><span>Hashtags</span><input id="wTags" maxlength="140" placeholder="#live, #qa"></label>
-            <label class="fld"><span>Invite guests</span><input id="wInvites" maxlength="320" placeholder="jordan@example.com, sam@example.com"></label>
-          </div>
+          <div class="fld wiz-title-fld"><span class="wiz-lbl-row"><label for="wTitle">Title</label><button type="button" class="wiz-link" id="wAiCopyBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Write it for me</button></span><input id="wTitle" maxlength="100" placeholder="Episode 12: Building in public"></div>
 
           <div class="w-sched-box w-later" hidden>
             <div class="row3">
@@ -1385,27 +1380,14 @@
             <p class="hint" id="wMailNote" style="margin:0"></p>
           </div>
 
-          <details class="wiz-fold">
-            <summary>Description &amp; AI Stream Kit</summary>
+          <details class="wiz-fold" id="wMoreFold">
+            <summary>More details <span class="wiz-fold-hint">hashtags, guests, description</span></summary>
             <div class="wiz-fold-body">
-              <label class="fld"><span>Description</span><textarea id="wDesc" rows="2" maxlength="1000" placeholder="Topics or guests"></textarea></label>
-              <div class="wiz-ai-bar" aria-label="BYO AI key">
-                <div class="wiz-ai-keyrow">
-                  <select class="input sm" id="wAiProv" aria-label="AI provider">
-                    <option value="claude">Claude</option>
-                    <option value="openai">ChatGPT</option>
-                    <option value="gemini">Gemini</option>
-                    <option value="grok">Grok</option>
-                  </select>
-                  <input class="input sm" id="wAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Your AI API key">
-                  <button type="button" class="btn sm" id="wAiKeySave">Save</button>
-                </div>
-                <div class="wiz-ai-btns">
-                  <button type="button" class="btn sm" id="wAiCopyBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI Copy</button>
-                  <button type="button" class="btn sm primary" id="wAiKitBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg>Full AI Kit</button>
-                </div>
-                <p class="hint" id="wAiNote" style="margin:0"></p>
+              <div class="wiz-row2">
+                <label class="fld"><span>Hashtags</span><input id="wTags" maxlength="140" placeholder="#live, #qa"></label>
+                <label class="fld"><span>Invite guests</span><input id="wInvites" maxlength="320" placeholder="jordan@example.com, sam@example.com"></label>
               </div>
+              <label class="fld"><span>Description</span><textarea id="wDesc" rows="2" maxlength="1000" placeholder="Topics or guests"></textarea></label>
             </div>
           </details>
 
@@ -1413,6 +1395,43 @@
             <div class="wiz-sec-h"><span>Stream to</span></div>
             <div class="social-matrix" id="wizSocialMatrix"></div>
           </div>
+
+          <!-- Create with AI: one place for covers, logos and overlays (Gemini by default) -->
+          <section class="wiz-ai closed" id="wAi" aria-labelledby="wAiH">
+            <header class="wiz-ai-h">
+              <span class="wiz-ai-ic" aria-hidden="true"><svg class="i sm"><use href="/icons.svg#i-sparkles"/></svg></span>
+              <button type="button" class="wiz-ai-toggle" id="wAiToggle" aria-expanded="false" aria-controls="wAiTarget"><b id="wAiH">Create with AI</b><span class="wiz-ai-tease">cover, logo or overlay</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
+              <span class="wiz-ai-who" id="wAiWho">Gemini</span>
+              <button type="button" class="wiz-link" id="wAiSetup" aria-expanded="false" aria-controls="wAiKeyBar">Key</button>
+            </header>
+            <div class="seg sm block wiz-ai-target" id="wAiTarget" role="tablist" aria-label="What to make">
+              <button type="button" role="tab" data-ai="cover" aria-selected="true" class="on">Cover</button>
+              <button type="button" role="tab" data-ai="logo" aria-selected="false">Logo</button>
+              <button type="button" role="tab" data-ai="overlay" aria-selected="false">Overlay</button>
+            </div>
+            <textarea class="input wiz-ai-prompt" id="wAiPrompt" rows="2" maxlength="600" aria-label="Describe what you want"></textarea>
+            <div class="wiz-ai-chips" id="wAiChips" role="group" aria-label="Style"></div>
+            <div class="wiz-ai-row">
+              <label class="wiz-ai-ref" id="wAiRefWrap" hidden><input type="checkbox" id="wAiRef"> <span id="wAiRefTxt">Use my photo as a reference</span></label>
+              <span class="grow"></span>
+              <button type="button" class="btn primary sm" id="wAiGo"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><span>Generate</span></button>
+            </div>
+            <div class="wiz-ai-results" id="wAiResults" aria-label="Recent results" hidden></div>
+            <div class="wiz-ai-keybar" id="wAiKeyBar" hidden>
+              <div class="wiz-ai-keyrow">
+                <select class="input sm" id="wAiProv" aria-label="AI provider">
+                  <option value="gemini">Gemini</option>
+                  <option value="openai">ChatGPT</option>
+                  <option value="grok">Grok</option>
+                  <option value="claude">Claude (text only)</option>
+                </select>
+                <input class="input sm" id="wAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Your API key">
+                <button type="button" class="btn sm" id="wAiKeySave">Save</button>
+              </div>
+              <p class="hint" id="wAiNote"></p>
+              <button type="button" class="btn sm ghost wiz-ai-kit" id="wAiKitBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg>Make the whole kit: title, tags, cover, logo &amp; overlay</button>
+            </div>
+          </section>
         </div>
 
         <div class="wiz-col-media">
@@ -1425,7 +1444,7 @@
                 <button type="button" class="btn sm" id="wSnap">Cam</button>
                 <button type="button" class="btn sm" id="wPhotoPick">Photo</button>
                 <button type="button" class="btn sm" id="wUploadPick">Upload</button>
-                <button type="button" class="btn sm" id="wThumbAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
+                <button type="button" class="btn sm wiz-ai-open" id="wThumbAiBtn" aria-label="Create a cover with AI"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
                 <input type="file" id="wPhotoFile" accept="image/*" hidden>
                 <input type="file" id="wUploadFile" accept="image/*" hidden>
               </div>
@@ -1439,7 +1458,7 @@
                 <b>Logo</b>
                 <div class="wiz-asset-acts">
                   <button type="button" class="btn sm" id="wLogoPick">Upload</button>
-                  <button type="button" class="btn sm" id="wLogoAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
+                  <button type="button" class="btn sm wiz-ai-open" id="wLogoAiBtn" aria-label="Create a logo with AI"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
                   <button type="button" class="btn sm ghost" id="wLogoClear" hidden>Clear</button>
                   <input type="file" id="wLogoFile" accept="image/*" hidden>
                 </div>
@@ -1451,13 +1470,14 @@
                 <b>Overlay</b>
                 <div class="wiz-asset-acts">
                   <button type="button" class="btn sm" id="wOverlayPick">Upload</button>
-                  <button type="button" class="btn sm" id="wOverlayAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
+                  <button type="button" class="btn sm wiz-ai-open" id="wOverlayAiBtn" aria-label="Create an overlay with AI"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
                   <button type="button" class="btn sm ghost" id="wOverlayClear" hidden>Clear</button>
                   <input type="file" id="wOverlayFile" accept="image/*" hidden>
                 </div>
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
