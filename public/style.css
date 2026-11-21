@@ -2194,6 +2194,17 @@ html:not(.booting) body.pre .land-plats, html:not(.booting) body.pre .land-foot 
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 28px 72px -18px rgba(2, 6, 23, 0.8);
 }
 
+/* …and in light mode, the same glass in daylight (the dark navy above left dark text on a dark panel). */
+:root[data-theme="light"] #settingsDlg .modal-card.settings-card,
+:root[data-theme="light"] #helpDlg .modal-card.help-card,
+:root[data-theme="light"] #guestBriefDlg .modal-card {
+  border-color: rgba(15, 23, 42, 0.10);
+  background:
+    radial-gradient(82% 52% at 6% -4%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 64%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.97), rgba(243, 246, 252, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 28px 72px -18px rgba(15, 23, 42, 0.35);
+}
+
 /* ---------------------------------------------------------------- Broadcast Pass: Single-Screen Glassmorphic Lightbox */
 #inviteDlg::backdrop {
   background: rgba(4, 7, 15, 0.68);

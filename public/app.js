@@ -2264,7 +2264,8 @@ const px = (e) => ({ x: e.x * W, y: e.y * H, w: e.w * W, h: e.h * H });
 function drawChatEl(e, t) {
   const r = px(e), pad = 14, fs = e.size, lh = fs * 1.35;
   const now = Date.now();
-  const msgs = S.feed.filter((m) => !isModerated(m) && (!e.fade || now - m.ts < 90_000)).slice(-e.max);
+  // "Guests only" studio chat stays backstage: the stage is what viewers see.
+  const msgs = S.feed.filter((m) => !m.guestsOnly && !isModerated(m) && (!e.fade || now - m.ts < 90_000)).slice(-e.max);
   g.save();
   rr(r.x, r.y, r.w, r.h, 12); g.clip();
   if (e.bg) drawPanel(r.x, r.y, r.w, r.h, 12);
@@ -4852,7 +4853,7 @@ function addMsg(msg) {
     body.push(txt);
   }
   if (msg.file?.id) body.push(attachFileCard(msg.file));
-  const fm = { id: msg.id, src: 'studio', name: msg.name, color: '', text: msg.text || (msg.file?.name ? `📎 ${msg.file.name}` : ''), ts: msg.ts };
+  const fm = { id: msg.id, src: 'studio', name: msg.name, color: '', text: msg.text || (msg.file?.name ? `📎 ${msg.file.name}` : ''), ts: msg.ts, guestsOnly: scope !== 'every' };
   pushFeed(fm);
   setMsgData(li, fm);
   li.append(who, ...body, msgActions(fm));
