@@ -55,11 +55,11 @@ const fakeSR = () => {
   await b.waitForFunction(() => [...window.__gather.peers.values()].some((p) => p.conn === 'connected'), null, { timeout: 15000 });
   // 4 brand options reach the guest
   await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="brand"]');
-  await a.selectOption('#fontSel', 'playfair'); await a.click('#frameSeg [data-frame="corners"]'); await a.click('#tagSeg [data-tag="glass"]');
+  await a.selectOption('#fontSel', 'playfair'); await a.click('#tagSeg [data-tag="glass"]'); await a.click('.look-seg:visible [data-look="overlays"]'); await a.click('#frameSeg [data-frame="corners"]');
   await a.setInputFiles('#logoFile', SP + '/logo.png');
   await b.waitForFunction(() => { const br = window.__gather.state.brand; return br.frame === 'corners' && br.tag === 'glass' && br.font === 'playfair' && br.logo && window.__gather.assets.get(br.logo)?.img; }, null, { timeout: 8000 });
   console.log('4 brand synced to guest (font, tag, frame, logo):', true);
-  await a.click('[data-tab="show"]'); await a.click('#bannerShow');
+  await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="overlays"]'); await a.click('#bannerShow');
   // 5 captions
   await a.click('[data-tab="show"]'); await a.click('.toggle-row:has(#capSwitch)');
   await b.waitForFunction(() => [...(window.__gather.state.captions?.on ? [1] : [])].length, null, { timeout: 5000 });
