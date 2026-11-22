@@ -56,7 +56,8 @@ Guests can also enter their own TURN details under Settings (kept for that brows
 
 ## Run locally
 
-    npm start            # http://localhost:8080 — no install needed, no database needed
+    npm install
+    npm start            # http://localhost:3000 (set PORT to change) — no database needed
 
 Open two tabs, create a studio in one, and join with the code or invite link in the other.
 Locally the studio state lives in memory. Set `KV_REST_API_URL` and `KV_REST_API_TOKEN` to use Redis instead.

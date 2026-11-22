@@ -5171,15 +5171,15 @@ const HELP = [
   ['Send reminders to guests', 'email reminder invite calendar', 'stream', '#wizOpen', 'Go live → Schedule'],
   ['Make a thumbnail', 'thumbnail cover image ai', 'stream', '#wizOpen', 'Go live → Schedule → Thumbnail'],
   ['Vertical video for TikTok, Reels, Shorts', 'vertical portrait 9:16 tiktok reels shorts mobile', 'stream', '#aspectSeg', 'Go live → Format'],
-  ['Turn on live captions', 'captions subtitles transcript accessibility', 'show', '#capSwitch', 'Show → Stage options'],
-  ['Show Twitch or Rumble chat on stage', 'chat overlay twitch rumble comments', 'show', '#overlaySwitch', 'Show → Stage options'],
-  ['Switch scenes / layouts', 'scene layout switch arrange', 'layouts', '#editToggle', 'Look → Layout'],
+  ['Turn on live captions', 'captions subtitles transcript accessibility', 'show:stage', '#capSwitch', 'Audience → Stage → Stage options'],
+  ['Show Twitch or Rumble chat on stage', 'chat overlay twitch rumble comments', 'show:stage', '#overlaySwitch', 'Audience → Stage → Stage options'],
+  ['Switch scenes / layouts', 'scene layout switch arrange', 'layouts', '#editToggle', 'Stage → Layout'],
   ['Present slides, a screen or a video', 'present pdf slides screen share video', null, '#shareBtn', 'Present button in the dock'],
   ['Ask your AI', 'ai claude chatgpt gemini grok research', 'ai', '#aiInput', 'AI'],
-  ['Add a banner or ticker', 'banner lower third ticker headline', 'overlays', '#bannerText', 'Look → Overlays'],
-  ['Upload custom chat emotes', 'emote emoji custom sticker chat', 'overlays', '#emoteName', 'Look → Overlays → Custom emotes'],
-  ['Change stage colours, fonts and animations', 'brand colour color font animation style', 'brand', '#fontSel', 'Look → Brand'],
-  ['Add my logo or a transparent overlay', 'logo overlay watermark frame ai', 'overlays', '#overlayPick', 'Look → Overlays → Stage overlay'],
+  ['Add a banner or ticker', 'banner lower third ticker headline', 'overlays', '#bannerText', 'Stage → Overlays'],
+  ['Upload custom chat emotes', 'emote emoji custom sticker chat', 'overlays', '#emoteName', 'Stage → Overlays → Custom emotes'],
+  ['Change stage colours, fonts and animations', 'brand colour color font animation style', 'brand', '#fontCardGrid', 'Stage → Brand'],
+  ['Add my logo or a transparent overlay', 'logo overlay watermark frame ai', 'overlays', '#overlayPick', 'Stage → Overlays → Stage overlay'],
   ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support', 'shop', '#tipList', 'Shop → Support links'],
   ['Sell products in the live shop', 'shop merch store shopify etsy product sale', 'shop', '#shopDomain', 'Shop'],
   ['Start a live poll or prediction', 'poll prediction vote audience quiz', 'polls', '#pollQ', 'Polls'],
@@ -6173,21 +6173,20 @@ function applyAudienceSub(sub) {
     return;
   }
   $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== 'show'));
-  const groups = {
-    watch: new Set(['watch-link', 'watch-showcase', 'watch-about', 'watch-links']),
-    viewers: new Set(['watch-viewers', 'watch-chat', 'watch-queue']),
-    supers: new Set(['watch-supers', 'watch-goal']),
-    stage: new Set(['watch-stage', 'watch-captions', 'watch-auto', 'watch-clips', 'watch-roles']),
-  };
-  const allow = groups[S.audSub] || groups.watch;
+  // Each top-level section names its sub-tab in data-aud-group (studio-tools.js sets it on the sections it adds).
+  const group = ['watch', 'viewers', 'supers', 'stage'].includes(S.audSub) ? S.audSub : 'watch';
   const body = $('#watchSec');
   if (body) {
     for (const sec of $$('details.psec', body)) {
-      const k = sec.dataset.sec || '';
-      sec.hidden = k ? !allow.has(k) : false;
+      if (sec.parentElement.closest('details.psec')) continue;
+      const g = sec.dataset.audGroup || '';
+      sec.hidden = g ? g !== group : false;
     }
   }
 }
+// panels.js: a jump chip for a section on another sub-tab switches to it; clearing "Find a setting" re-applies the sub-tab.
+document.addEventListener('gather:aud-jump', (e) => { if (e.detail?.group) setTab('show:' + e.detail.group); });
+document.addEventListener('gather:aud-sync', () => { if (S.tab === 'show') applyAudienceSub(S.audSub); });
 function setTab(tab) {
   const raw = TAB_ALIAS[tab] || tab;
   const a = typeof raw === 'string' ? raw : '';
@@ -8339,7 +8338,7 @@ async function cardStatus() {
   renderCard();
 }
 function renderCard() {
-  const box = $('#wpCard'); if (!box) return;
+  const box = $('#wpPayCard'); if (!box) return;
   const go = $('#wpCardGo'), st = $('#wpCardState');
   box.classList.toggle('on', CARD.ready);
   if (!CARD.available) { go.disabled = true; go.textContent = 'Not set up'; st.textContent = 'Card payments need this site’s Stripe keys (STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY). Once they’re added, connect your Stripe here.'; return; }

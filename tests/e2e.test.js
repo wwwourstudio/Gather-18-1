@@ -49,7 +49,7 @@ const SP = process.argv[2];
   await a.screenshot({ path: SP + '/06-rec.png' });
   await a.click('#recDlg .modal-close');
   // spotlight + brand
-  await a.click('#sceneStrip .scene:has-text("Spotlight")'); await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="brand"]'); await a.click('#swatches [data-color="#e8794a"]'); await a.click('#bgs [data-bg="ember"]');
+  await a.click('#sceneStrip .scene:has-text("Spotlight")'); await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="brand"]'); await a.click('#swatches [data-color="#f97316"]'); await a.click('#bgs [data-bg="ember"]');
   await a.click('.look-seg:visible [data-look="overlays"]'); await a.fill('#tickerText', 'Ask your questions in the chat · New episodes every Thursday'); await a.click('#tickerShow');
   await a.waitForTimeout(1500);
   await b.screenshot({ path: SP + '/07-guest-brand.png' });

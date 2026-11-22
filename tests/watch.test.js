@@ -74,7 +74,7 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const a = await mk();
     await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
     await a.waitForSelector('#inviteDlg[open]'); const sc2 = (await a.textContent('#inviteCode')).trim(); await a.keyboard.press('Escape');
-    await a.click('[data-tab="show"]'); await a.check('#wpSupers'); await a.fill('#wpPay-venmo', 'maya-host'); await a.press('#wpPay-venmo', 'Tab');
+    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="supers"]'); await a.check('#wpSupers'); await a.fill('#wpPay-venmo', 'maya-host'); await a.press('#wpPay-venmo', 'Tab');
     await a.click('[data-tab="chat"]');
     const w = await mk();
     await w.goto(B + '/w/' + sc2);

@@ -41,7 +41,7 @@ async function run(camera: string | null, label: string, expectWarning: boolean)
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message))
   await page.goto(`${BASE}/`);
-  await page.click('#enterStage'); await page.fill('#enterName', 'Host'); await page.click('#enterGo');
+  await page.click('#enterStage'); await page.click('#wGo'); await page.waitForSelector('#enterDlg[open]'); await page.fill('#enterName', 'Host'); await page.click('#enterGo');
   await page.waitForSelector('#inviteDlg[open]'); await page.keyboard.press('Escape');
   await page.click('#settingsTop');
   let ok = true;

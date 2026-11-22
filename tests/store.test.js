@@ -32,8 +32,8 @@ const signUp = async (page, name) => {
     await a.click('#shopList .shop-item .btn.primary'); // Pin
     await a.click('#shopList .shop-item .acts button:nth-child(2)'); // Flash sale (prompts answered above)
     check('host: product pinned with a flash sale', await wait(a, () => window.__gather.state.shop?.pinned && window.__gather.state.shop.sale?.code === 'LIVE20'));
-    await a.click('[data-tab="polls"]'); await a.fill('#pollQ', 'Who wins this round?'); await a.fill('#pollOpts', 'Red team\nBlue team'); await a.click('#pollGo');
-    await a.click('[data-tab="gaming"]'); await a.check('#wpQueue');
+    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="polls"]'); await a.fill('#pollQ', 'Who wins this round?'); await a.fill('#pollOpts', 'Red team\nBlue team'); await a.click('#pollGo');
+    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="gaming"]'); await a.check('#wpQueue');
     await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="overlays"]'); await a.fill('#emoteName', 'hype');
     const [fc] = await Promise.all([a.waitForEvent('filechooser'), a.click('#emoteAdd')]); await fc.setFiles(SP + '/logo.png');
     check('host: emote published', await wait(a, () => (window.__gather.state.emotes || []).some((e) => e.name === 'hype')));
@@ -62,7 +62,7 @@ const signUp = async (page, name) => {
     // Host: sees the question and the player; calls the next player.
     await a.click('[data-tab="chat"]');
     check('host: the question is flagged in the studio chat', await wait(a, () => [...document.querySelectorAll('#msgs .msg.ext')].some((li) => /Question/.test(li.textContent) && /GPU/.test(li.textContent))));
-    await a.click('[data-tab="gaming"]'); await a.click('#queueNext');
+    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="gaming"]'); await a.click('#queueNext');
     check('viewer: told they are up, with a join button', await wait(v, () => /You’re up/.test(document.querySelector('#wCards [data-card="queue"]')?.textContent || ''), null, 20000));
 
     // A second viewer likes, mentions, reports; the poll result reaches the host.

@@ -88,7 +88,9 @@ async function main(): Promise<void> {
   check(/Plus Jakarta Sans/.test(m.displayFont), `display font is Plus Jakarta Sans (got ${m.displayFont})`);
   check(m.tnum.includes('tabular-nums'), `.num uses tabular numbers (got ${m.tnum})`);
   check(m.motion[0] === '0.15s' && /cubic-bezier\(0\.22, 1, 0\.36, 1\)/.test(m.motion[1]), `UI motion 150ms ease-out (got ${m.motion.join(' ')})`);
-  check(/rgba\(13, 19, 34, 0\.6\d*\)/.test(m.glass[0]) && /blur\(28px\)/.test(m.glass[1]) && /rgba\(255, 255, 255, 0\.08\)/.test(m.glass[2]), `docked panels are frosted glass: translucent, blurred, light edge (got ${m.glass.join(' | ')})`);
+  // Translucent dark fill, a 28px blur and a light, translucent edge; the exact tints follow the theme tokens.
+  const alpha = (c: string) => { const x = /rgba\([^)]*,\s*([\d.]+)\)/.exec(c); return x ? Number(x[1]) : 1; };
+  check(alpha(m.glass[0]) < 1 && /blur\(28px\)/.test(m.glass[1]) && alpha(m.glass[2]) > 0 && alpha(m.glass[2]) < 0.3, `docked panels are frosted glass: translucent, blurred, light edge (got ${m.glass.join(' | ')})`);
 
   // ---- every state, both themes
   await states(p, 'dark');
@@ -118,7 +120,7 @@ async function main(): Promise<void> {
   // ---- the app uses only primitives' icon set and fonts
   await p.goto(`${BASE}/`); await p.waitForTimeout(800);
   const app = await p.evaluate(() => ({
-    rawSvgs: [...document.querySelectorAll('svg:not(.i):not(.g-logo):not(.brand-mark)')].filter((s) => !s.closest('.media-sink')).length, // .g-logo: Google's required brand mark on the sign-in button; .brand-mark: gather's own logo
+    rawSvgs: [...document.querySelectorAll('svg:not(.i):not(.g-logo):not(.brand-mark):not(.aur-wave):not(.tx-emblem)')].filter((s) => !s.closest('.media-sink')).length, // .g-logo: Google's required brand mark on the sign-in button; .brand-mark: gather's own logo; .aur-wave / .tx-emblem: backdrop art and the Texas emblem, not icons
     sprite: document.querySelectorAll('svg.i use[href^="/icons.svg#i-"]').length,
     fonts: [...new Set([...document.querySelectorAll('body *')].filter((e) => (e as HTMLElement).checkVisibility?.()).map((e) => getComputedStyle(e).fontFamily.split(',')[0].replace(/"/g, '').trim()))],
   }));

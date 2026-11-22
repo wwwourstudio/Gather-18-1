@@ -32,7 +32,7 @@ const SP = process.argv[2];
   await a.route('**/api/ai', (r) => r.fulfill({ status: 200, contentType: 'application/x-ndjson', body: nd([{ t: 'text', d: 'The 1966 World Cup final ended **4–2** to England after extra time.' }, { t: 'text', d: '\n\n- Geoff Hurst scored a hat-trick\n- Played at Wembley' }, { t: 'done' }]) }));
   await a.evaluate(() => localStorage.setItem('gather:aiVoice', '"off"'));
   await a.click('[data-tab="ai"]');
-  await a.fill('#aiKey', 'sk-ant-test-key-for-ui'); await a.press('#aiKey', 'Tab'); await a.click('#aiSetupDone');
+  await a.evaluate(() => { document.querySelector('details[data-sec="ai-advanced"]').open = true; }); await a.fill('#aiKey', 'sk-ant-test-key-for-ui'); await a.press('#aiKey', 'Tab'); await a.click('#aiSetupDone');
   await a.fill('#aiInput', 'Who won the 1966 World Cup final and what was the score?'); await a.press('#aiInput', 'Enter');
   await b.waitForFunction(() => window.__gather.ai.items.some(i => i.role === 'assistant' && i.done && i.text.includes('Hurst')), null, { timeout: 8000 });
   const scene0 = await b.evaluate(() => window.__gather.state.scene);

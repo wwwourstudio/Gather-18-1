@@ -4557,6 +4557,12 @@ body:not(.pre) .rail-btn:hover { color: var(--ink); background: color-mix(in srg
   background: #0d1323;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* The deck's picture is only 104 px wide: keep the host tools small and in the bottom corner so the picture itself
+   (click = on stage / backstage) stays clickable. Hidden tools must not catch clicks either. */
+#deck .crew-tools { right: 3px; bottom: 3px; gap: 2px; }
+#deck .crew-tools .icon-btn { --ib-size: 20px; width: 20px; height: 20px; min-width: 20px; min-height: 20px; border-radius: 5px; }
+#deck .crew-tools .icon-btn .i { width: 12px; height: 12px; }
+@media (hover: hover) { .crew-tools { pointer-events: none; } .crew-card:hover .crew-tools, .crew-tools:focus-within { pointer-events: auto; } }
 #deck .crew-thumb canvas,
 #deck .crew-thumb video,
 #deck .crew-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

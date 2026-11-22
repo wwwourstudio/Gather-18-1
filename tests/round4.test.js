@@ -20,7 +20,7 @@ const fakeSR = () => {
   const a0 = await a.context().newPage();
   await a0.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a0.click('#enterStage'); await a0.click('#wGo'); await a0.waitForSelector('#enterDlg[open]'); await a0.fill('#enterName', 'Alex Morgan'); await a0.click('#enterGo');
   await a0.waitForSelector('#inviteDlg[open]'); await a0.keyboard.press('Escape');
-  await a0.click('[data-tab="look"]'); await a0.click('.look-seg:visible [data-look="brand"]'); await a0.selectOption('#fontSel', 'playfair'); await a0.click('#bannerStyleSeg [data-bs="glass"]');
+  await a0.click('[data-tab="look"]'); await a0.click('.look-seg:visible [data-look="brand"]'); await a0.click('#fontCardGrid [data-font="playfair"]'); await a0.click('#bannerStyleSeg [data-bs="glass"]');
   await a0.click('#settingsTop'); await a0.check('#aiNoiseChk').catch(() => {}); await a0.keyboard.press('Escape');
   await a0.waitForTimeout(2200); await a0.close();
   await a.waitForTimeout(2200);
@@ -55,13 +55,13 @@ const fakeSR = () => {
   await b.waitForFunction(() => [...window.__gather.peers.values()].some((p) => p.conn === 'connected'), null, { timeout: 15000 });
   // 4 brand options reach the guest
   await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="brand"]');
-  await a.selectOption('#fontSel', 'playfair'); await a.click('#tagSeg [data-tag="glass"]'); await a.click('.look-seg:visible [data-look="overlays"]'); await a.click('#frameSeg [data-frame="corners"]');
+  await a.click('#fontCardGrid [data-font="playfair"]'); await a.click('#tagSeg [data-tag="glass"]'); await a.click('.look-seg:visible [data-look="overlays"]'); await a.click('#frameSeg [data-frame="corners"]');
   await a.setInputFiles('#logoFile', SP + '/logo.png');
   await b.waitForFunction(() => { const br = window.__gather.state.brand; return br.frame === 'corners' && br.tag === 'glass' && br.font === 'playfair' && br.logo && window.__gather.assets.get(br.logo)?.img; }, null, { timeout: 8000 });
   console.log('4 brand synced to guest (font, tag, frame, logo):', true);
   await a.click('[data-tab="look"]'); await a.click('.look-seg:visible [data-look="overlays"]'); await a.click('#bannerShow');
   // 5 captions
-  await a.click('[data-tab="show"]'); await a.click('.toggle-row:has(#capSwitch)');
+  await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="stage"]'); await a.click('.toggle-row:has(#capSwitch)');
   await b.waitForFunction(() => [...(window.__gather.state.captions?.on ? [1] : [])].length, null, { timeout: 5000 });
   await a.waitForFunction(() => window.__gather.state.captions.on);
   await a.waitForTimeout(1800);

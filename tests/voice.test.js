@@ -34,7 +34,7 @@ const wait = (p, fn, arg, ms = 10000) => p.waitForFunction(fn, arg, { timeout: m
     check('sent: the dialog closes with a confirmation', await wait(v, () => !document.querySelector('#wVoiceDlg').open && /voice question went to the host/.test(document.querySelector('#wMsgs').textContent)));
 
     check('host: the voice question lands in the studio chat', await wait(a, () => document.querySelector('#msgs [data-vm]')));
-    await a.click('[data-tab="show"]');
+    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="viewers"]');
     check('host: and in the Show panel’s Voice questions list', await wait(a, () => document.querySelectorAll('#vmList li').length === 1));
     await a.click('#vmList li button:has-text("Preview")');
     check('host: preview plays (only for the host)', await wait(a, () => /Stop/.test(document.querySelector('#vmList li').textContent)));

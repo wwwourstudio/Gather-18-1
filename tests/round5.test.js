@@ -64,7 +64,7 @@ const SP = process.argv[2];
   await a.click('#panelSeg [data-panel="solid"]'); await b.waitForFunction(() => window.__gather.state.brand.panel === 'solid', null, { timeout: 5000 });
   console.log('6 watch-link card, sponsor ad and solid panels synced');
   // 7 AI producer (provider mocked)
-  await a.click('[data-tab="ai"]'); await a.fill('#aiKey', 'sk-test'); await a.fill('#aiName', 'Sam');
+  await a.click('[data-tab="ai"]'); await a.evaluate(() => { document.querySelector('details[data-sec="ai-advanced"]').open = true; }); await a.fill('#aiKey', 'sk-test'); await a.fill('#aiName', 'Sam');
   const nd = (evs) => evs.map((e) => JSON.stringify(e)).join('\n') + '\n';
   await a.route('**/api/ai', (r) => r.fulfill({ status: 200, contentType: 'application/x-ndjson', body: nd([{ t: 'text', d: 'Switching to Solo and pulling up the dog video.' }, { t: 'action', a: { type: 'scene', name: 'Solo' } }, { t: 'action', a: { type: 'banner', text: 'Dogs running', sub: 'via YouTube' } }, { t: 'action', a: { type: 'open', url: 'https://www.youtube.com/results?search_query=dog+running', label: 'Dog running' } }, { t: 'done' }]) }));
   await a.evaluate(() => localStorage.setItem('gather:aiVoice', '"off"'));

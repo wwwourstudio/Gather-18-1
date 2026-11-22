@@ -175,9 +175,24 @@ export function createNotifier(root) {
     setCoachVisibility(true);
     attachSwipe(el, () => { if (active === item) finishActive(false); });
     const ms = item.opts.ms ?? (item.opts.err ? 5500 : 3800);
+    item.shownAt = Date.now();
     if (ms > 0) {
+      item.endsAt = item.shownAt + ms;
       item.timer = setTimeout(() => { if (active === item) finishActive(true); }, ms);
     }
+    hurry();
+  }
+
+  // While others are waiting, the one on screen steps aside after a short read (errors get longer), so a burst of
+  // notifications never delays the answer to what the user just did by many seconds.
+  function hurry() {
+    const cur = active;
+    if (!cur || !queue.length || !cur.endsAt) return;
+    const at = cur.shownAt + (cur.opts.err ? 2500 : 1400);
+    if (at >= cur.endsAt) return;
+    clearTimeout(cur.timer);
+    cur.endsAt = at;
+    cur.timer = setTimeout(() => { if (active === cur) finishActive(true); }, Math.max(0, at - Date.now()));
   }
 
   function push(msg, opts = {}) {
@@ -193,7 +208,8 @@ export function createNotifier(root) {
       renderCount(active);
       clearTimeout(active.timer);
       const ms = opts.ms ?? active.opts.ms ?? 3800;
-      if (ms > 0) active.timer = setTimeout(() => { if (active?.key === key) finishActive(true); }, ms);
+      if (ms > 0) { active.shownAt = Date.now(); active.endsAt = active.shownAt + ms; active.timer = setTimeout(() => { if (active?.key === key) finishActive(true); }, ms); }
+      hurry();
       return key;
     }
     // Merge with queued notification if identical key
@@ -208,9 +224,13 @@ export function createNotifier(root) {
     const entry = { key, msg: text, count: 1, opts, el: null, timer: null };
     if (opts.priority === 'high' || opts.err) queue.unshift(entry);
     else queue.push(entry);
-    // Keep queue bounded so bursts never trap the user
-    while (queue.length > 6) queue.pop();
+    // Keep queue bounded so bursts never trap the user: drop the oldest ordinary message, never the newest one
+    while (queue.length > 6) {
+      const i = queue.findIndex((q) => q !== entry && !q.opts.err && q.opts.priority !== 'high');
+      queue.splice(i >= 0 ? i : queue.length - 1, 1);
+    }
     if (!active) showNext();
+    else hurry();
     return key;
   }
 
