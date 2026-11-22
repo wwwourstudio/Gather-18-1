@@ -428,8 +428,25 @@
         </div>
         <div class="wv-composer">
           <div class="wv-replyto" id="wReplyTo" hidden><span><svg class="i" aria-hidden="true"><use href="/icons.svg#i-reply"/></svg>Replying to <b id="wReplyName"></b></span><button type="button" class="icon-btn sm" id="wReplyX" aria-label="Cancel reply"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></div>
+          <!-- Super chat in the chat input: pick an amount, pay the streamer directly, your message goes on screen -->
+          <div class="wv-tipdock" id="wTipDock" hidden role="group" aria-labelledby="wTipH">
+            <div class="wv-tipdock-h">
+              <span class="wv-tipdock-ic" aria-hidden="true">$</span>
+              <div><b id="wTipH">Super chat</b><small id="wTipSub">100% goes straight to the streamer</small></div>
+              <button type="button" class="icon-btn sm" id="wTipX" aria-label="Close super chat"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+            </div>
+            <div class="wv-tipamts" id="wTipAmts" role="radiogroup" aria-label="Amount"></div>
+            <div class="wv-tipmethods" id="wTipMethods" role="radiogroup" aria-label="Pay with"></div>
+            <div class="wv-tipacts">
+              <button type="button" class="btn primary wv-tippay" id="wTipPay">Pay</button>
+              <button type="button" class="btn wv-tipsend" id="wTipSend" disabled>I’ve paid · send</button>
+            </div>
+            <p class="wv-tipnote" id="wTipNote"></p>
+            <p class="wv-err" id="wTipErr" role="alert" hidden></p>
+          </div>
           <div class="wv-inputwrap">
             <input class="input" id="wText" maxlength="300" placeholder="Say something…" aria-label="Chat message" enterkeyhint="send">
+            <button class="wv-tipbtn" id="wTipBtn" type="button" aria-label="Super chat: tip the streamer" aria-expanded="false" aria-controls="wTipDock" data-tip="Super chat" hidden>$</button>
             <button class="wv-send" id="wSend" type="submit" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-send"/></svg></button>
           </div>
           <div class="wv-tools">

@@ -294,6 +294,8 @@ function render(info) {
 
   const w = info.watch || {};
   $('#wSuperBtn').hidden = !w.supers || w.chat === false;
+  $('#wTipBtn').hidden = !w.supers || w.chat === false;
+  if ($('#wTipBtn').hidden && !$('#wTipDock').hidden) closeTipDock();
   $('#wMic').hidden = w.voice === false || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
   $('#wChatState').textContent = !info.found ? '' : w.chat === false ? 'Chat off' : w.slow ? `Slow · ${w.slow}s` : '';
   $('#wCompose').hidden = !info.found || w.chat === false;
@@ -903,7 +905,86 @@ function openSuperRefresh() {
   $('#wPayNote').textContent = `Your payment goes straight to the host${SC.method === 'stripe' ? ' through Stripe' : ` on ${label}`}. gather never touches it. Enter $${SC.amount} if the app asks.`;
   $('#wPaid').disabled = !SC.opened;
 }
-$('#wSuperBtn').onclick = () => openSuper();
+$('#wSuperBtn').onclick = () => openTipDock();
+
+// ---------------------------------------------------------------- super chat in the chat input
+// The same direct payment as the dialog (the streamer's own PayPal / Venmo / Cash App / Stripe link; gather never
+// touches the money), but inline: the message you're typing becomes the super chat.
+const tierOf = (a) => (a >= 50 ? 'rose' : a >= 20 ? 'amber' : a >= 10 ? 'emerald' : 'blue');
+function tipRender() {
+  const w = W.info?.watch || {};
+  const methods = Object.keys(PAY).filter((m) => w.pay?.[m]);
+  if (!methods.includes(SC.method)) SC.method = methods[0] || '';
+  const min = w.min || 2;
+  SC.amount = Math.max(SC.amount, min);
+  const amounts = [...new Set([min, 5, 10, 20, 50, 100].filter((a) => a >= min))].slice(0, 5);
+  $('#wTipAmts').replaceChildren(...amounts.map((a) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.tier = tierOf(a); b.className = 'num'; b.textContent = '$' + a;
+    b.setAttribute('aria-checked', String(a === SC.amount)); b.onclick = () => { SC.amount = a; SC.opened = false; const c = $('#wTipCustom'); if (c) c.value = ''; tipRender(); };
+    return b;
+  }), (() => {
+    const c = Object.assign(document.createElement('input'), { className: 'input num', id: 'wTipCustom', type: 'number', min: String(min), max: '10000', step: '1', placeholder: 'Other', inputMode: 'decimal' });
+    c.setAttribute('aria-label', 'Other amount in dollars');
+    if (!amounts.includes(SC.amount)) c.value = String(SC.amount);
+    c.oninput = () => { const v = Math.round(Number(c.value)); if (v >= min) { SC.amount = v; SC.opened = false; tipSync(); } };
+    return c;
+  })());
+  $('#wTipMethods').replaceChildren(...methods.map((m) => {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.m = m; b.textContent = m === 'stripe' ? 'Card / Apple Pay' : PAY[m].label;
+    b.onclick = () => { SC.method = m; SC.opened = false; tipSync(); };
+    return b;
+  }));
+  $('#wTipSub').textContent = `100% goes straight to ${W.info?.host?.name || 'the streamer'}`;
+  tipSync();
+}
+function tipSync() {
+  $$('#wTipAmts button').forEach((b) => b.setAttribute('aria-checked', String(b.textContent === '$' + SC.amount)));
+  $$('#wTipMethods button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.m === SC.method)));
+  $('#wTipDock').dataset.tier = tierOf(SC.amount);
+  const label = SC.method === 'stripe' ? 'card' : PAY[SC.method]?.label || '';
+  $('#wTipPay').textContent = SC.opened ? `Open ${label} again` : `Pay $${SC.amount}${label ? ' with ' + label : ''}`;
+  $('#wTipSend').disabled = !SC.opened;
+  $('#wTipSend').textContent = `I’ve paid · send $${SC.amount}`;
+  const msg = $('#wText').value.trim();
+  $('#wTipNote').textContent = SC.opened
+    ? `Paid? Send it and it goes on screen as soon as the streamer sees your $${SC.amount}.`
+    : msg ? `“${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}” goes on screen, highlighted.` : 'Type a message below to go with it (optional).';
+}
+function openTipDock() {
+  const w = W.info?.watch || {};
+  if (!w.supers) return;
+  SC.opened = false; showErr('#wTipErr', '');
+  $('#wTipDock').hidden = false; $('#wTipBtn').setAttribute('aria-expanded', 'true'); $('#wTipBtn').classList.add('on');
+  tipRender();
+  $('#wText').placeholder = 'Add a message to your super chat…';
+}
+function closeTipDock() {
+  $('#wTipDock').hidden = true; $('#wTipBtn').setAttribute('aria-expanded', 'false'); $('#wTipBtn').classList.remove('on');
+  $('#wText').placeholder = 'Say something…';
+}
+$('#wTipBtn').onclick = () => ($('#wTipDock').hidden ? openTipDock() : closeTipDock());
+$('#wTipX').onclick = closeTipDock;
+$('#wText').addEventListener('input', () => { if (!$('#wTipDock').hidden) tipSync(); });
+$('#wTipPay').onclick = async () => {
+  const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
+  if (!handle) return showErr('#wTipErr', 'The streamer hasn’t set up a payment method yet.');
+  try { await ensureSession(); } catch {}
+  window.open(PAY[SC.method].link(handle, SC.amount, `Super chat on gather: ${($('#wText').value || '').slice(0, 60)}`), '_blank', 'noopener');
+  SC.opened = true; tipSync();
+};
+$('#wTipSend').onclick = async () => {
+  showErr('#wTipErr', '');
+  try {
+    await ensureSession();
+    if (!sess?.named) { closeTipDock(); return openSuper(); } // no chat name yet: the full dialog asks for one
+    const text = $('#wText').value.trim();
+    const r = await api('wsend', { ...creds(), type: 'super', amount: SC.amount, method: SC.method, text });
+    $('#wText').value = ''; closeTipDock();
+    $('#wMsgs').append(msgEl({ id: 'mine-' + r.id, sc: r.id, name: sess.name, text: text || 'Waiting for the streamer to confirm your super chat…', paid: '$' + SC.amount, status: 'pending' }));
+    $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
+    toast(`Sent. Your $${SC.amount} super chat shows up once the streamer sees the payment.`);
+  } catch (err) { showErr('#wTipErr', err.message); }
+};
 $('#wPayGo').onclick = async () => {
   const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
   if (!handle) return;
@@ -2022,7 +2103,7 @@ function renderShowcase(info) {
         mkAct('i-activity', 'Room Pulse', 'Check crowd sentiment, pins, and viewers', () => setTab('pulse')),
       ];
       if (canMic) items.push(mkAct('i-mic', 'Ask by Voice', 'Record a 45s voice question for the host', () => voiceOpen()));
-      if (canTip) items.push(mkAct('i-tip', 'Send a Super Chat', 'Highlight a tipped message on screen', () => openSuper()));
+      if (canTip) items.push(mkAct('i-tip', 'Send a Super Chat', 'Tip the streamer directly, right in chat', () => openTipDock()));
       if (items.length < 4) items.push(mkAct('i-share-2', 'Invite Friends', 'Share this Watch Party link', () => $('#wShareTop').click()));
       if (items.length < 4) items.push(mkAct('i-info', 'Show Details', 'View links, platforms, and host bio', () => openHostDrawer(true)));
       deck.replaceChildren(...items.slice(0, 4));

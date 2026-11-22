@@ -84,9 +84,11 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     await signUp(w, 'Jordan'); // the message waiting in the box goes out once they're signed in
     const inStudio = await a.waitForFunction(() => [...document.querySelectorAll('#msgs .msg.ext')].some((li) => /Hello from the watch page/.test(li.textContent)), null, { timeout: 10000 }).then(() => true).catch(() => false);
     check('viewer chat reaches the studio chat', inStudio);
-    await w.click('#wSuperBtn'); await w.click('#wAmounts button:has-text("$10")'); await w.fill('#wScName', 'Jordan'); await w.fill('#wScText', 'Shout-out!');
+    // Super chat right in the chat input: $ opens the tip tray, the typed message rides along.
+    await w.click('#wTipBtn'); await w.click('#wTipAmts button:has-text("$10")'); await w.fill('#wText', 'Shout-out!');
     await w.evaluate(() => { window.open = () => null; }); // the payment app opens in a new tab; not reachable from the test sandbox
-    await w.click('#wPayGo'); await w.click('#wPaid');
+    check('super chat: send stays locked until the payment app was opened', await w.isDisabled('#wTipSend'));
+    await w.click('#wTipPay'); await w.click('#wTipSend');
     const pending = await a.waitForSelector('#msgs .sc-pending', { timeout: 10000 }).then(() => true).catch(() => false);
     check('a new super chat shows in the studio chat with its confirm buttons', pending);
     await a.click('#msgs .sc-pending .btn.primary');

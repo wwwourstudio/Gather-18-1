@@ -2070,3 +2070,36 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 }
 .wv-drop-more { grid-column: 1 / -1; justify-self: center; font: 600 11.5px var(--font-ui); color: var(--ink-3); padding: 2px 8px; }
 .wv-drop-more:hover { color: var(--ink); }
+
+/* ================================================================ super chat in the chat input */
+.wv-tipbtn { flex: none; width: 32px; height: 32px; margin-right: 4px; display: grid; place-items: center; border-radius: 9px; font: 800 15px/1 var(--font-ui); color: #4ade80; background: rgba(34, 197, 94, 0.14); transition: background 0.15s, color 0.15s, transform 0.15s; }
+.wv-tipbtn[hidden] { display: none; }
+.wv-tipbtn:hover { background: rgba(34, 197, 94, 0.24); transform: translateY(-1px); }
+.wv-tipbtn.on { color: #052e16; background: linear-gradient(135deg, #4ade80, #22c55e); box-shadow: 0 6px 16px -6px rgba(34, 197, 94, 0.8); }
+.wv-tipdock { --t1: #3b82f6; --t2: #60a5fa; display: grid; gap: 9px; margin: 0 0 8px; padding: 11px; border-radius: 14px; background: linear-gradient(160deg, color-mix(in srgb, var(--t1) 16%, rgba(12, 18, 36, 0.9)), rgba(10, 15, 30, 0.92)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--t1) 45%, transparent), 0 16px 34px -18px rgba(0, 0, 0, 0.9); animation: wv-tip-in 0.28s var(--ease-out); transition: background 0.3s, box-shadow 0.3s; }
+.wv-tipdock[hidden] { display: none; }
+.wv-tipdock[data-tier="emerald"] { --t1: #22c55e; --t2: #4ade80; }
+.wv-tipdock[data-tier="amber"] { --t1: #f59e0b; --t2: #fbbf24; }
+.wv-tipdock[data-tier="rose"] { --t1: #f43f5e; --t2: #fb7185; }
+@keyframes wv-tip-in { from { opacity: 0; transform: translateY(8px); } }
+.wv-tipdock-h { display: flex; align-items: center; gap: 9px; }
+.wv-tipdock-h > div { display: grid; flex: 1; min-width: 0; }
+.wv-tipdock-h b { font: 700 13px var(--font-ui); color: #fff; }
+.wv-tipdock-h small { font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-tipdock-ic { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 8px; font: 800 14px var(--font-ui); color: #0b1020; background: linear-gradient(135deg, var(--t2), var(--t1)); }
+.wv-tipamts { display: flex; flex-wrap: wrap; gap: 5px; }
+.wv-tipamts button { height: 30px; padding: 0 11px; border-radius: 8px; font: 700 12.5px var(--font-ui); color: var(--ink); background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18); }
+.wv-tipamts button[aria-checked="true"] { color: #0b1020; background: linear-gradient(135deg, var(--t2), var(--t1)); box-shadow: none; }
+.wv-tipamts input { width: 74px; height: 30px; padding: 0 8px; font-size: 12.5px; }
+.wv-tipmethods { display: flex; flex-wrap: wrap; gap: 5px; }
+.wv-tipmethods button { height: 26px; padding: 0 10px; border-radius: 999px; font: 600 11.5px var(--font-ui); color: var(--ink-2); background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16); }
+.wv-tipmethods button[aria-checked="true"] { color: #fff; box-shadow: inset 0 0 0 1.5px var(--t2); background: color-mix(in srgb, var(--t1) 18%, transparent); }
+.wv-tipacts { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 6px; }
+.wv-tipacts .btn { height: 36px; justify-content: center; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-tippay { background: linear-gradient(120deg, var(--t1), var(--t2)) !important; border-color: transparent !important; color: #0b1020 !important; font-weight: 800 !important; }
+.wv-tipnote { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) { .wv-tipdock { animation: none; } }
+/* the $ sits inside the input, just left of Send */
+.wv-inputwrap .wv-tipbtn { position: absolute; right: 40px; top: 4px; margin: 0; z-index: 1; }
+.wv-inputwrap:has(.wv-tipbtn:not([hidden])) .input { padding-right: 82px; }
+.wv-tipamts input.input { height: 30px !important; min-height: 30px; width: 76px; flex: none; border-radius: 8px; }
