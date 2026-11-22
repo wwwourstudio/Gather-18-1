@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { handle, useBuiltInRelay } = require('./lib/studio');
 const { handleAI } = require('./lib/ai');
+const { importBrandFromUrl } = require('./lib/brand-import');
 const accountHandler = require('./api/account');
 const { enforceUsGeo } = require('./lib/geo');
 
@@ -17,9 +18,78 @@ function json(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
+// Lightweight live translation helper for captions & watch chat (uses house Gemini key when configured, with fast fallback).
+const TRANSLATE_CACHE = new Map();
+async function handleTranslate(req, res, body) {
+  const texts = (Array.isArray(body?.texts) ? body.texts : [body?.text]).map((t) => String(t || '').trim().slice(0, 320)).filter(Boolean).slice(0, 12);
+  const lang = String(body?.lang || '').replace(/[^a-zA-Z-]/g, '').slice(0, 16);
+  if (!texts.length || !lang || lang === 'orig') return json(res, 200, { translations: texts });
+  const key = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || (process.env.HOUSE_AI_PROVIDER === 'gemini' ? process.env.HOUSE_AI_KEY || '' : '')).trim();
+  const out = new Array(texts.length);
+  const todo = [];
+  texts.forEach((t, i) => {
+    const ck = `${lang}:${t}`;
+    if (TRANSLATE_CACHE.has(ck)) out[i] = TRANSLATE_CACHE.get(ck);
+    else todo.push({ i, t, ck });
+  });
+  if (!todo.length) return json(res, 200, { translations: out });
+  if (!key) {
+    // Graceful no-key fallback: return original texts with language tag hint disabled.
+    todo.forEach(({ i, t }) => { out[i] = t; });
+    return json(res, 200, { translations: out, offline: true });
+  }
+  try {
+    const model = String(process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash').trim();
+    const prompt = `Translate each JSON string in the array into language "${lang}". Preserve names, emojis, and tone. Return ONLY a JSON array of strings of the exact same length.\n${JSON.stringify(todo.map((x) => x.t))}`;
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const raw = (j?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length === todo.length) {
+        todo.forEach(({ i, t, ck }, idx) => {
+          const tr = String(arr[idx] || t).slice(0, 400);
+          out[i] = tr;
+          if (TRANSLATE_CACHE.size > 600) TRANSLATE_CACHE.clear();
+          TRANSLATE_CACHE.set(ck, tr);
+        });
+        return json(res, 200, { translations: out });
+      }
+    }
+  } catch {}
+  todo.forEach(({ i, t }) => { out[i] = t; });
+  return json(res, 200, { translations: out });
+}
+
 const gatherServer = http.createServer((req, res) => {
   if (!enforceUsGeo(req, res)) return;
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/api/brand-import' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (c) => { raw += c; if (raw.length > 16 * 1024) req.destroy(); });
+    req.on('end', async () => {
+      let body = {};
+      try { body = JSON.parse(raw || '{}'); } catch {}
+      try { json(res, 200, await importBrandFromUrl(body.url)); }
+      catch (e) { json(res, 400, { error: e.message || 'Could not read that website.' }); }
+    });
+    return;
+  }
+  if (u.pathname === '/api/translate' && req.method === 'POST') {
+    let raw = '';
+    req.on('data', (c) => { raw += c; if (raw.length > 32 * 1024) req.destroy(); });
+    req.on('end', () => {
+      let body = {};
+      try { body = JSON.parse(raw || '{}'); } catch {}
+      handleTranslate(req, res, body);
+    });
+    return;
+  }
   if (u.pathname === '/api/ai' && req.method === 'POST') {
     let raw = '';
     req.on('data', (c) => { raw += c; if (raw.length > 3 * 1024 * 1024) req.destroy(); }); // room for up to 3 reference images
@@ -50,7 +120,7 @@ const gatherServer = http.createServer((req, res) => {
   else if (p.startsWith('/w/')) p = '/watch.html';
   else if (p === '/privacy' || p === '/terms') p += '.html';
   const file = path.normalize(path.join(PUBLIC, p));
-  if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
+  if (file !== PUBLIC && !file.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });

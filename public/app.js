@@ -1,8 +1,12 @@
 import { createAudioChain, createVideoFx, needsProcessing } from './fx.js';
-import { initPanels } from './panels.js';
+import { initPanels, refreshSections } from './panels.js';
 import { icon, busy, togglePopover } from './ui.js';
 import { configureGoogle, googleConfigured, googleSignedIn, googleToken, googleSignOut, saveToDrive, findLiveChat, pollLiveChat, ytModerate, googleSignInToken, setYouTubeThumbnail } from './google.js';
 import { TIERS, tierOf, drawOrder, isSystem, ensureSystem, blockerFor, overlaps, snapMove, snapResize, resolve, SAFE, GRID, PRESETS, materialize } from './layout.js';
+import { createNotifier } from './notify.js';
+import { drawThemedFeatured, drawPurchaseAlert, drawShopDropBadge, drawVoiceOnAir, drawGoalConfetti, drawCountdownScreen, drawSponsorCard, resolveCardColors } from './stage-theme.js';
+import { initAudioStudio } from './audio-studio.js';
+import { initStudioTools } from './studio-tools.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
@@ -64,6 +68,16 @@ if (!store.get('brandBlueV3', false)) {
     store.set('brandPrefs', bp);
   }
   store.set('brandBlueV3', true);
+}
+// One-time clean stage migration: clear legacy baked-in default overlay (old ON AIR / show title / blue frame) & frame border.
+if (!store.get('cleanStageV3', false)) {
+  try {
+    const imgs = store.get('brandImgs', {});
+    if (imgs && imgs.overlay) { delete imgs.overlay; store.set('brandImgs', imgs); }
+    const bp = store.get('brandPrefs', {});
+    if (bp && bp.frame && bp.frame !== 'none') { bp.frame = 'none'; store.set('brandPrefs', bp); }
+  } catch {}
+  store.set('cleanStageV3', true);
 }
 
 const MAX = 6;
@@ -162,19 +176,11 @@ function applyAdaptiveAccent(hex) {
   root.setProperty('--accent-text', textColor);
 }
 
-// ---------------------------------------------------------------- utils
-function toast(msg, opts = {}) {
-  const t = document.createElement('div');
-  t.className = 'toast glass on-media' + (opts.err ? ' err' : '');
-  t.setAttribute('role', opts.err ? 'alert' : 'status');
-  t.textContent = msg;
-  if (opts.action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm link'; b.textContent = opts.action[0]; b.onclick = () => { opts.action[1](); t.remove(); }; t.append(b); }
-  const box = $('#toasts');
-  box.append(t);
-  // Re-show the popover each time, so it is the newest thing in the top layer and never hides behind a dialog.
-  if (box.showPopover) { try { if (box.matches(':popover-open')) box.hidePopover(); box.showPopover(); } catch {} }
-  setTimeout(() => { t.remove(); if (!box.children.length && box.hidePopover) { try { box.hidePopover(); } catch {} } }, opts.ms || 3200);
-}
+// ---------------------------------------------------------------- utils (single unified notification queue)
+const notifier = createNotifier('#toasts');
+function toast(msg, opts = {}) { return notifier.push(msg, opts); }
+toast.dismiss = (key) => notifier.dismiss(key);
+toast.clear = () => notifier.clear();
 // A dialog opened after a toast would cover it; bring the toasts back on top.
 for (const d of document.querySelectorAll('dialog')) new MutationObserver(() => { const box = $('#toasts'); if (d.open && box.children.length && box.showPopover) { try { box.hidePopover(); box.showPopover(); } catch {} } }).observe(d, { attributes: true, attributeFilter: ['open'] });
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
@@ -1026,6 +1032,18 @@ async function onServer(m) {
       S.iceServers = await iceConfig(m.iceServers);
       const pre = S.state;
       S.state = m.state;
+      // Clear any legacy server-saved frame border or old baked-in default overlay when rejoining an older studio.
+      if (S.state?.brand && (S.state.brand.frame === 'border' || S.state.brand.frame === 'corners')) {
+        S.state.brand.frame = 'none';
+      }
+      if (S.host === S.id && !store.get('cleanRoomOverlayV3:' + S.studio, false)) {
+        store.set('cleanRoomOverlayV3:' + S.studio, true);
+        if (S.state?.brand && (S.state.brand.overlay || S.state.brand.frame !== 'none')) {
+          S.state.brand.overlay = '';
+          S.state.brand.frame = 'none';
+          setTimeout(() => { if (S.host === S.id) setStage({ brand: { overlay: '', frame: 'none' } }); }, 150);
+        }
+      }
       S.brief = m.brief || null;
       S.chatScope = m.state?.chatOpts?.defaultScope === 'every' ? 'every' : 'guests';
       S.pendingChatFile = null;
@@ -1333,7 +1351,7 @@ function flushEditorLayers() {
   for (const l of editorLayers.splice(0)) if (l.editorOnly && isHost()) { ed.save(); l.paint(ed); ed.restore(); }
 }
 function layoutRects(n, layout, area) {
-  const { x, y, w, h } = area, gap = 16;
+  const { x, y, w, h } = area, gap = 4;
   if (!n) return [];
   if (layout === 'solo' || n === 1) return [{ x, y, w, h }];
   if (layout === 'spotlight') {
@@ -1364,12 +1382,26 @@ function drawBackground(t) {
     g.fillStyle = `rgba(4,8,20,${S.state.brand.dim ?? 0.25})`; g.fillRect(0, 0, W, H);
     return;
   }
+  const customBg = window.__gatherCustomBg;
+  if (customBg && customBg.on) {
+    if (customBg.mode === 'solid') {
+      g.fillStyle = customBg.c1 || '#0b1020';
+      g.fillRect(0, 0, W, H);
+      return;
+    }
+    const rad = ((Number(customBg.angle) || 135) * Math.PI) / 180;
+    const dx = Math.cos(rad) * W * 0.5, dy = Math.sin(rad) * H * 0.5;
+    const cg = g.createLinearGradient(W / 2 - dx, H / 2 - dy, W / 2 + dx, H / 2 + dy);
+    cg.addColorStop(0, customBg.c1 || '#0b1020');
+    cg.addColorStop(1, customBg.c2 || '#1d4ed8');
+    g.fillStyle = cg; g.fillRect(0, 0, W, H);
+    return;
+  }
   const ac = accentOf();
   const [a, b, c, glow] = S.state.brand.bg === 'dusk' || !BGS[S.state.brand.bg] ? [mixHex(ac, '#05070d', 0.8), mixHex(ac, '#070a14', 0.66), mixHex(ac, '#0b0f1e', 0.5), hexA(mixHex(ac, '#ffffff', 0.5), 0.07)] : BGS[S.state.brand.bg];
   const grd = g.createLinearGradient(0, 0, W, H);
   grd.addColorStop(0, a); grd.addColorStop(.6, b); grd.addColorStop(1, c);
   g.fillStyle = grd; g.fillRect(0, 0, W, H);
-  // The big soft arc from the original stage, breathing very slowly.
   const r = 640 + Math.sin(t / 4000) * 12;
   g.strokeStyle = glow; g.lineWidth = 2;
   for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(-60, H * 0.62, r - i * 70, 0, Math.PI * 2); g.stroke(); }
@@ -1382,8 +1414,8 @@ function drawTile(p, rect, t) {
   const el = cardVideo(p.id);
   const brand = S.state.brand;
   g.save();
-  const R = rect.r ?? 10;
-  rr(x, y, w, h, R); g.clip();
+  const R = rect.r ?? 0;
+  if (R > 0) { rr(x, y, w, h, R); g.clip(); }
   const hasVid = p.cam && el && el.readyState >= 2 && el.videoWidth > 0;
   if (hasVid) {
     const vw = el.videoWidth, vh = el.videoHeight;
@@ -1392,10 +1424,9 @@ function drawTile(p, rect, t) {
   } else drawAudioTile(p, x, y, w, h, t);
   g.restore();
 
-  // Active speaker ring.
+  // Track speaking timestamps for crew cards & AI director (no flashing border drawn over the video).
   const now = performance.now();
   if (p.mic && p.level > 0.02) speaking.set(p.id, now);
-  if (now - (speaking.get(p.id) || -1e9) < 450) { g.strokeStyle = brand.color; g.lineWidth = 4; rr(x + 2, y + 2, w - 4, h - 4, Math.max(0, R - 1)); g.stroke(); }
 
   // Name tag.
   const fs = Math.max(13, Math.min(18, h * 0.045));
@@ -1503,11 +1534,6 @@ function drawTicker(t, r) {
 function drawFrame() {
   const brand = S.state.brand, f = brand.frame;
   if (f === 'vignette') { const r = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = r; g.fillRect(0, 0, W, H); }
-  if (f === 'border') { g.strokeStyle = brand.color; g.lineWidth = 8; g.strokeRect(4, 4, W - 8, H - 8); }
-  if (f === 'corners') {
-    g.strokeStyle = brand.color; g.lineWidth = 6; g.lineCap = 'round'; const L = Math.min(W, H) * .08, m = 18;
-    for (const [cx, cy, sx, sy] of [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]]) { g.beginPath(); g.moveTo(cx, cy + sy * L); g.lineTo(cx, cy); g.lineTo(cx + sx * L, cy); g.stroke(); }
-  }
   const ov = assetImg(brand.overlay);
   if (ov) g.drawImage(ov, 0, 0, W, H);
 }
@@ -1551,13 +1577,22 @@ function draw() {
   if (!onStage.length) {
     editorOnly((c) => { c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '600 22px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Add someone to the stage from “In the studio”.', W / 2, H / 2); });
   }
-  // Built-in layouts place cameras automatically, above the ticker when it runs along the bottom.
+  // Built-in layouts place cameras automatically. Single-video solo fills edge-to-edge with zero margin.
   if (!custom || !els.some((e) => e.type === 'slot')) {
     const tick = els.find((e) => e.type === 'ticker');
-    const bottom = tick && S.state.ticker && tick.y > .7 ? tick.y * H - 12 : H - 32;
-    const rects = layoutRects(onStage.length, custom ? 'split' : S.state.layout, { x: 32, y: 44, w: W - 64, h: bottom - 44 });
-    onStage.forEach((p, i) => rects[i] && drawTile(p, rects[i], t));
-    camRects = rects.slice(0, onStage.length);
+    const hasTicker = !!(tick && S.state.ticker && tick.y > .7);
+    const hasOtherPanels = els.some((e) => !e.hidden && ['media', 'chat', 'score', 'bounty', 'ai', 'tip', 'callin', 'image', 'text', 'timer', 'shape'].includes(e.type));
+    const onlyVideo = onStage.length === 1 && !hasTicker && !hasOtherPanels;
+    if (onlyVideo) {
+      const fullRect = { x: 0, y: 0, w: W, h: H, r: 0 };
+      drawTile(onStage[0], fullRect, t);
+      camRects = [fullRect];
+    } else {
+      const bottom = hasTicker ? tick.y * H : H;
+      const rects = layoutRects(onStage.length, custom ? 'split' : S.state.layout, { x: 0, y: 0, w: W, h: bottom });
+      onStage.forEach((p, i) => rects[i] && drawTile(p, { ...rects[i], r: 0 }, t));
+      camRects = rects.slice(0, onStage.length);
+    }
   } else camRects = [];
   let framed = false;
   for (const e of els) {
@@ -1566,6 +1601,27 @@ function draw() {
   }
   if (!framed) drawFrame();
   drawChrome();
+  // Brand-themed overlays: live drop stock badge, purchase alerts, voice waveform, sponsors, goal confetti, countdown screen.
+  try {
+    const font = stageFont();
+    const sh = S.state.shop;
+    if (sh?.pinned && sh.items?.length) {
+      const pinnedItem = sh.items.find((x) => x.id === sh.pinned);
+      if (pinnedItem) drawShopDropBadge(g, W, H, pinnedItem, sh.dropUntil || 0, S.state.brand, font);
+    }
+    if (S.state.purchaseAlert?.ts) drawPurchaseAlert(g, W, H, S.state.purchaseAlert, S.state.brand, font);
+    if (S.state.voiceOnAir?.ts) drawVoiceOnAir(g, W, H, S.state.voiceOnAir, S.state.brand, font, t);
+    const activeSponsor = (S.state.sponsors || []).find((sp) => sp.on);
+    if (activeSponsor) drawSponsorCard(g, W, H, activeSponsor, S.state.brand, font);
+    if (window.__gatherConfettiUntil > Date.now()) drawGoalConfetti(g, W, H, S.state.brand, t);
+    if (S.state.countdown?.on) {
+      if (S.state.countdown.autoLive && S.state.countdown.target && S.state.countdown.target <= Date.now()) {
+        if (isHost()) setStage({ countdown: { ...S.state.countdown, on: false } });
+      } else {
+        drawCountdownScreen(g, W, H, S.state.countdown, S.state.brand, font, S.feed.slice(-3));
+      }
+    }
+  } catch {}
   drawScAlert(t);
   if (sceneFade.active) {
     const raw = (t - sceneFade.from) / sceneFade.dur;
@@ -2595,10 +2651,22 @@ async function playScVoice(x, onAir) {
     if (!scVoiceCache.has(x.id)) scVoiceCache.set(x.id, (await api('scVoice', { ...creds(), sc: x.id })).data);
     const a = new Audio(scVoiceCache.get(x.id));
     const mix = onAir ? mixInMedia(audioCtx().createMediaElementSource(a), { duck: false, monitor: true }) : null;
-    const stop = () => { try { a.pause(); } catch {} mix?.dispose(); if (scVoicePlaying?.a === a) scVoicePlaying = null; };
+    if (onAir && isHost()) {
+      setStage({ voiceOnAir: { id: x.id, name: x.name, amount: x.amount, dur: x.voice || 10, ts: Date.now() } });
+      if (duckBus && actx) { try { duckBus.gain.setTargetAtTime(0.18, actx.currentTime, 0.08); } catch {} }
+    }
+    const stop = () => {
+      try { a.pause(); } catch {}
+      mix?.dispose();
+      if (onAir && isHost()) {
+        if (S.state.voiceOnAir?.id === x.id) setStage({ voiceOnAir: null });
+        if (duckBus && actx) { try { duckBus.gain.setTargetAtTime(1, actx.currentTime, 0.25); } catch {} }
+      }
+      if (scVoicePlaying?.a === a) scVoicePlaying = null;
+    };
     a.onended = stop; scVoicePlaying = { a, stop };
     await a.play();
-    if (onAir) toast(`Playing ${x.name}’s voice message on air.`);
+    if (onAir) toast(`Playing ${x.name}’s voice super chat on air (music ducked).`);
   } catch (e) { toast(e.message || 'Couldn’t play that voice message.', { err: true }); }
 }
 
@@ -2607,35 +2675,7 @@ function drawFeatured(t, r) {
   const f = S.state.featured;
   if (!f) return;
   if (featAnim.key !== f.id) { featAnim.key = f.id; featAnim.t0 = t; }
-  const an = entrance(featAnim.t0, t, f.text.length), e = an.alpha;
-  const brand = S.state.brand, cw = 560, pad = 22, k = r.w / cw;
-  g.save();
-  g.font = '500 24px Inter, sans-serif';
-  const lines = wrapLines(f.text, cw - pad * 2 - 64, Math.max(1, Math.min(3, Math.floor((r.h / k - 74) / 32))));
-  const ch = Math.min(r.h / k, 64 + lines.length * 32 + 10);
-  g.translate(r.x, r.y + r.h - ch * k); g.scale(k, k);
-  const x = an.dx * (r.x + r.w / 2 > W / 2 ? -1 : 1), y = 0;
-  g.globalAlpha = e;
-  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 28; g.shadowOffsetY = 10;
-  g.fillStyle = '#ffffff'; rr(x, y, cw, ch, 14); g.fill();
-  g.shadowColor = 'transparent';
-  g.fillStyle = SRC_COLOR[f.src] || brand.color; rr(x, y, 8, ch, [14, 0, 0, 14]); g.fill();
-  void lines;
-  g.beginPath(); g.arc(x + pad + 22, y + pad + 20, 20, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#fff'; g.font = '700 18px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(initials(f.name), x + pad + 22, y + pad + 21);
-  g.textAlign = 'left'; g.fillStyle = '#111827'; g.font = '700 20px Inter, sans-serif';
-  g.fillText(f.name, x + pad + 54, y + pad + 12);
-  g.fillStyle = '#6b7280'; g.font = '500 14px Inter, sans-serif';
-  g.fillText(f.src === 'studio' ? 'in the studio' : f.src === 'watch' ? (f.paid ? 'super chat' : 'on the watch page') : 'on ' + (SRC_NAME[f.src] || f.src), x + pad + 54, y + pad + 33);
-  if (f.paid) { // super chat amount, top right of the card
-    g.font = '800 20px Inter, sans-serif'; const aw = g.measureText(f.paid).width + 24;
-    g.fillStyle = '#16a34a'; rr(x + cw - pad - aw, y + pad + 2, aw, 32, 16); g.fill();
-    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(f.paid, x + cw - pad - aw / 2, y + pad + 19); g.textAlign = 'left';
-  }
-  g.fillStyle = '#111827'; g.font = '500 24px Inter, sans-serif'; g.textBaseline = 'alphabetic';
-  lines.forEach((l, i) => g.fillText(l, x + pad + 6, y + 64 + 26 + i * 32));
-  g.restore();
+  drawThemedFeatured(g, W, H, f, S.state.brand, stageFont(), t - featAnim.t0, r);
 }
 
 // ---------------------------------------------------------------- layout editor (host)
@@ -2677,6 +2717,7 @@ function freeSpot(e, els) {
 }
 function setEditing(on) {
   editor.on = on && isHost();
+  document.body.classList.toggle('editing', editor.on);
   $('#editLayer').hidden = !editor.on;
   $('#editToggle').setAttribute('aria-pressed', String(editor.on));
   $('#editToggle').textContent = editor.on ? 'Done editing' : 'Edit on stage';
@@ -3407,15 +3448,24 @@ function tipUrl(provider, raw) {
 function renderTips() {
   const box = $('#tipList');
   if (!box) return;
+  // Single source of truth: merge Get paid handles (watchCfg().pay) with local tips so handles are only entered once.
+  const pay = watchCfg().pay || {};
+  const saved = { ...store.get('tips', {}) };
+  for (const k of ['paypal', 'venmo', 'cashapp', 'stripe']) if (pay[k] && !saved[k]) saved[k] = pay[k];
   if (!box.children.length) {
-    const saved = store.get('tips', {});
     box.replaceChildren(...TIP_FIELDS.map(([id, name, ph]) => {
       const row = document.createElement('div'); row.className = 'tip-row'; row.dataset.provider = id;
       const tag = document.createElement('span'); tag.className = 'tip-tag'; tag.textContent = name; tag.style.setProperty('--c', TIP_INFO[id].color);
       const inp = document.createElement('input'); inp.className = 'input sm'; inp.placeholder = ph; inp.value = saved[id] || ''; inp.spellcheck = false; inp.setAttribute('aria-label', name + ' link');
       inp.onchange = () => {
-        const all = store.get('tips', {}); all[id] = inp.value.trim(); store.set('tips', all);
-        const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === id), url = tipUrl(id, inp.value);
+        const clean = inp.value.trim();
+        const all = store.get('tips', {}); all[id] = clean; store.set('tips', all);
+        if (['paypal', 'venmo', 'cashapp', 'stripe'].includes(id)) {
+          const norm = clean.replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '');
+          setWatch({ pay: { [id]: norm } });
+          const wpInp = $('#wpPay-' + id); if (wpInp && document.activeElement !== wpInp) wpInp.value = norm;
+        }
+        const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === id), url = tipUrl(id, clean);
         if (card && url && card.url !== url && isHost()) patchEl(card.id, { url });
       };
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn sm tip-toggle';
@@ -3425,7 +3475,10 @@ function renderTips() {
     }));
   }
   for (const row of $$('.tip-row', box)) {
-    const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === row.dataset.provider);
+    const prov = row.dataset.provider;
+    const inp = $('input', row);
+    if (inp && document.activeElement !== inp && pay[prov] && inp.value !== pay[prov]) inp.value = pay[prov];
+    const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === prov);
     const btn = $('.tip-toggle', row);
     btn.textContent = !card ? 'On stage' : card.hidden ? 'Show' : 'Hide';
     btn.setAttribute('aria-pressed', String(!!card && !card.hidden));
@@ -3504,7 +3557,7 @@ async function acctApi(action, body = {}) {
   return data;
 }
 // Settings that follow you between devices once you're signed in. API keys and RTMP stream keys never sync.
-const SYNC_KEYS = ['tips', 'layouts', 'presets', 'accent', 'bg', 'title', 'theme', 'aiProv', 'startMic', 'startCam', 'quality', 'audioFx', 'videoFx', 'brandPrefs', 'streamPrefs', 'streamType', 'hashtags', 'notifyPrefs', 'onboardingDone', 'destTemplates'];
+const SYNC_KEYS = ['tips', 'layouts', 'presets', 'accent', 'bg', 'title', 'theme', 'aiProv', 'startMic', 'startCam', 'quality', 'audioFx', 'videoFx', 'brandPrefs', 'streamPrefs', 'streamType', 'hashtags', 'notifyPrefs', 'onboardingDone', 'destTemplates', 'creatorProfile', 'watchPrefs'];
 let syncT = null, applyingSync = false, acctBootP = Promise.resolve();
 const rawSet = store.set;
 store.set = (k, v) => {
@@ -3549,6 +3602,31 @@ function signedOut(msg) {
   renderUser(); renderPreview(); renderStreamPanel();
   if (msg) toast(msg);
 }
+function closeUserMenu() {
+  const pop = $('#userMenuPop'), btn = $('#userBtn');
+  if (pop) pop.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleUserMenu() {
+  const pop = $('#userMenuPop'), btn = $('#userBtn');
+  if (!pop || !btn) return;
+  const open = pop.hidden;
+  pop.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) syncThemeSegs(store.get('theme', 'dark'));
+}
+document.addEventListener('click', (e) => {
+  const wrap = $('#userMenuWrap'), pop = $('#userMenuPop');
+  if (pop && !pop.hidden && wrap && !wrap.contains(e.target)) closeUserMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeUserMenu();
+});
+function syncThemeSegs(t) {
+  const norm = t === 'light' ? 'light' : 'dark';
+  $$('#umThemeSeg [data-um-theme]').forEach((b) => { const on = b.dataset.umTheme === norm; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  $$('#acThemeSeg [data-ac-theme]').forEach((b) => { const on = b.dataset.acTheme === norm; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+}
 function renderUser() {
   const b = $('#userBtn'), u = acct.user;
   b.classList.toggle('signed', !!u);
@@ -3558,10 +3636,44 @@ function renderUser() {
   av.textContent = u ? (u.avatar ? '' : initials(u.name)) : '';
   $('#userIcon').toggleAttribute('hidden', !!u);
   $('#userLabel').textContent = u ? u.name : 'Sign in';
+  const chev = $('#userChev');
+  if (chev) chev.toggleAttribute('hidden', !u);
+  if (!u) closeUserMenu();
+  if (u) {
+    const prof = store.get('creatorProfile', {});
+    const umAv = $('#umAv');
+    if (umAv) {
+      umAv.style.backgroundImage = u.avatar ? `url("${u.avatar}")` : '';
+      umAv.textContent = u.avatar ? '' : initials(u.name);
+    }
+    if ($('#umName')) $('#umName').textContent = u.name || 'Creator';
+    if ($('#umEmail')) $('#umEmail').textContent = u.email || '';
+    if ($('#umHandle')) {
+      const h = (prof.handle || '').replace(/^@+/, '').trim();
+      $('#umHandle').textContent = h ? `@${h}` : '';
+      $('#umHandle').hidden = !h;
+    }
+  }
+  syncThemeSegs(store.get('theme', 'dark'));
   if ($('#acctDlg').open) renderAcctDlg();
 }
-function renderSyncNote(t) { const n = $('#acSync'); if (n) n.textContent = t; }
+function renderSyncNote(t) {
+  const n = $('#acSync'); if (n) n.textContent = t;
+  const st = $('#acSyncStatusText'); if (st && t) st.textContent = t;
+}
 let acView = 'in'; // in | up | forgot | reset
+let acPane = 'profile'; // profile | studio | audience | sync | security
+function setAcPane(pane) {
+  acPane = ['profile', 'studio', 'audience', 'sync', 'security'].includes(pane) ? pane : 'profile';
+  $$('#acIn [data-ac-pane]').forEach((b) => {
+    const on = b.dataset.acPane === acPane;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  $$('#acIn [data-ac-panel]').forEach((p) => {
+    p.hidden = p.dataset.acPanel !== acPane;
+  });
+}
 function renderAcctDlg() {
   const u = acct.user;
   $('#acOut').hidden = !!u || acView === 'forgot' || acView === 'reset';
@@ -3584,19 +3696,77 @@ function renderAcctDlg() {
   $('#acUpAvatar').classList.toggle('has', !!av);
   $('#acUpAvatar').setAttribute('aria-label', av ? 'Change your profile photo' : 'Add a profile photo');
   document.querySelector('#acctDlg .ac-card').classList.toggle('signed', !!u);
-  $('#acH').textContent = u ? 'Your account' : acView === 'forgot' ? 'Reset your password' : acView === 'reset' ? 'Choose a new password' : acView === 'up' ? 'Create your account' : 'Welcome back';
+  $('#acH').textContent = u ? 'Account & Creator Settings' : acView === 'forgot' ? 'Reset your password' : acView === 'reset' ? 'Choose a new password' : acView === 'up' ? 'Create your account' : 'Welcome back';
   if (u) {
     // accounts made with Google have no password: no change-password form, and deleting asks for the email
     $('#acPwDetails').hidden = !u.hasPassword;
     $('#acDelLabel').textContent = u.hasPassword ? 'Password' : 'Type your email to confirm';
     $('#acDelPass').type = u.hasPassword ? 'password' : 'email';
-  }
-  if (u) {
-    if (document.activeElement !== $('#acNick')) $('#acNick').value = u.name;
-    $('#acEmailShow').textContent = u.email;
+
+    // Sidebar identity + Profile pane
+    const navAv = $('#acNavAv');
+    if (navAv) {
+      navAv.style.backgroundImage = u.avatar ? `url("${u.avatar}")` : '';
+      navAv.textContent = u.avatar ? '' : initials(u.name);
+    }
+    if ($('#acNavName')) $('#acNavName').textContent = u.name || 'Creator';
+    if (document.activeElement !== $('#acNick')) $('#acNick').value = u.name || '';
+    $('#acEmailShow').textContent = u.email || '';
     $('#acAvatarImg').hidden = !u.avatar; if (u.avatar) $('#acAvatarImg').src = u.avatar;
     $('#acAvatarIni').textContent = u.avatar ? '' : initials(u.name);
-    renderSyncNote('Brand, scenes, support links and device preferences follow you.');
+    if ($('#acAvatarRemoveBtn')) $('#acAvatarRemoveBtn').hidden = !u.avatar;
+
+    const prof = store.get('creatorProfile', {});
+    if ($('#acHandle') && document.activeElement !== $('#acHandle')) $('#acHandle').value = prof.handle || '';
+    if ($('#acCategory')) $('#acCategory').value = prof.category || store.get('streamType', 'live') || 'live';
+    if ($('#acTz')) $('#acTz').value = prof.tz || 'auto';
+    if ($('#acBio') && document.activeElement !== $('#acBio')) $('#acBio').value = prof.bio || '';
+    if ($('#acSocYt') && document.activeElement !== $('#acSocYt')) $('#acSocYt').value = prof.yt || '';
+    if ($('#acSocTw') && document.activeElement !== $('#acSocTw')) $('#acSocTw').value = prof.tw || '';
+    if ($('#acSocX') && document.activeElement !== $('#acSocX')) $('#acSocX').value = prof.x || '';
+    if ($('#acSocWeb') && document.activeElement !== $('#acSocWeb')) $('#acSocWeb').value = prof.web || '';
+
+    // Studio defaults pane
+    const sp = store.get('streamPrefs', {});
+    syncThemeSegs(store.get('theme', 'dark'));
+    if ($('#acDefQual')) $('#acDefQual').value = String(S.prefs.quality || store.get('quality', '720'));
+    if ($('#acDefAspect')) $('#acDefAspect').value = sp.aspect || '16:9';
+    if ($('#acDefLayout')) $('#acDefLayout').value = sp.defaultLayout || 'split';
+    if ($('#acPrefMic')) $('#acPrefMic').checked = S.prefs.startMic !== false;
+    if ($('#acPrefCam')) $('#acPrefCam').checked = S.prefs.startCam !== false;
+    if ($('#acPrefNoise')) $('#acPrefNoise').checked = S.audioFx.ns !== false;
+    if ($('#acPrefAutoMute')) $('#acPrefAutoMute').checked = sp.autoMute?.on !== false;
+    if ($('#acPrefCaps')) $('#acPrefCaps').checked = !!sp.captions?.on;
+    if ($('#acPrefAutoRec')) $('#acPrefAutoRec').checked = !!sp.autoRec;
+
+    // Audience & alerts pane
+    const wp = store.get('watchPrefs', { chat: true, supers: true, voice: true, sounds: true, slow: '0' });
+    const np = store.get('notifyPrefs', { email: true, r24h: true, r15m: true });
+    if ($('#acAudChat')) $('#acAudChat').checked = wp.chat !== false;
+    if ($('#acAudSupers')) $('#acAudSupers').checked = wp.supers !== false;
+    if ($('#acAudVoice')) $('#acAudVoice').checked = wp.voice !== false;
+    if ($('#acAudSounds')) $('#acAudSounds').checked = wp.sounds !== false;
+    if ($('#acAudSlow')) $('#acAudSlow').value = String(wp.slow || '0');
+    if ($('#acAudAi')) $('#acAudAi').value = S.aiProv || store.get('aiProv', 'gemini') || 'gemini';
+    if ($('#acNotifEmail')) $('#acNotifEmail').checked = np.email !== false;
+    if ($('#acNotifRemind')) $('#acNotifRemind').checked = np.r24h !== false || np.r15m !== false;
+
+    // Sync & connected services pane
+    const gConf = googleConfigured(), gIn = gConf && googleSignedIn();
+    if ($('#acGoogleStatusText')) {
+      $('#acGoogleStatusText').textContent = !gConf
+        ? 'Google integration is not configured on this server yet.'
+        : gIn
+        ? 'Connected · YouTube thumbnails, live chat & Google Drive enabled.'
+        : 'Connect to upload thumbnails, read YouTube chat, and save recordings to Drive.';
+    }
+    if ($('#acGoogleConnectBtn')) {
+      $('#acGoogleConnectBtn').textContent = gIn ? 'Disconnect' : 'Connect';
+      $('#acGoogleConnectBtn').disabled = !gConf;
+    }
+
+    setAcPane(acPane);
+    renderSyncNote('Synced to your account across devices');
   }
 }
 async function finishSignIn(r, isNew, local = collectSettings()) {
@@ -3660,15 +3830,33 @@ async function needAccountThen(fn) {
   S.afterSignIn = fn;
   openAccount();
 }
-function openAccount(view) {
+function openAccount(view, pane) {
   // First-timers start on Create account; anyone who has signed in on this browser before starts on Sign in.
   acView = view || (acct.user || store.get('hadAccount', false) ? 'in' : 'up');
+  if (pane) acPane = pane;
+  closeUserMenu();
   $$('#acctDlg .err').forEach((e) => (e.hidden = true));
   renderAcctDlg();
-  $('#acctDlg').showModal();
+  if (!$('#acctDlg').open) $('#acctDlg').showModal();
 }
 const acErr = (id, msg) => { const e = $(id); e.textContent = msg; e.hidden = !msg; };
-$('#userBtn').onclick = () => openAccount();
+$('#userBtn').onclick = (e) => {
+  e.stopPropagation();
+  if (!acct.user) return openAccount();
+  toggleUserMenu();
+};
+$$('#userMenuPop [data-um-tab]').forEach((b) => b.addEventListener('click', () => {
+  closeUserMenu();
+  openAccount('in', b.dataset.umTab);
+}));
+$('#umStartShow')?.addEventListener('click', () => { closeUserMenu(); openWizard('now'); });
+$('#umStudioSettings')?.addEventListener('click', () => { closeUserMenu(); $('#settingsTop')?.click(); });
+$$('#umThemeSeg [data-um-theme]').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.umTheme)));
+$('#umSignOut')?.addEventListener('click', () => { closeUserMenu(); $('#acSignOut')?.click(); });
+
+$$('#acIn [data-ac-pane]').forEach((b) => b.addEventListener('click', () => setAcPane(b.dataset.acPane)));
+$$('#acThemeSeg [data-ac-theme]').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.acTheme)));
+
 $$('#acTabs button').forEach((b) => b.addEventListener('click', () => { acView = b.dataset.ac; acErr('#acErr', ''); renderAcctDlg(); }));
 $('#acForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -3678,7 +3866,7 @@ $('#acForm').addEventListener('submit', async (e) => {
     const body = { email: $('#acEmail').value, password: $('#acPass').value };
     const local = collectSettings();
     let r;
-    if (acView === 'up' && !$('#acAgree').checked) { acErr('#acErr', 'Tick the box to agree to the Terms and Privacy policy.'); $('#acAgree').focus(); return; }
+    if (acView === 'up' && !$('#acAgree').checked) { acErr('#acErr', 'Tick the box to agree to the Terms and Privacy policy first.'); $('#acAgree').focus(); return; }
     if (acView === 'up') r = await acctApi('signup', { ...body, agree: true, name: $('#acName').value || S.name });
     else r = await acctApi('login', body);
     $('#acPass').value = '';
@@ -3702,10 +3890,87 @@ $('#acRGo').onclick = async () => {
   } catch (err) { acErr('#acRErr', err.message); }
 };
 $('#acSaveProfile').onclick = async () => {
-  try { const r = await acctApi('update', { name: $('#acNick').value }); setUser(r.user); toast('Profile saved.'); }
-  catch (err) { toast(err.message, { err: true }); }
+  const btn = $('#acSaveProfile');
+  busy(btn);
+  try {
+    const nextName = ($('#acNick')?.value || '').trim();
+    const creatorProfile = {
+      handle: ($('#acHandle')?.value || '').replace(/^@+/, '').trim().slice(0, 24),
+      category: $('#acCategory')?.value || 'live',
+      tz: $('#acTz')?.value || 'auto',
+      bio: ($('#acBio')?.value || '').trim().slice(0, 220),
+      yt: ($('#acSocYt')?.value || '').trim().slice(0, 120),
+      tw: ($('#acSocTw')?.value || '').trim().slice(0, 120),
+      x: ($('#acSocX')?.value || '').trim().slice(0, 120),
+      web: ($('#acSocWeb')?.value || '').trim().slice(0, 120),
+    };
+    const prevSp = store.get('streamPrefs', {});
+    const nextSp = {
+      ...prevSp,
+      aspect: $('#acDefAspect')?.value || prevSp.aspect || '16:9',
+      defaultLayout: $('#acDefLayout')?.value || prevSp.defaultLayout || 'split',
+      autoMute: { on: $('#acPrefAutoMute')?.checked !== false, sec: prevSp.autoMute?.sec || 30, scope: prevSp.autoMute?.scope || 'guests' },
+      captions: { ...(prevSp.captions || { style: 'bar', size: 26, lang: 'en-US' }), on: !!$('#acPrefCaps')?.checked },
+      autoRec: !!$('#acPrefAutoRec')?.checked,
+    };
+    const watchPrefs = {
+      chat: $('#acAudChat')?.checked !== false,
+      supers: $('#acAudSupers')?.checked !== false,
+      voice: $('#acAudVoice')?.checked !== false,
+      sounds: $('#acAudSounds')?.checked !== false,
+      slow: $('#acAudSlow')?.value || '0',
+    };
+    const remind = $('#acNotifRemind')?.checked !== false;
+    const notifyPrefs = {
+      email: $('#acNotifEmail')?.checked !== false,
+      r24h: remind,
+      r15m: remind,
+    };
+    const qual = $('#acDefQual')?.value || '720';
+    const startMic = $('#acPrefMic')?.checked !== false;
+    const startCam = $('#acPrefCam')?.checked !== false;
+    const nsOn = $('#acPrefNoise')?.checked !== false;
+    const aiProv = $('#acAudAi')?.value || 'gemini';
+
+    S.prefs.quality = qual;
+    S.prefs.startMic = startMic;
+    S.prefs.startCam = startCam;
+    S.audioFx.ns = nsOn;
+    S.aiProv = aiProv;
+    if ($('#qualitySelect')) $('#qualitySelect').value = qual;
+    if ($('#startMic')) $('#startMic').checked = startMic;
+    if ($('#startCam')) $('#startCam').checked = startCam;
+    if ($('#nsChk')) $('#nsChk').checked = nsOn;
+
+    applyingSync = true;
+    rawSet('creatorProfile', creatorProfile);
+    rawSet('streamPrefs', nextSp);
+    rawSet('watchPrefs', watchPrefs);
+    rawSet('notifyPrefs', notifyPrefs);
+    rawSet('quality', qual);
+    rawSet('startMic', startMic);
+    rawSet('startCam', startCam);
+    rawSet('audioFx', S.audioFx);
+    rawSet('aiProv', aiProv);
+    applyingSync = false;
+
+    const r = await acctApi('update', { name: nextName || acct.user?.name || '', settings: collectSettings() });
+    setUser(r.user);
+    renderSyncNote('All changes saved to your account');
+    toast('Account & studio settings saved.');
+  } catch (err) { toast(err.message, { err: true }); }
+  finally { busy(btn, false); }
 };
 $('#acAvatarBtn').onclick = () => $('#acAvatarFile').click();
+$('#acAvatarChangeBtn')?.addEventListener('click', () => $('#acAvatarFile').click());
+$('#acAvatarRemoveBtn')?.addEventListener('click', async () => {
+  try {
+    rawSet('avatar', '');
+    const r = await acctApi('update', { avatar: '' });
+    setUser(r.user);
+    toast('Profile photo removed.');
+  } catch (err) { toast(err.message, { err: true }); }
+});
 $('#acAvatarFile').onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
@@ -3717,6 +3982,61 @@ $('#acAvatarFile').onchange = async (e) => {
     toast('Photo updated.');
   } catch (err) { toast(err.message, { err: true }); }
 };
+$('#acSyncNowBtn')?.addEventListener('click', async () => {
+  const btn = $('#acSyncNowBtn'); busy(btn);
+  await pushSettings();
+  busy(btn, false);
+  toast('Profile & preferences synced.');
+});
+$('#acGoogleConnectBtn')?.addEventListener('click', async () => {
+  if (!googleConfigured()) return toast('Google sign-in is not configured on this server.', { err: true });
+  const btn = $('#acGoogleConnectBtn'); busy(btn);
+  try {
+    if (googleSignedIn()) {
+      googleSignOut();
+      toast('Disconnected Google session.');
+    } else {
+      await googleToken(['drive', 'youtube']);
+      toast('Google & YouTube connected.');
+    }
+    renderAcctDlg();
+  } catch (err) { toast(err.message || 'Could not update Google connection.', { err: true }); }
+  finally { busy(btn, false); }
+});
+$('#acExportBtn')?.addEventListener('click', () => {
+  const payload = { app: 'gather', version: 1, exportedAt: new Date().toISOString(), settings: collectSettings() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gather-settings-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Settings exported as JSON.');
+});
+$('#acImportBtn')?.addEventListener('click', () => $('#acImportFile')?.click());
+$('#acImportFile')?.addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const parsed = JSON.parse(await f.text());
+    const src = parsed && typeof parsed === 'object' ? (parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : parsed) : null;
+    if (!src || Array.isArray(src)) throw new Error('Invalid settings backup file.');
+    const safe = Object.create(null);
+    let count = 0;
+    for (const k of SYNC_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(src, k)) { safe[k] = src[k]; count++; }
+    }
+    if (!count) throw new Error('No recognized gather settings found in that file.');
+    applySettings(safe);
+    if (acct.user) await pushSettings();
+    renderAcctDlg();
+    toast(`Imported ${count} settings group${count === 1 ? '' : 's'}.`);
+  } catch (err) { toast(err.message || 'Could not import settings file.', { err: true }); }
+});
+$('#acResetCacheBtn')?.addEventListener('click', () => {
+  ['panelClosed', 'panelTab', 'dockHint', 'onboardingDone'].forEach((k) => { try { localStorage.removeItem('gather:' + k); } catch {} });
+  toast('Local UI layout reset to defaults.');
+});
 $('#acPwGo').onclick = async () => {
   acErr('#acPwErr', ''); $('#acPwMsg').hidden = true;
   try {
@@ -3725,7 +4045,7 @@ $('#acPwGo').onclick = async () => {
     $('#acPwMsg').hidden = false;
   } catch (err) { acErr('#acPwErr', err.message); }
 };
-$('#acSignOut').onclick = async () => { await acctApi('logout').catch(() => {}); signedOut('Signed out.'); $('#acctDlg').close(); };
+$('#acSignOut').onclick = async () => { closeUserMenu(); await acctApi('logout').catch(() => {}); signedOut('Signed out.'); $('#acctDlg').close(); };
 $('#acDelGo').onclick = async () => {
   acErr('#acDelErr', '');
   try { await acctApi('delete', { password: $('#acDelPass').value }); signedOut('Your account was deleted.'); $('#acctDlg').close(); }
@@ -3752,11 +4072,12 @@ async function uploadBrandAssets(brand) {
 }
 function brandPref(patch) {
   // Keep the look for the next studio too (images live in this browser).
-  const keep = ['color', 'font', 'tag', 'bannerStyle', 'anim', 'frame', 'dim', 'logoPos', 'logoSize'];
+  const keep = ['color', 'bg', 'panel', 'panelColor', 'font', 'tag', 'bannerStyle', 'anim', 'motion', 'alertStyle', 'pack', 'frame', 'dim', 'logoPos', 'logoSize'];
   const prefs = store.get('brandPrefs', {});
   for (const k of keep) if (k in patch) prefs[k] = patch[k];
   store.set('brandPrefs', prefs);
   setStage({ brand: patch });
+  if (typeof window.__gatherBrandSync === 'function') window.__gatherBrandSync();
 }
 async function brandDataUrl(kind, data) {
   const imgs = savedBrandImgs(); imgs[kind] = data;
@@ -4135,13 +4456,23 @@ function buildLogoSvg(accent, title) {
   const txt = hexLuminance(col) > 0.42 ? '#070c1a' : '#ffffff';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="#111827"/></linearGradient></defs><rect width="256" height="256" rx="56" fill="#070c1a"/><rect x="10" y="10" width="236" height="236" rx="48" fill="url(#lg)" opacity="0.22"/><rect x="10" y="10" width="236" height="236" rx="48" fill="none" stroke="${col}" stroke-width="6"/><circle cx="128" cy="128" r="70" fill="${col}"/><text x="128" y="147" text-anchor="middle" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="800" font-size="64" fill="${txt}">${ini.replace(/[<>&]/g, '')}</text></svg>`;
 }
-function buildOverlaySvg(accent, type, title) {
-  const col = normalizeHex(accent) || '#3b82f6';
-  const badge = type === 'shopping' ? 'LIVE DROP' : type === 'gamer' ? 'LIVE GAMEPLAY' : 'ON AIR';
-  const cleanTitle = String(title || 'LIVE BROADCAST').slice(0, 32).replace(/[<>&]/g, '');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect x="18" y="18" width="1244" height="684" rx="22" fill="none" stroke="${col}" stroke-opacity="0.5" stroke-width="4"/><rect x="34" y="34" width="210" height="40" rx="10" fill="rgba(7,12,26,0.82)" stroke="${col}" stroke-opacity="0.6" stroke-width="2"/><circle cx="56" cy="54" r="6" fill="#ef4444"/><text x="72" y="60" font-family="Inter,sans-serif" font-weight="800" font-size="16" letter-spacing="1.5" fill="#ffffff">${badge}</text><rect x="34" y="638" width="520" height="48" rx="12" fill="rgba(7,12,26,0.84)" stroke="${col}" stroke-opacity="0.45" stroke-width="2"/><text x="54" y="668" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="700" font-size="20" fill="${col}">${cleanTitle}</text></svg>`;
+function buildOverlaySvg() {
+  // Borderless transparent canvas — no outer blue box, no corner borders, no ON AIR pill inside video.
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"></svg>`;
 }
 
+function updateWizReadySummary() {
+  const el = $('#wReadySummary');
+  if (!el) return;
+  const qual = $('#wOptQuality')?.value || S.prefs.quality || '720';
+  const priv = { public: 'Public', unlisted: 'Unlisted', invite: 'Invite-only' }[$('#wOptPrivacy')?.value || 'public'] || 'Public';
+  const destCount = liveDests().filter((d) => d.on).length;
+  const bits = [`${qual}p`, priv];
+  if ($('#wOptCountdown')?.checked) bits.push('3m countdown');
+  if ($('#wOptAutoRec')?.checked) bits.push('Auto-record');
+  bits.push(destCount ? `Watch page + ${destCount} destination${destCount === 1 ? '' : 's'}` : 'Watch page ready');
+  el.textContent = bits.join(' · ');
+}
 function openWizard(mode = 'now') {
   if (S.studio && !isHost()) return;
   wiz.mode = mode === 'later' ? 'later' : 'now';
@@ -4157,6 +4488,11 @@ function openWizard(mode = 'now') {
   if ($('#wNotifyEmail')) $('#wNotifyEmail').checked = np.email !== false;
   if ($('#wNotify24h')) $('#wNotify24h').checked = np.r24h !== false;
   if ($('#wNotify15m')) $('#wNotify15m').checked = np.r15m !== false;
+  const sp = store.get('streamPrefs', {});
+  if ($('#wOptAutoRec')) $('#wOptAutoRec').checked = !!sp.autoRec;
+  if ($('#wOptCountdown')) $('#wOptCountdown').checked = !!sp.countdown;
+  if ($('#wOptPrivacy')) $('#wOptPrivacy').value = sp.privacy || 'public';
+  if ($('#wOptQuality')) $('#wOptQuality').value = String(S.prefs.quality || store.get('quality', '720'));
   if ($('#wAiProv')) $('#wAiProv').value = S.aiProv || 'claude';
   $('#wDone').hidden = true; $('#wSteps').hidden = false;
   wErr('');
@@ -4168,6 +4504,11 @@ function openWizard(mode = 'now') {
   $('#wizDlg').showModal();
 }
 $('#wizOpen').onclick = () => openWizard('later');
+$('#wCancelBtn')?.addEventListener('click', () => $('#wizDlg').close());
+['#wOptAutoRec', '#wOptCountdown', '#wOptPrivacy', '#wOptQuality'].forEach((sel) => {
+  $(sel)?.addEventListener('change', updateWizReadySummary);
+});
+$('#wizSocialMatrix')?.addEventListener('change', updateWizReadySummary);
 $$('#wModeSeg [data-wmode]').forEach((b) => b.addEventListener('click', () => {
   wiz.mode = b.dataset.wmode === 'later' ? 'later' : 'now';
   wErr('');
@@ -4200,6 +4541,7 @@ function renderWizard() {
       : 'Invitees receive calendar invites and automatic reminders based on your settings above.';
   }
   $$('#wStyle button').forEach((b) => b.classList.toggle('on', b.dataset.ws === wiz.style));
+  updateWizReadySummary();
 }
 
 // ---------------------------------------------------------------- AI designer: one window for covers, backdrops, logos and overlays
@@ -4562,6 +4904,17 @@ function saveWizDefaults(quiet = false) {
     r24h: $('#wNotify24h')?.checked !== false,
     r15m: $('#wNotify15m')?.checked !== false,
   };
+  const sp = store.get('streamPrefs', {});
+  const qual = $('#wOptQuality')?.value || S.prefs.quality || '720';
+  S.prefs.quality = qual;
+  if ($('#qualitySelect')) $('#qualitySelect').value = qual;
+  store.set('quality', qual);
+  store.set('streamPrefs', {
+    ...sp,
+    autoRec: !!$('#wOptAutoRec')?.checked,
+    countdown: !!$('#wOptCountdown')?.checked,
+    privacy: $('#wOptPrivacy')?.value || 'public',
+  });
   store.set('streamType', wiz.streamType);
   store.set('hashtags', hashtags);
   if (title) store.set('title', title);
@@ -4588,6 +4941,7 @@ async function proceedWizLaunch() {
     title, description: $('#wDesc').value.trim(), invites: $('#wInvites').value,
     destinations, streamType: wiz.streamType, hashtags, notifyPrefs,
     thumb, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, duration: Number($('#wDur').value || 60),
+    privacy: $('#wOptPrivacy')?.value || 'public',
   };
   if (wiz.mode === 'later') {
     if (!acct.user) return needAccountThen(() => { $('#wizDlg').showModal(); proceedWizLaunch(); });
@@ -4603,7 +4957,10 @@ async function proceedWizLaunch() {
     const overlayAsset = imgs.overlay ? 'local-brand-overlay' : '';
     if (imgs.logo) setAssetData('local-brand-logo', imgs.logo);
     if (imgs.overlay) setAssetData('local-brand-overlay', imgs.overlay);
-    setStage({ title, streamType: wiz.streamType, hashtags, ...(logoAsset || overlayAsset ? { brand: { ...(logoAsset ? { logo: logoAsset } : {}), ...(overlayAsset ? { overlay: overlayAsset } : {}) } } : {}) });
+    const countdownPatch = $('#wOptCountdown')?.checked && wiz.mode === 'now'
+      ? { countdown: { on: true, target: Date.now() + 3 * 60e3, autoLive: true, label: 'Starting soon' } }
+      : {};
+    setStage({ title, streamType: wiz.streamType, hashtags, ...countdownPatch, ...(logoAsset || overlayAsset ? { brand: { ...(logoAsset ? { logo: logoAsset } : {}), ...(overlayAsset ? { overlay: overlayAsset } : {}) } } : {}) });
     if (wiz.mode === 'later') {
       const r = await acctApi('streamCreate', { ...body, when: wWhen(), notify: notifyPrefs.email });
       S.streams.push(r.stream); renderUpcoming();
@@ -4917,6 +5274,23 @@ function renderLive() {
   $('#liveStats').hidden = !L;
   $('#watchRow').hidden = !S.relayOn || !S.studio;
   if (L) $('#liveStats').textContent = waking ? 'The live relay is starting up. This can take up to a minute the first time.' : on && L.stats ? [`Live on ${L.names.filter((x) => !(L.failed || []).includes(x)).join(', ') || 'nothing yet'}`, L.failed?.length && `${L.failed.join(', ')} failed`, L.stats.kbps != null && `${Math.round(L.stats.kbps).toLocaleString()} kbps`, L.stats.fps && `${Math.round(L.stats.fps)} fps`, L.slow && 'your upload is struggling'].filter(Boolean).join(' · ') : L.phase === 'connecting' ? 'Connecting to the relay…' : L.phase === 'live' ? `Live on ${L.names.join(', ')}` : '';
+  syncAirPill();
+}
+function syncAirPill() {
+  const pill = $('#stageAirPill');
+  if (!pill) return;
+  const shared = S.studio ? S.state : null;
+  const on = !!(S.live?.phase === 'live' || shared?.live?.on);
+  pill.classList.toggle('on', on);
+  pill.classList.toggle('off', !on);
+  const txt = $('#stageAirText');
+  if (txt) txt.textContent = on ? 'ON AIR' : 'OFF AIR';
+  const clk = $('#stageAirClock');
+  if (clk) {
+    const t0 = S.live?.t0 || shared?.live?.since || 0;
+    clk.hidden = !(on && t0);
+    if (on && t0) clk.textContent = fmtClock(Date.now() - t0);
+  }
 }
 async function goLive() {
   if (S.live) return stopLive();
@@ -5575,6 +5949,7 @@ function renderDock() {
     $('#handLabel').textContent = raised ? 'Lower hand' : 'Raise hand';
   }
   renderDockNote();
+  syncAirPill();
 }
 // ---------------------------------------------------------------- first-run guide: one next step at a time, in the dock
 // Four steps for a new host (the show is named automatically). Each ticks itself off from what actually happened (camera and mic on,
@@ -5664,8 +6039,8 @@ function renderPresets() {
 }
 
 // ---------------------------------------------------------------- panels & controls
-// Rail tabs (Chat, Show, Look, Shop, Polls, Play, Music, AI). Go live, Settings and Help are dialogs; older names still work.
-const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', look: 'look:', play: 'gaming', queue: 'gaming', poll: 'polls', audio: 'music', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
+// 5-tab rail: Chat, Stage (look: layouts/brand/overlays/music), Audience (show: watch/viewers/supers/stage/polls/gaming), Shop, AI.
+const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', music: 'look:music', audio: 'look:music', look: 'look:', stage: 'look:', audience: 'show:', play: 'show:gaming', queue: 'show:gaming', gaming: 'show:gaming', poll: 'show:polls', polls: 'show:polls', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
 function openDlg(id) {
   for (const other of ['liveDlg', 'settingsDlg', 'helpDlg']) if (other !== id && $('#' + other).open) $('#' + other).close();
   const d = $('#' + id);
@@ -5674,6 +6049,33 @@ function openDlg(id) {
   if (id === 'liveDlg') { renderLive(); wakeRelay(); }
   if (id === 'helpDlg') { $('#helpSearch').value = ''; renderHelp(''); $('#helpSearch').focus(); }
 }
+function applyAudienceSub(sub) {
+  S.audSub = sub || S.audSub || 'watch';
+  $$('.aud-seg [data-aud]').forEach((b) => {
+    const on = b.dataset.aud === S.audSub;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  if (S.audSub === 'polls' || S.audSub === 'gaming') {
+    $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== S.audSub));
+    return;
+  }
+  $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== 'show'));
+  const groups = {
+    watch: new Set(['watch-link', 'watch-showcase', 'watch-about', 'watch-links']),
+    viewers: new Set(['watch-viewers', 'watch-chat', 'watch-queue']),
+    supers: new Set(['watch-supers', 'watch-goal']),
+    stage: new Set(['watch-stage', 'watch-captions', 'watch-auto', 'watch-clips', 'watch-roles']),
+  };
+  const allow = groups[S.audSub] || groups.watch;
+  const body = $('#watchSec');
+  if (body) {
+    for (const sec of $$('details.psec', body)) {
+      const k = sec.dataset.sec || '';
+      sec.hidden = k ? !allow.has(k) : false;
+    }
+  }
+}
 function setTab(tab) {
   const raw = TAB_ALIAS[tab] || tab;
   const a = typeof raw === 'string' ? raw : '';
@@ -5681,15 +6083,25 @@ function setTab(tab) {
   if (a.startsWith('dlg:')) return openDlg(a.slice(4));
   let panel = a, rail = a;
   if (a.startsWith('look:')) { S.lookSub = a.slice(5) || S.lookSub || 'layouts'; panel = S.lookSub; rail = 'look'; }
+  if (a.startsWith('show:')) { S.audSub = a.slice(5) || S.audSub || 'watch'; panel = (S.audSub === 'polls' || S.audSub === 'gaming') ? S.audSub : 'show'; rail = 'show'; }
   S.tab = rail;
   document.body.classList.remove('panel-closed'); $('#panelToggle').setAttribute('aria-expanded', 'true');
   $$('.rail-btn').forEach((b) => { const on = b.dataset.tab === rail; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== panel));
   $$('.look-seg [data-look]').forEach((b) => { const on = b.dataset.look === panel; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  if (rail === 'show') applyAudienceSub(S.audSub || 'watch');
   if (rail === 'chat') { S.unread = 0; $('#chatBadge').hidden = true; }
   if (panel !== 'layouts' && editor.on) setEditing(false);
 }
 $$('.rail-btn').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$$('.aud-seg [data-aud]').forEach((b) => b.addEventListener('click', () => { S.audSub = b.dataset.aud; setTab('show:' + b.dataset.aud); }));
+$('#moreLayoutsBtn')?.addEventListener('click', () => {
+  const deck = $('#deck');
+  if (!deck) return;
+  const exp = deck.classList.toggle('deck-expanded');
+  $('#moreLayoutsBtn').setAttribute('aria-expanded', String(exp));
+  $('#moreLayoutsBtn').textContent = exp ? 'Compact' : 'More layouts';
+});
 // Hide the panel to give the stage the room; any tab brings it back.
 $('#panelToggle').onclick = () => {
   const closed = document.body.classList.toggle('panel-closed');
@@ -5931,6 +6343,7 @@ function applyTheme(t) {
   const dark = t === 'dark';
   $('meta[name="theme-color"]').setAttribute('content', dark ? '#0d1117' : '#ffffff');
   $$('#themeSeg button').forEach((b) => { const on = b.dataset.themeOpt === t; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+  if (typeof syncThemeSegs === 'function') syncThemeSegs(t);
   applyAdaptiveAccent(S.state?.brand?.color);
 }
 $$('#themeSeg button').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.themeOpt)));
@@ -7447,7 +7860,7 @@ function gotSuperchat(item, fresh) {
   }
   if (fresh && !had && item.status === 'pending') {
     chime();
-    toast(`${money(item.amount)} super chat from ${item.name} on ${PAY_NAME[item.method]}. Check it arrived, then confirm.`, { ms: 12000, action: ['Review', () => { setTab('show'); $('#watchSec')?.scrollIntoView({ block: 'start', behavior: smooth() }); }] });
+    toast(`${money(item.amount)} super chat from ${item.name} on ${PAY_NAME[item.method]}. Check it arrived, then confirm.`, { key: 'sc-' + item.id, ms: 12000, action: ['Review', () => { setTab('show:supers'); $('#watchSec')?.scrollIntoView({ block: 'start', behavior: smooth() }); }] });
   }
   renderSupers();
   superInChat(item);
@@ -7475,6 +7888,7 @@ function superInChat(x) {
   appendLog(li);
 }
 function superAct(item, act) {
+  notifier.dismiss('sc-' + item.id);
   wsSend({ type: 'superchat', id: item.id, do: act });
   item.status = { confirm: 'confirmed', dismiss: 'dismissed', answered: 'answered' }[act];
   if (act === 'confirm') superAlert(item);
@@ -7787,7 +8201,12 @@ $('#wpLinks').onchange = (e) => {
   setWatch({ links });
 };
 $('#wpMin').onchange = (e) => setWatch({ min: Math.max(1, Number(e.target.value) || 2) });
-for (const k of Object.keys(PAY_NAME).filter((m) => m !== 'card')) $('#wpPay-' + k).addEventListener('change', (e) => setWatch({ pay: { [k]: e.target.value.trim().replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '') } }));
+for (const k of Object.keys(PAY_NAME).filter((m) => m !== 'card')) $('#wpPay-' + k).addEventListener('change', (e) => {
+  const clean = e.target.value.trim().replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '');
+  setWatch({ pay: { [k]: clean } });
+  const all = store.get('tips', {}); all[k] = clean; store.set('tips', all);
+  renderTips();
+});
 setInterval(() => { if ($('#watchSec') && !$('#watchSec').closest('[hidden]')) renderWatchSec(); }, 3000);
 window.__watchReady = true;
 renderWatchSec();
@@ -8389,5 +8808,86 @@ initPanels({
       return brandDataUrl(LOOK_KIND[k], data);
     } });
   },
-  ask: (prompt) => { setTab('chat'); setChatTo('ai'); const i = $('#chatInput'); i.value = prompt; i.dispatchEvent(new Event('input')); i.focus(); toast('Edit it if you like, then press Enter to send it to ' + (store.get('aiName', '') || 'Sam') + '.'); },
+  ask: (prompt) => {
+    setTab('ai');
+    const i = $('#aiInput') || $('#chatInput');
+    if (i) { i.value = prompt; i.dispatchEvent(new Event('input')); i.focus(); }
+    toast('Ready to send to ' + (store.get('aiName', '') || 'Sam') + ' — press Enter.');
+  },
 });
+
+// ---------------------------------------------------------------- upgraded audio workstation & studio tools
+const sharedToolsApi = {
+  isHost: () => isHost(),
+  toast,
+  setStage,
+  setWatch,
+  setShop,
+  shopCfg,
+  watchCfg,
+  brandPref,
+  brandDataUrl,
+  getState: () => S.state,
+  getCanvas: () => canvas,
+  getStream: () => { try { return canvas.captureStream ? canvas.captureStream(30) : null; } catch { return null; } },
+  addElement,
+  patchEl,
+  getElements: () => S.state.elements || [],
+  hitStageElement: (nx, ny) => {
+    const els = drawOrder(stageElements()).filter((e) => !e.hidden).reverse();
+    return els.find((e) => nx >= e.x && nx <= e.x + e.w && ny >= e.y && ny <= e.y + e.h) || null;
+  },
+  stageElementAction: (id, act) => {
+    const els = elementsCopy(), idx = els.findIndex((x) => x.id === id);
+    if (idx < 0) return;
+    if (act === 'delete') { els.splice(idx, 1); setStage({ elements: els }); }
+    else if (act === 'hide') { els[idx].hidden = !els[idx].hidden; setStage({ elements: els }); }
+    else if (act === 'front') { const [it] = els.splice(idx, 1); els.push(it); setStage({ elements: els }); }
+    else if (act === 'back') { const [it] = els.splice(idx, 1); els.unshift(it); setStage({ elements: els }); }
+    else if (act === 'dup') { const copy = { ...els[idx], id: uid().slice(0, 8), x: Math.min(0.85, els[idx].x + 0.03), y: Math.min(0.85, els[idx].y + 0.03) }; els.push(copy); setStage({ elements: els }); }
+  },
+  nudgeSelectedElement: (dx, dy) => {
+    if (!editor.sel) return false;
+    const e = selEl(); if (!e) return false;
+    patchEl(e.id, { x: Math.max(0, Math.min(1 - e.w, e.x + dx)), y: Math.max(0, Math.min(1 - e.h, e.y + dy)) });
+    return true;
+  },
+  getLiveDiagnostics: () => ({
+    camOk: !!S.local.cam && S.local.camOn,
+    micOk: !!S.local.audio && S.local.micOn,
+    relayOk: !!S.relayOn,
+    destCount: readyDests().length,
+    inStudio: !!S.studio,
+  }),
+  playMusicFile: (f) => playBgMusicFile(f),
+  playStreamBuffer: async (audioBuffer, { duck = false } = {}) => {
+    try {
+      const ctx = audioCtx();
+      if (ctx.state === 'suspended') await ctx.resume();
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuffer;
+      const gOut = ctx.createGain();
+      gOut.gain.value = 0.85;
+      src.connect(gOut);
+      const mix = mixInMedia(gOut, { duck, monitor: true });
+      src.onended = () => mix.dispose();
+      src.start();
+      return () => { try { src.stop(); } catch {} mix.dispose(); };
+    } catch { return () => {}; }
+  },
+  duckMusicTemporarily: (ms = 4000) => {
+    try {
+      if (!duckBus || !actx) return;
+      duckBus.gain.setTargetAtTime(0.18, actx.currentTime, 0.08);
+      setTimeout(() => { try { duckBus.gain.setTargetAtTime(1, actx.currentTime, 0.25); } catch {} }, ms);
+    } catch {}
+  },
+  aidAddFiles,
+  setTab,
+  applyAdaptiveAccent,
+};
+try { initAudioStudio(sharedToolsApi); } catch (e) { console.warn('audio-studio init:', e); }
+try { initStudioTools(sharedToolsApi); } catch (e) { console.warn('studio-tools init:', e); }
+try { refreshSections(); } catch {}
+setInterval(syncAirPill, 1000);
+syncAirPill();

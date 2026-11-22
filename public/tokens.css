@@ -22,7 +22,7 @@
   --accent-hover: #60a5fa;
   --accent-text: #60a5fa;      /* high-contrast accent text on dark */
   --accent-ink: #ffffff;
-  --accent-2: #1d4ed8;         /* royal cobalt blue secondary aurora/rim */
+  --accent-2: color-mix(in srgb, var(--accent) 72%, #000000);         /* secondary aurora/rim */
   --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 46%, transparent);
   --cyan: var(--accent-text);  /* adaptive accent text alias */
@@ -35,7 +35,7 @@
   --warn-bg: rgba(250, 204, 21, 0.08);
   --warn-line: rgba(250, 204, 21, 0.25);
   --warn-ink: #f6d978;
-  --focus: rgba(59, 130, 246, 0.72);
+  --focus: color-mix(in srgb, var(--accent) 72%, transparent);
   --on-media: rgba(6, 10, 24, 0.68);       /* controls drawn over video */
   --on-media-line: rgba(255, 255, 255, 0.18);
 
@@ -103,7 +103,7 @@
   --accent-hover: #1d4ed8;
   --accent-text: #2563eb;
   --accent-ink: #ffffff;
-  --accent-2: #1e40af;
+  --accent-2: color-mix(in srgb, var(--accent) 72%, #000000);
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
   --fill: rgba(15, 23, 42, 0.05);
@@ -113,7 +113,7 @@
   --danger-soft: rgba(220, 58, 76, 0.1);
   --ok: #15965f;
   --warn-bg: #fdf6e3; --warn-line: #ecd9a4; --warn-ink: #7a5a17;
-  --focus: rgba(37, 99, 235, 0.62);
+  --focus: color-mix(in srgb, var(--accent) 62%, transparent);
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-bg-raised: rgba(255, 255, 255, 0.94);
   --glass-border: rgba(30, 64, 175, 0.12);

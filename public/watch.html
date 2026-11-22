@@ -214,84 +214,148 @@
         </div>
       </div>
 
-      <!-- Watch Party Lower Bento Hub: 1/3 Streamer Profile + 2/3 Showcase & AI Notices -->
-      <div class="wv-below" id="wBelowHub">
-        <!-- 1/3 Creator Profile & Subscribe Card -->
-        <article class="wv-creator-card glass" id="wCreatorCard" aria-label="Streamer profile">
-          <div class="wv-creator-top">
+      <!-- Redesigned Below-Video Broadcast Hub: Clean Borderless Show Header + Unified Dock -->
+      <div class="wv-below-v2" id="wBelowHub">
+        <header class="wv-show-bar" id="wCreatorCard" aria-label="Show header">
+          <div class="wv-show-left">
             <span class="wv-creator-ring" aria-hidden="true"><span class="wv-creator-logo" id="wCreatorLogo"></span><i class="wv-creator-live">LIVE</i></span>
-            <div class="wv-creator-id">
-              <div class="wv-creator-row">
-                <b id="wCreatorName">Broadcast Host</b>
+            <div class="wv-show-meta">
+              <div class="wv-show-title-row">
+                <h2 class="wv-show-title" id="wCreatorTitle">Live show</h2>
                 <span class="wv-creator-type" id="wCreatorType">Live Stream</span>
               </div>
-              <span class="wv-creator-handle num" id="wCreatorHandle"></span>
+              <div class="wv-show-sub-row">
+                <b id="wCreatorName">Broadcast Host</b>
+                <span class="wv-dot-sep" aria-hidden="true">·</span>
+                <span class="wv-creator-handle num" id="wCreatorHandle"></span>
+                <span class="wv-creator-here" id="wCreatorHere" hidden><span class="wv-creator-avs" id="wCreatorAvs" aria-hidden="true"></span><span class="wv-creator-heren" id="wCreatorHereN"></span></span>
+              </div>
+              <div class="wv-creator-tags" id="wCreatorTags" hidden></div>
             </div>
-            <button type="button" class="icon-btn sm wv-creator-share" id="wCardShare" aria-label="Share this show" data-tip="Share"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg></button>
           </div>
-          <h2 class="wv-creator-title" id="wCreatorTitle">Live show</h2>
-          <div class="wv-creator-tags" id="wCreatorTags" hidden></div>
-          <p class="wv-creator-about" id="wCreatorAbout"></p>
-          <div class="wv-creator-here" id="wCreatorHere" hidden><span class="wv-creator-avs" id="wCreatorAvs" aria-hidden="true"></span><span class="wv-creator-heren" id="wCreatorHereN"></span></div>
-          <div class="wv-creator-foot">
+          <div class="wv-show-acts">
+            <button type="button" class="btn sm wv-hotseat-btn" id="wHotSeatBtn" hidden>🔥 Join Hot Seat (60s)</button>
             <button type="button" class="btn primary sm wv-subscribe-card" id="wSubCard" hidden>
               <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg>
               <span id="wSubCardText">Subscribe</span>
+              <span class="wv-sub-cnt num" id="wCreatorSubs"></span>
             </button>
-            <span class="wv-creator-subs num" id="wCreatorSubs"></span>
+            <button type="button" class="icon-btn sm wv-creator-share" id="wCardShare" aria-label="Share this show" data-tip="Share"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg></button>
             <button type="button" class="btn sm ghost wv-creator-more" id="wCardMoreBtn">Details</button>
           </div>
-        </article>
+        </header>
 
-        <!-- 2/3 Interactive Showcase, Notices & Ads, What's Next & AI Spotlight -->
-        <section class="wv-showcase-card glass" id="wShowcaseCard" aria-label="Stream notices and showcase">
-          <header class="wv-sc-head">
-            <div class="wv-sc-tabs" role="tablist" aria-label="Showcase views">
-              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="party" aria-selected="true">
-                <span>Party</span>
-                <b class="wv-sc-cnt num" id="wCntParty" hidden></b>
-              </button>
-              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="notices" aria-selected="false">
-                <span>Notices &amp; Ads</span>
-                <b class="wv-sc-cnt num" id="wCntNotices" hidden>0</b>
-              </button>
-              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="next" aria-selected="false">
-                <span>What’s Next</span>
-                <b class="wv-sc-cnt num" id="wCntNext" hidden>Soon</b>
-              </button>
-              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="spotlight" aria-selected="false">
-                <span>AI Spotlight</span>
-                <b class="wv-sc-cnt" id="wCntSpot" hidden>AI</b>
-              </button>
-              <i class="wv-sc-ind" id="wScInd" aria-hidden="true"></i>
-            </div>
-          </header>
+        <section class="wv-dock-hub" id="wShowcaseCard" aria-label="Show party and info">
+          <nav class="wv-dock-nav" role="tablist" aria-label="Show tabs">
+            <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="party" aria-selected="true">
+              <span>Party</span>
+              <b class="wv-sc-cnt num" id="wCntParty" hidden></b>
+            </button>
+            <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="about" aria-selected="false">
+              <span>About this show</span>
+              <b class="wv-sc-cnt num" id="wCntNotices" hidden>0</b>
+            </button>
+            <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="catchup" aria-selected="false">
+              <span>Catch-up</span>
+              <b class="wv-sc-cnt" id="wCntSpot" hidden>AI</b>
+            </button>
+            <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="room" aria-selected="false">
+              <span>Watch room</span>
+              <b class="wv-sc-cnt num" id="wCntRoom" hidden>0</b>
+            </button>
+            <i class="wv-sc-ind" id="wScInd" aria-hidden="true"></i>
+          </nav>
 
-          <div class="wv-sc-body">
-            <div class="wv-sc-pane wv-party" id="wPaneParty" role="tabpanel">
-              <section class="wv-pt wv-pt-hype" aria-label="Hype meter">
-                <div class="wv-pt-h"><b>Hype meter</b><em class="num" id="wPtHypeLvl">Chill</em></div>
-                <div class="wv-pt-meter" role="meter" aria-label="Room hype" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="wPtHypeMeter"><i id="wPtHypeBar"></i></div>
-                <button type="button" class="wv-pt-hypeit" id="wPtHypeIt"><span aria-hidden="true">🔥</span> Hype it</button>
-              </section>
-              <section class="wv-pt wv-pt-fans" aria-label="Top fans">
-                <div class="wv-pt-h"><b>Top fans</b><em id="wPtFansSub">this show</em></div>
-                <ol class="wv-pt-board" id="wPtBoard"></ol>
-              </section>
-              <section class="wv-pt wv-pt-me" aria-label="Your watch party">
-                <div class="wv-pt-h"><b>You</b><em class="num" id="wPtXp">0 XP</em></div>
-                <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">5 min to “Tuned in”</small></div></div>
-                <div class="wv-pt-prog"><i id="wPtProg"></i></div>
-              </section>
+          <div class="wv-dock-body">
+            <!-- Party: ONE unified Room Meter + Top Fans + XP & Priority status -->
+            <div class="wv-sc-pane wv-party-v2" id="wPaneParty" role="tabpanel">
+              <div class="wv-room-meter" id="wRoomMeter" data-mood="idle">
+                <div class="wv-rm-top">
+                  <div class="wv-rm-lbl">
+                    <b>Room meter</b>
+                    <span class="wv-rm-state" id="wRoomLvl">Calm</span>
+                    <span class="wv-rm-pct num" id="wRoomPct">50%</span>
+                  </div>
+                  <button type="button" class="wv-pt-hypeit" id="wPtHypeIt"><span aria-hidden="true">🔥</span> Hype it</button>
+                </div>
+                <div class="wv-rm-track" role="meter" aria-label="Room meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" id="wRoomTrack"><i id="wRoomBar" style="width:50%"></i></div>
+                <small class="wv-rm-meta" id="wRoomMeta">Live energy synced with chat velocity &amp; reactions</small>
+              </div>
+
+              <div class="wv-party-split">
+                <section class="wv-pt-clean" aria-label="Top fans">
+                  <div class="wv-pt-h"><b>Top fans</b><em id="wPtFansSub">XP &amp; super chats</em></div>
+                  <ol class="wv-pt-board" id="wPtBoard"></ol>
+                </section>
+                <section class="wv-pt-clean" aria-label="Your XP and perks">
+                  <div class="wv-pt-h"><b>Your status</b><em class="num" id="wPtXp">0 XP</em></div>
+                  <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">Earn XP for priority play-with-me queue &amp; prediction stakes</small></div></div>
+                  <div class="wv-pt-prog"><i id="wPtProg"></i></div>
+                </section>
+              </div>
             </div>
-            <div class="wv-sc-pane" id="wPaneNotices" role="tabpanel" hidden>
-              <div class="wv-notices-list" id="wNoticesList"></div>
+
+            <!-- Unified About this show: Description + Notices & Ads + What's Next + AI Spotlight -->
+            <div class="wv-sc-pane wv-about-v2" id="wPaneAbout" role="tabpanel" hidden>
+              <p class="wv-creator-about" id="wCreatorAbout"></p>
+              <div class="wv-about-grid">
+                <div class="wv-about-sec">
+                  <h4>Notices &amp; Links</h4>
+                  <div class="wv-notices-list" id="wNoticesList"></div>
+                </div>
+                <div class="wv-about-sec">
+                  <h4>What’s Next</h4>
+                  <div class="wv-next-box" id="wNextBox"></div>
+                </div>
+                <div class="wv-about-sec">
+                  <h4>AI Spotlight</h4>
+                  <div class="wv-spot-box" id="wSpotlightBox"></div>
+                </div>
+              </div>
             </div>
-            <div class="wv-sc-pane" id="wPaneNext" role="tabpanel" hidden>
-              <div class="wv-next-box" id="wNextBox"></div>
+
+            <!-- AI Catch-up: "Missed 10 minutes?" -->
+            <div class="wv-sc-pane wv-catchup-v2" id="wPaneCatchup" role="tabpanel" hidden>
+              <div class="wv-cu-head">
+                <div>
+                  <b>Missed 10 minutes?</b>
+                  <small>Built live from show captions &amp; chat moments.</small>
+                </div>
+                <button type="button" class="btn sm primary" id="wCatchupBtn">Refresh recap</button>
+              </div>
+              <div class="wv-cu-body" id="wCatchupBody">
+                <p class="wv-cu-empty">Tap “Refresh recap” to get a quick bullet summary with jump-to-moment links.</p>
+              </div>
             </div>
-            <div class="wv-sc-pane" id="wPaneSpotlight" role="tabpanel" hidden>
-              <div class="wv-spot-box" id="wSpotlightBox"></div>
+
+            <!-- Private Watch-Party Room -->
+            <div class="wv-sc-pane wv-room-v2" id="wPaneRoom" role="tabpanel" hidden>
+              <div class="wv-wr-setup" id="wRoomSetup">
+                <div>
+                  <b>Watch with friends in a private side room</b>
+                  <small>Create a room or enter a 6-character friend code — synced to this stream.</small>
+                </div>
+                <div class="wv-wr-acts">
+                  <button type="button" class="btn sm primary" id="wRoomCreate">Create friend room</button>
+                  <form class="wv-wr-join" id="wRoomJoinForm" autocomplete="off">
+                    <input class="input sm" id="wRoomCodeIn" maxlength="8" placeholder="Room code" aria-label="Friend room code">
+                    <button type="submit" class="btn sm">Join</button>
+                  </form>
+                </div>
+              </div>
+              <div class="wv-wr-live" id="wRoomLive" hidden>
+                <div class="wv-wr-bar">
+                  <span class="wv-wr-pill">Room <b class="num" id="wRoomCodeTxt">—</b></span>
+                  <span class="wv-wr-roster" id="wRoomRoster"></span>
+                  <button type="button" class="btn sm ghost" id="wRoomCopy">Copy code</button>
+                  <button type="button" class="btn sm ghost" id="wRoomLeave">Leave</button>
+                </div>
+                <ol class="wv-wr-msgs" id="wRoomMsgs"></ol>
+                <form class="wv-wr-send" id="wRoomSendForm" autocomplete="off">
+                  <input class="input sm" id="wRoomMsgIn" maxlength="240" placeholder="Message your watch room…" aria-label="Private room message">
+                  <button type="submit" class="btn sm primary">Send</button>
+                </form>
+              </div>
             </div>
           </div>
         </section>
@@ -323,32 +387,36 @@
           <button type="button" role="tab" id="wTabShop" aria-selected="false" hidden>Shop</button>
           <button type="button" role="tab" id="wTabAbout" aria-selected="false" hidden>About</button>
         </div>
+        <select class="wv-lang-sel" id="wLangSel" aria-label="Translate chat and captions" title="Live translation">
+          <option value="">Original</option>
+          <option value="Spanish">Español</option>
+          <option value="French">Français</option>
+          <option value="German">Deutsch</option>
+          <option value="Portuguese">Português</option>
+          <option value="Japanese">日本語</option>
+          <option value="Korean">한국어</option>
+          <option value="Hindi">हिन्दी</option>
+          <option value="Arabic">العربية</option>
+        </select>
         <span class="wv-meta num" id="wChatState"></span>
         <button class="icon-btn sm wv-collapse" id="wChatCollapse" type="button" aria-label="Collapse chat (C)" data-tip="Collapse chat (C)"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
       </header>
 
-      <!-- Inline Sentiment Bar & Stage Activity Ribbon -->
+      <!-- Stream Mode Panel & Pinned Ribbon (single Room Meter lives cleanly in Party) -->
       <div class="wv-rail-meta" id="wRailMeta">
-          <!-- Stream-type panel: the live shop (Featured · Lookbook · Bag) or the play-along (line + prediction) -->
           <section class="wv-mode" id="wMode" hidden aria-labelledby="wModeTitle">
             <header class="wv-mode-h">
               <span class="wv-mode-ic" aria-hidden="true"><svg class="i sm"><use id="wModeIcon" href="/icons.svg#i-shopping-bag"/></svg></span>
               <div class="wv-mode-hd"><h2 id="wModeTitle">Shop the live drop</h2><span class="wv-mode-sub" id="wModeSub"></span></div>
-              <span class="wv-xp num" id="wXpBadge" hidden title="Your XP for this show: earned by voting, calling predictions, chatting and reacting. Kept on this device; just for fun.">0 XP</span>
+              <span class="wv-xp num" id="wXpBadge" hidden title="Earned XP gives you priority in the play-with-me queue and stakes for predictions.">0 XP</span>
               <button type="button" class="wv-bag-btn" id="wBagBtn" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span class="num" id="wBagBtnTxt">Bag (0)</span></button>
               <button type="button" class="icon-btn sm wv-mode-min" id="wModeMin" aria-expanded="true" aria-label="Collapse panel"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
             </header>
             <nav class="wv-mode-tabs" id="wModeTabs" role="tablist" aria-label="Shop views" hidden></nav>
             <div class="wv-mode-body" id="wModeBody"></div>
+            <div class="wv-checkout" id="wShopCheckout" hidden></div>
           </section>
         <div class="wv-rail-strip" id="wRailStrip">
-          <button type="button" class="wv-mood-mini" id="wMoodMiniBtn" data-mood="idle" data-tip="Crowd sentiment: Calm (50%) — tracks live chat positivity &amp; reactions. Click for Pulse." data-tip-delay="100" data-tip-side="bottom">
-            <svg class="i sm wv-mood-ic" aria-hidden="true"><use id="wMoodMiniIconUse" href="/icons.svg#i-activity"/></svg>
-            <span class="wv-mood-mini-lbl" id="wMoodMiniLbl">Calm</span>
-            <span class="wv-mood-mini-bar"><i id="wMoodMiniBar" style="width:50%"></i></span>
-            <span class="wv-mood-mini-pct num" id="wMoodMiniPct">50%</span>
-          </button>
-
           <button type="button" class="wv-pin-mini" id="wPinMiniBtn" hidden title="View full pinned message in Pulse">
             <span class="wv-pin-mini-ic" aria-hidden="true">📌</span>
             <span class="wv-pin-mini-txt" id="wPinMiniTxt"></span>
@@ -378,18 +446,8 @@
       </ol>
       <button class="wv-newer" id="wNewer" type="button" hidden>New messages ↓</button>
 
-      <!-- Consolidated Pulse Tab: Full Live Mood Meter, Pinned Note, Who's Here & Top Supporters -->
-      <section class="wv-pulsepanel" id="wPulsePanel" hidden aria-label="Room pulse and telemetry">
-        <div class="wv-mood" id="wMoodBox" data-mood="idle" aria-live="polite">
-          <div class="wv-mood-row">
-            <span class="wv-mood-lbl"><svg class="i sm" aria-hidden="true"><use id="wMoodBoxIconUse" href="/icons.svg#i-activity"/></svg><b id="wMoodLabel">Room Calm</b></span>
-            <span class="wv-mood-pct num" id="wMoodPct">50%</span>
-          </div>
-          <div class="wv-mood-track" role="meter" id="wMoodMeter" aria-label="Live room mood" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-            <i id="wMoodBar" style="width:50%"></i>
-          </div>
-          <div class="wv-mood-meta num" id="wMoodMeta">Synced with live chat &amp; reactions</div>
-        </div>
+      <!-- Consolidated Pulse Tab: Pinned Note, Who's Here & Top Supporters -->
+      <section class="wv-pulsepanel" id="wPulsePanel" hidden aria-label="Room roster and supporters">
 
         <div class="wv-pin" id="wPin" hidden>
           <span class="wv-pin-ic" aria-hidden="true">📌</span>
@@ -438,11 +496,6 @@
       <form class="wv-compose" id="wCompose" autocomplete="off">
         <div class="wv-compose-party" id="wComposeParty">
           <div class="wv-reactdock" id="wReactDock" role="group" aria-label="One-tap reactions"></div>
-          <div class="wv-hype" id="wHype" title="Live hype pulse synced with reactions &amp; chat velocity">
-            <span class="wv-hype-ic" aria-hidden="true">🔥</span>
-            <i><b id="wHypeBar"></b></i>
-            <em class="num" id="wHypeLvl">Chill</em>
-          </div>
         </div>
         <div class="wv-guest-bar" id="wGuestBar" hidden>
           <div class="wv-guest-row">
@@ -614,24 +667,17 @@
   </div>
 </dialog>
 
-<dialog class="modal" id="wSuperDlg" aria-labelledby="wSuperH">
-  <form method="dialog" class="modal-card glass raised wv-sheet" id="wSuperForm">
+<dialog class="modal" id="wMomentDlg" aria-labelledby="wMomentH">
+  <div class="modal-card glass raised wv-sheet wv-momentdlg">
     <button type="button" class="icon-btn sm modal-close" data-close aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
-    <h2 id="wSuperH">Send a super chat</h2>
-    <p class="sub" id="wSuperSub">Highlights your message on screen when the host confirms your tip.</p>
-    <div class="wv-amounts" id="wAmounts" role="radiogroup" aria-label="Amount"></div>
-    <div class="row2">
-      <label class="fld"><span>Your name</span><input class="input" id="wScName" maxlength="24" placeholder="Shown on screen"></label>
+    <h2 id="wMomentH">Super chat moment</h2>
+    <p class="sub">Share your shout-out card from this stream.</p>
+    <canvas id="wMomentCanvas" width="960" height="540" style="width:100%;height:auto;border-radius:12px;display:block;"></canvas>
+    <div class="row" style="margin-top:12px;justify-content:flex-end;gap:8px;">
+      <button type="button" class="btn sm" id="wMomentCopy">Copy share text</button>
+      <button type="button" class="btn sm primary" id="wMomentDl">Download PNG</button>
     </div>
-    <label class="fld"><span>Message <em>optional</em></span><textarea class="input" id="wScText" rows="2" maxlength="200" placeholder="Shout-out, question, anything"></textarea></label>
-    <div class="fld"><span>Pay with</span><div class="wv-methods" id="wMethods" role="radiogroup" aria-label="Pay with"></div></div>
-    <p class="hint" id="wPayNote"></p>
-    <ol class="wv-steps">
-      <li><button type="button" class="btn primary block" id="wPayGo">Pay</button></li>
-      <li><button type="button" class="btn block" id="wPaid" disabled>I’ve paid: send it</button></li>
-    </ol>
-    <p class="wv-err" id="wScErr" role="alert" hidden></p>
-  </form>
+  </div>
 </dialog>
 
 <dialog class="modal" id="wVoiceDlg" aria-labelledby="wVoiceH">

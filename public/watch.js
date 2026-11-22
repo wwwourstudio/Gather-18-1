@@ -193,37 +193,32 @@ function syncMoodUI(state, label, pct, metaText) {
   $('#wMoodBoxIconUse')?.setAttribute('href', iconHref);
 
   const shortLbl = state === 'idle' ? 'Calm' : label;
-  const mini = $('#wMoodMiniBtn');
-  if (mini) {
-    mini.dataset.mood = state;
-    const desc = `Crowd sentiment: ${shortLbl} (${pct}%) — ${metaText || 'tracks live chat & reactions'}. Click for Pulse.`;
-    mini.dataset.tip = desc;
-    const tip = $('#ui-tooltip');
-    if (tip && mini.getAttribute('aria-describedby') === tip.id && tip.classList.contains('show')) tip.textContent = desc;
-  }
-  if ($('#wMoodMiniLbl')) $('#wMoodMiniLbl').textContent = shortLbl;
-  if ($('#wMoodMiniBar')) $('#wMoodMiniBar').style.width = `${pct}%`;
-  if ($('#wMoodMiniPct')) $('#wMoodMiniPct').textContent = `${pct}%`;
+  const rm = $('#wRoomMeter');
+  if (rm) rm.dataset.mood = state;
+  if ($('#wRoomLvl')) $('#wRoomLvl').textContent = shortLbl;
+  if ($('#wRoomPct')) $('#wRoomPct').textContent = `${pct}%`;
+  if ($('#wRoomBar')) $('#wRoomBar').style.width = `${pct}%`;
+  if ($('#wRoomTrack')) $('#wRoomTrack').setAttribute('aria-valuenow', String(pct));
+  if ($('#wRoomMeta') && metaText) $('#wRoomMeta').textContent = metaText;
 }
 
 function renderMoodMeter(info) {
-  const box = $('#wMoodBox');
-  if (!box) return;
+  const rm = $('#wRoomMeter');
+  if (!rm) return;
   const items = (info?.chat || W.recentChat || []).filter((m) => m && !W.muted.has(String(m.name).toLowerCase())).slice(-30);
   const reacts = info?.reacts || {};
   const reactTotal = Object.values(reacts).reduce((a, b) => a + b, 0);
   const hypeFactor = Math.min(1, (reactTotal + W.reactMomentum) / 25);
 
   if (!items.length && reactTotal === 0 && W.reactMomentum === 0) {
-    syncMoodUI('idle', 'Room Calm', 50, 'Synced with live chat & reactions');
+    syncMoodUI('idle', 'Calm', 50, 'Live energy synced with chat velocity & reactions');
     return;
   }
 
-  let weighted = 0, wSum = 0, pos = 0, neg = 0;
+  let weighted = 0, wSum = 0, pos = 0;
   for (let i = 0; i < items.length; i++) {
     const sc = scoreMessageSentiment(items[i].text, items[i]);
     if (sc >= 0.2) pos++;
-    else if (sc <= -0.2) neg++;
     const w = Math.pow(0.92, items.length - 1 - i);
     weighted += sc * w;
     wSum += w;
@@ -235,14 +230,16 @@ function renderMoodMeter(info) {
   const pct = Math.max(0, Math.min(100, Math.round(chatPct * (1 - reactWeight) + reactPct * reactWeight)));
 
   const state = pct >= 76 ? 'hype' : pct >= 60 ? 'warm' : pct >= 44 ? 'steady' : pct >= 28 ? 'mixed' : 'tense';
-  const label = { hype: 'Hyped', warm: 'Upbeat', steady: 'Steady', mixed: 'Mixed', tense: 'Tense' }[state];
+  const label = { hype: 'Hyped 🔥', warm: 'Upbeat', steady: 'Steady', mixed: 'Mixed', tense: 'Tense' }[state];
   const parts = [];
   if (items.length) parts.push(`${items.length} msg${items.length === 1 ? '' : 's'} (${pos} positive)`);
   if (reactTotal + W.reactMomentum > 0) parts.push(`${reactTotal + Math.round(W.reactMomentum)} reactions`);
-  syncMoodUI(state, label, pct, parts.join(' · ') || 'Synced with live chat & reactions');
+  syncMoodUI(state, label, pct, parts.join(' · ') || 'Live energy synced with chat velocity & reactions');
 }
 
-// ---------------------------------------------------------------- feed (cached GET shared by viewers)
+// ---------------------------------------------------------------- feed (adaptive fast polling for crisp live chat)
+let lastActivityAt = Date.now();
+for (const ev of ['pointerdown', 'keydown', 'scroll']) addEventListener(ev, () => { lastActivityAt = Date.now(); }, { passive: true });
 async function poll() {
   try {
     const r = await fetch(`/api/studio?action=wfeed&studio=${encodeURIComponent(code)}`);
@@ -252,7 +249,8 @@ async function poll() {
     window.gatherBoot?.done();
     $('#wEmptyH').textContent = 'Can’t reach gather right now. Retrying…';
   }
-  setTimeout(poll, document.hidden ? 8000 : 2000);
+  const active = !document.hidden && (Date.now() - lastActivityAt < 45000);
+  setTimeout(poll, document.hidden ? 8000 : active ? 750 : 2000);
 }
 
 function render(info) {
@@ -320,6 +318,7 @@ function render(info) {
   renderCaps(info);
   renderSources(info);
   floatReacts(info.reacts);
+  syncHotSeatBtn(info);
   syncHudShell();
 }
 
@@ -394,8 +393,10 @@ function msgEl(m) {
     else acts.append(mk('flag', 'Report', () => reportMsg(m.id, li)), mk('volume-x', `Mute ${m.name} for me`, () => muteName(m.name)));
   }
   head.append(gap, acts, lk);
-  if (m.re?.n) { const q = document.createElement('span'); q.className = 'wv-re'; q.textContent = `${m.re.n}: ${m.re.t || ''}`; body.append(head, q, richText(m.text)); }
-  else body.append(head, richText(m.text));
+  const txtNode = richText(m.text);
+  if (W.lang && m.text) applyLiveTranslation(txtNode, m.text);
+  if (m.re?.n) { const q = document.createElement('span'); q.className = 'wv-re'; q.textContent = `${m.re.n}: ${m.re.t || ''}`; body.append(head, q, txtNode); }
+  else body.append(head, txtNode);
   li.append(av, body);
   return li;
 }
@@ -422,6 +423,14 @@ function paidEl(li, m) {
     v.querySelector('span').textContent = `Voice message · 0:${String(m.voice).padStart(2, '0')}`;
     v.onclick = () => playScVoice(m.sc, v);
     li.append(v);
+  }
+  if (m.status !== 'pending' && m.status !== 'dismissed') {
+    const shareBtn = document.createElement('button');
+    shareBtn.type = 'button';
+    shareBtn.className = 'wv-moment-btn';
+    shareBtn.textContent = '✨ Share moment';
+    shareBtn.onclick = () => openMomentCard(m);
+    li.append(shareBtn);
   }
   return li;
 }
@@ -911,16 +920,8 @@ $('#wReactPick').replaceChildren(...REACTS.map((e) => {
 }));
 
 function renderHype(info) {
-  const total = Object.values(info?.reacts || {}).reduce((a, b) => a + b, 0) + W.reactMomentum;
-  const lv = Math.min(100, Math.round(total * 4));
-  $('#wHypeBar').style.width = lv + '%';
-  $('#wHypeLvl').textContent = lv >= 100 ? 'MAX' : lv >= 60 ? 'Hot' : lv >= 25 ? 'Warm' : 'Chill';
-  $('#wHype').classList.toggle('max', lv >= 100);
-  if ($('#wPtHypeBar')) {
-    $('#wPtHypeBar').style.width = lv + '%'; $('#wPtHypeMeter').setAttribute('aria-valuenow', String(lv));
-    $('#wPtHypeLvl').textContent = lv >= 100 ? 'MAX 🔥' : lv >= 60 ? 'On fire' : lv >= 25 ? 'Warming up' : 'Chill';
-    $('.wv-pt-hype').classList.toggle('max', lv >= 100); $('.wv-pt-hype').classList.toggle('hot', lv >= 60);
-  }
+  // Merged into the single Room meter via renderMoodMeter; keep hype boost responsive.
+  if (W.reactMomentum > 0) renderMoodMeter(info);
 }
 
 // ---------------------------------------------------------------- chat
@@ -986,38 +987,8 @@ $('#wCompose').addEventListener('submit', async (e) => {
   }
 });
 
-// ---------------------------------------------------------------- super chats
+// ---------------------------------------------------------------- super chats (single unified inline tray)
 const SC = { amount: 5, method: '', opened: false };
-function openSuper() {
-  const w = W.info?.watch || {};
-  const methods = Object.keys(PAY).filter((m) => (m === 'card' ? w.card : w.pay?.[m]));
-  SC.method = methods.includes(SC.method) ? SC.method : methods[0] || '';
-  SC.amount = Math.max(SC.amount, w.min || 2); SC.opened = false;
-  const amounts = [...new Set([w.min || 2, 5, 10, 20, 50].filter((a) => a >= (w.min || 2)))].slice(0, 5);
-  $('#wAmounts').replaceChildren(...amounts.map((a) => {
-    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.textContent = '$' + a;
-    b.setAttribute('aria-checked', String(a === SC.amount)); b.onclick = () => { SC.amount = a; $('#wCustom').value = ''; openSuperRefresh(); };
-    return b;
-  }), Object.assign(document.createElement('input'), { className: 'input', id: 'wCustom', type: 'number', min: String(w.min || 2), max: '10000', step: '1', placeholder: 'Other amount ($)', inputMode: 'decimal' }));
-  $('#wCustom').oninput = (e) => { const v = Number(e.target.value); if (v) SC.amount = v; openSuperRefresh(); };
-  $('#wMethods').replaceChildren(...methods.map((m) => {
-    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.m = m; b.textContent = PAY[m].label;
-    b.onclick = () => { SC.method = m; SC.opened = false; openSuperRefresh(); };
-    return b;
-  }));
-  showErr('#wScErr', '');
-  $('#wScName').value = sess?.named ? sess.name : store.get('name', '');
-  openSuperRefresh();
-  $('#wSuperDlg').showModal();
-}
-function openSuperRefresh() {
-  $$('#wAmounts button').forEach((b) => b.setAttribute('aria-checked', String(b.textContent === '$' + SC.amount)));
-  $$('#wMethods button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.m === SC.method)));
-  const label = PAY[SC.method]?.label || '';
-  $('#wPayGo').textContent = SC.method === 'stripe' ? `Pay $${SC.amount} by card, Apple Pay or Google Pay` : `Pay $${SC.amount} with ${label}`;
-  $('#wPayNote').textContent = `Your payment goes straight to the host${SC.method === 'stripe' ? ' through Stripe' : ` on ${label}`}. gather never touches it. Enter $${SC.amount} if the app asks.`;
-  $('#wPaid').disabled = !SC.opened;
-}
 $('#wSuperBtn').onclick = () => openTipDock();
 
 // ---------------------------------------------------------------- super chat in the chat input
@@ -1180,27 +1151,6 @@ $('#wTipSend').onclick = async () => {
     toast(`Sent. Your $${SC.amount} super chat pops up on screen once the streamer sees the payment.`);
   } catch (err) { showErr('#wTipErr', err.message); }
 };
-$('#wPayGo').onclick = async () => {
-  const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
-  if (!handle) return;
-  try { await ensureSession(); } catch {}
-  window.open(PAY[SC.method].link(handle, SC.amount, `Super chat on gather: ${($('#wScText').value || '').slice(0, 60)}`), '_blank', 'noopener');
-  SC.opened = true; openSuperRefresh();
-};
-$('#wPaid').onclick = async () => {
-  showErr('#wScErr', '');
-  try {
-    await ensureSession();
-    const nm = $('#wScName').value.trim();
-    if (!nm) { $('#wScName').focus(); return showErr('#wScErr', 'Add your name so the host can thank you.'); }
-    if (nm !== sess.name) await setName(nm);
-    const r = await api('wsend', { ...creds(), type: 'super', amount: SC.amount, method: SC.method, text: $('#wScText').value.trim() });
-    $('#wSuperDlg').close(); $('#wScText').value = '';
-    $('#wMsgs').append(msgEl({ id: 'mine-' + r.id, sc: r.id, name: sess.name, text: 'Waiting for the host to confirm your super chat…', paid: '$' + SC.amount, status: 'pending' }));
-    $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
-    toast('Sent. It shows up once the host sees your payment.');
-  } catch (err) { showErr('#wScErr', err.message); }
-};
 $$('button[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog')?.close()));
 
 $('#wShare').onclick = async () => {
@@ -1334,7 +1284,12 @@ function renderCaps(info) {
   const line = (info.caps || []).slice(-1)[0];
   const show = W.cc && !onStage && line && Date.now() - line.ts < 9000;
   $('#wCaps').hidden = !show;
-  if (show) $('#wCaps').replaceChildren(Object.assign(document.createElement('b'), { textContent: line.name }), document.createTextNode(line.text));
+  if (show) {
+    const span = document.createElement('span');
+    span.textContent = line.text;
+    $('#wCaps').replaceChildren(Object.assign(document.createElement('b'), { textContent: line.name }), span);
+    if (W.lang) applyLiveTranslation(span, line.text);
+  }
 }
 $('#wCC').onclick = () => { W.cc = !W.cc; store.set('cc', W.cc); if (W.info) renderCaps(W.info); if (W.cc && !(W.info?.caps || []).length) toast('Captions show here when the host turns on live captions.'); };
 
@@ -1626,8 +1581,17 @@ function renderShopDrop(info, force) {
       priceEl(drop, sale, 'wv-drop-price'));
     row.append(skuThumb(drop), t); out.push(row);
     if (sale?.id === drop.id && sale.code) { const c = document.createElement('button'); c.type = 'button'; c.className = 'wv-sku-code'; c.innerHTML = 'Use code <code></code> at checkout · tap to copy'; c.querySelector('code').textContent = sale.code; c.onclick = buyWithCode(sale); out.push(c); }
+    const stockLeft = typeof drop.stock === 'number' && drop.stock > 0 ? Math.max(0, drop.stock - (drop.sold || 0)) : null;
+    const stockBadge = stockLeft !== null ? Object.assign(document.createElement('span'), { className: 'wv-stock-pill' + (stockLeft <= 5 ? ' low' : ''), textContent: stockLeft === 0 ? 'Sold out' : `${stockLeft} left!` }) : null;
+    if (stockBadge) t.append(stockBadge);
     const acts = document.createElement('div'); acts.className = 'wv-drop-acts';
-    acts.append(buyLink(drop, sale, `Buy now · ${salePriceOf(drop, sale) || money(drop.price)}`, 'btn wv-drop-buy'));
+    const buyBtn = document.createElement('button');
+    buyBtn.type = 'button';
+    buyBtn.className = 'btn primary wv-drop-buy';
+    buyBtn.disabled = stockLeft === 0;
+    buyBtn.textContent = stockLeft === 0 ? 'Sold out' : `Buy now · ${salePriceOf(drop, sale) || money(drop.price)}`;
+    buyBtn.onclick = () => buyProductInline(drop, sale);
+    acts.append(buyBtn);
     const add = document.createElement('button'); add.type = 'button'; add.className = 'btn wv-drop-add'; add.textContent = W.addedId === drop.id ? 'Added ✓' : 'Add to bag'; add.onclick = () => addToBag(drop);
     acts.append(add); out.push(acts);
     if (items.length > 1) {
@@ -1828,7 +1792,13 @@ function renderParty(info) {
     if (m.paid && m.status !== 'pending') r.paid += Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0; else r.msgs += 1;
     by.set(m.name, r);
   }
-  const rows = [...by.values()].map((r) => ({ ...r, score: r.paid * 10 + r.msgs })).sort((a, b) => b.score - a.score);
+  for (const tf of info?.topFans || []) {
+    if (!tf?.name) continue;
+    const r = by.get(tf.name) || { name: tf.name, paid: 0, msgs: 0, xp: 0 };
+    r.xp = Math.max(r.xp || 0, Number(tf.xp) || 0);
+    by.set(tf.name, r);
+  }
+  const rows = [...by.values()].map((r) => ({ ...r, score: r.paid * 10 + (r.xp || 0) * 0.25 + r.msgs })).sort((a, b) => b.score - a.score);
   const me = sess?.named ? sess.name : ACCT?.user?.name || '';
   const myRank = me ? rows.findIndex((r) => r.name === me) : -1;
   const key = JSON.stringify([rows.slice(0, 3), myRank]);
@@ -1837,12 +1807,13 @@ function renderParty(info) {
     const medal = ['🥇', '🥈', '🥉'];
     const items = rows.slice(0, 3).map((r, i) => {
       const li = document.createElement('li'); if (r.name === me) li.className = 'me';
+      const metric = r.paid ? `$${Number.isInteger(r.paid) ? r.paid : r.paid.toFixed(2)}` : r.xp ? `${r.xp} XP` : `${r.msgs} msg${r.msgs === 1 ? '' : 's'}`;
       li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal', textContent: medal[i] }), Object.assign(document.createElement('b'), { textContent: r.name }),
-        Object.assign(document.createElement('em'), { className: 'num', textContent: r.paid ? `$${Number.isInteger(r.paid) ? r.paid : r.paid.toFixed(2)}` : `${r.msgs} msg${r.msgs === 1 ? '' : 's'}` }));
+        Object.assign(document.createElement('em'), { className: 'num', textContent: metric }));
       return li;
     });
-    if (myRank >= 3) { const li = document.createElement('li'); li.className = 'me'; li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal num', textContent: `#${myRank + 1}` }), Object.assign(document.createElement('b'), { textContent: 'You' }), Object.assign(document.createElement('em'), { className: 'num', textContent: `${rows[myRank].msgs} msgs` })); items.push(li); }
-    if (!items.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Say hi or send a super chat to top the board.'; items.push(li); }
+    if (myRank >= 3) { const li = document.createElement('li'); li.className = 'me'; li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal num', textContent: `#${myRank + 1}` }), Object.assign(document.createElement('b'), { textContent: 'You' }), Object.assign(document.createElement('em'), { className: 'num', textContent: rows[myRank].xp ? `${rows[myRank].xp} XP` : `${rows[myRank].msgs} msgs` })); items.push(li); }
+    if (!items.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Say hi, win predictions, or send a super chat to top the board.'; items.push(li); }
     $('#wPtBoard').replaceChildren(...items);
   }
   $('#wCntParty').hidden = !(info.viewers > 1); $('#wCntParty').textContent = info.viewers > 1 ? String(info.viewers) : '';
@@ -2440,15 +2411,16 @@ $('#wCardMoreBtn')?.addEventListener('click', () => openHostDrawer(true));
 $('#wCardShare')?.addEventListener('click', () => $('#wShareTop').click());
 
 function setShowcaseTab(tab) {
-  W.scTab = tab;
+  const mapped = (tab === 'notices' || tab === 'next' || tab === 'spotlight') ? 'about' : tab;
+  W.scTab = mapped;
   $$('[data-sc-tab]').forEach((b) => {
-    const on = b.dataset.scTab === tab;
+    const on = b.dataset.scTab === mapped;
     b.setAttribute('aria-selected', String(on));
   });
-  if ($('#wPaneParty')) $('#wPaneParty').hidden = tab !== 'party';
-  if ($('#wPaneNotices')) $('#wPaneNotices').hidden = tab !== 'notices';
-  if ($('#wPaneNext')) $('#wPaneNext').hidden = tab !== 'next';
-  if ($('#wPaneSpotlight')) $('#wPaneSpotlight').hidden = tab !== 'spotlight';
+  if ($('#wPaneParty')) $('#wPaneParty').hidden = mapped !== 'party';
+  if ($('#wPaneAbout')) $('#wPaneAbout').hidden = mapped !== 'about';
+  if ($('#wPaneCatchup')) $('#wPaneCatchup').hidden = mapped !== 'catchup';
+  if ($('#wPaneRoom')) $('#wPaneRoom').hidden = mapped !== 'room';
   moveScInd();
 }
 // The gradient underline glides to the selected tab.
@@ -2767,3 +2739,337 @@ function renderEmptyExtras(info) {
   const replay = info.ended && (W.last?.links || [])[0];
   if (replay) { const a = document.createElement('a'); a.className = 'btn sm primary'; a.href = replay.url; a.target = '_blank'; a.rel = 'noopener'; a.innerHTML = '<svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Watch the replay'; add(a); }
 }
+
+// ============================================================================
+// V7 INTERACTIVE WATCH FEATURES:
+// 1. Buy Without Leaving (embedded checkout + live stock + purchase alert)
+// 2. AI Catch-up ("Missed 10 minutes?" with jump-to-moment links)
+// 3. Private Watch-Party Rooms (synced side room with friend code)
+// 4. Live Translation (captions + chat)
+// 5. Super Chat "Moments" (shareable shout-out replay card)
+// 6. Hot Seat (60-second camera slot unlocked by Hot Seat super chat)
+// ============================================================================
+
+let shopCheckoutMount = null;
+async function buyProductInline(drop, sale) {
+  const host = $('#wShopCheckout');
+  if (!drop || !host) return;
+  try {
+    await ensureSession();
+    if (!sess?.named) { openSignIn(); return; }
+    host.hidden = false;
+    host.innerHTML = '<div class="wv-co-bar"><b>Opening secure checkout…</b><button type="button" class="btn sm ghost" id="wCoCancel">Cancel</button></div><div id="wCoMount"></div>';
+    $('#wCoCancel').onclick = () => { try { shopCheckoutMount?.destroy(); } catch {} shopCheckoutMount = null; host.hidden = true; host.replaceChildren(); };
+    const r = await api('wshopbuy', { ...creds(), itemId: drop.id });
+    if (r.mode === 'stripe' && r.clientSecret && r.pk) {
+      const StripeFn = await loadStripe();
+      const stripe = StripeFn(r.pk, r.account ? { stripeAccount: r.account } : undefined);
+      try { shopCheckoutMount?.destroy(); } catch {}
+      shopCheckoutMount = await stripe.initEmbeddedCheckout({
+        fetchClientSecret: async () => r.clientSecret,
+        onComplete: async () => {
+          try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
+          try { shopCheckoutMount?.destroy(); } catch {}
+          shopCheckoutMount = null;
+          host.hidden = true; host.replaceChildren();
+          toast(`Order confirmed! Thanks for grabbing ${drop.title}.`);
+          poll();
+        },
+      });
+      const mount = $('#wCoMount');
+      if (mount) shopCheckoutMount.mount(mount);
+      host.querySelector('.wv-co-bar b').textContent = `${drop.title} · ${salePriceOf(drop, sale) || money(drop.price)}`;
+    } else {
+      host.hidden = true; host.replaceChildren();
+      toast(`Reserved ${drop.title}!${r.remaining != null ? ` (${r.remaining} left)` : ''}`);
+      if (r.url && /^https?:\/\//i.test(r.url)) {
+        const a = document.createElement('a'); a.href = r.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.click();
+      }
+      poll();
+    }
+  } catch (e) {
+    host.hidden = true; host.replaceChildren();
+    toast(e.message || 'Couldn’t start checkout right now.');
+  }
+}
+
+// ---- AI Catch-up ("Missed 10 minutes?") ----
+async function loadCatchup() {
+  const body = $('#wCatchupBody');
+  if (!body) return;
+  const btn = $('#wCatchupBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building recap…'; }
+  try {
+    const r = await api('wcatchup', { studio: code });
+    const wrap = document.createElement('div'); wrap.className = 'wv-cu-list';
+    const sum = document.createElement('p'); sum.className = 'wv-cu-sum'; sum.textContent = r.summary || 'Here is what just happened on stream.';
+    wrap.append(sum);
+    const moments = r.moments || [];
+    if (!moments.length) {
+      const em = document.createElement('p'); em.className = 'wv-cu-empty';
+      em.textContent = 'Quiet last 10 minutes — highlights appear here as captions, super chats, and challenges happen.';
+      wrap.append(em);
+    } else {
+      const ul = document.createElement('ul'); ul.className = 'wv-cu-ul';
+      for (const m of moments) {
+        const li = document.createElement('li');
+        const agoMin = Math.max(0, Math.round((Date.now() - (m.ts || Date.now())) / 60000));
+        const t = document.createElement('span'); t.className = 'wv-cu-time num'; t.textContent = agoMin ? `${agoMin}m ago` : 'Just now';
+        const info = document.createElement('div'); info.className = 'wv-cu-txt';
+        info.append(Object.assign(document.createElement('b'), { textContent: m.title }), Object.assign(document.createElement('span'), { textContent: m.detail || '' }));
+        li.append(t, info);
+        if (m.msgId) {
+          const jump = document.createElement('button'); jump.type = 'button'; jump.className = 'btn sm ghost'; jump.textContent = 'Jump';
+          jump.onclick = () => {
+            setTab('chat');
+            const target = $(`#wMsgs [data-id="${CSS.escape(m.msgId)}"]`);
+            if (target) { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.classList.add('flash'); setTimeout(() => target.classList.remove('flash'), 1600); }
+            else toast('That chat moment scrolled past the live window.');
+          };
+          li.append(jump);
+        }
+        ul.append(li);
+      }
+      wrap.append(ul);
+    }
+    body.replaceChildren(wrap);
+  } catch (e) {
+    body.replaceChildren(Object.assign(document.createElement('p'), { className: 'wv-cu-empty', textContent: e.message || 'Could not load recap right now.' }));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Refresh recap'; }
+  }
+}
+$('#wCatchupBtn')?.addEventListener('click', loadCatchup);
+$$('.wv-sc-tab[data-sc-tab="catchup"]').forEach((t) => t.addEventListener('click', () => {
+  if (!$('#wCatchupBody')?.querySelector('.wv-cu-list')) loadCatchup();
+}));
+
+// ---- Private Watch-Party Rooms ----
+const WROOM = { code: store.get('wroom:' + code, ''), timer: null };
+function renderWatchRoomState(data) {
+  const active = !!(WROOM.code && data?.found !== false);
+  if ($('#wRoomSetup')) $('#wRoomSetup').hidden = active;
+  if ($('#wRoomLive')) $('#wRoomLive').hidden = !active;
+  if ($('#wCntRoom')) {
+    const n = data?.members?.length || 0;
+    $('#wCntRoom').hidden = !active || !n;
+    $('#wCntRoom').textContent = String(n);
+  }
+  if (!active) return;
+  if ($('#wRoomCodeTxt')) $('#wRoomCodeTxt').textContent = WROOM.code;
+  if ($('#wRoomRoster') && data?.members) $('#wRoomRoster').textContent = `${data.members.length} here: ${data.members.slice(0, 5).join(', ')}`;
+  const ul = $('#wRoomMsgs');
+  if (ul && Array.isArray(data?.chat)) {
+    const atBottom = ul.scrollHeight - ul.scrollTop - ul.clientHeight < 40;
+    ul.replaceChildren(...data.chat.map((m) => {
+      const li = document.createElement('li');
+      const d = new Date(m.ts || Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      li.append(Object.assign(document.createElement('b'), { textContent: m.name }), Object.assign(document.createElement('span'), { textContent: m.text }), Object.assign(document.createElement('time'), { textContent: d }));
+      return li;
+    }));
+    if (!data.chat.length) ul.append(Object.assign(document.createElement('li'), { className: 'empty', textContent: 'Share the room code with friends to chat privately while watching.' }));
+    if (atBottom) ul.scrollTop = ul.scrollHeight;
+  }
+}
+async function pollWatchRoom() {
+  if (!WROOM.code || !sess?.vid) return;
+  try {
+    const r = await api('wroomPoll', { ...creds(), room: WROOM.code });
+    if (!r.found) { leaveWatchRoom(true); return; }
+    renderWatchRoomState(r);
+  } catch {}
+}
+function startWatchRoomPoll() {
+  clearInterval(WROOM.timer);
+  if (!WROOM.code) return;
+  pollWatchRoom();
+  WROOM.timer = setInterval(pollWatchRoom, 2500);
+}
+function leaveWatchRoom(silent) {
+  WROOM.code = '';
+  store.set('wroom:' + code, '');
+  clearInterval(WROOM.timer);
+  renderWatchRoomState({ found: false });
+  if (!silent) toast('Left the private watch room.');
+}
+$('#wRoomCreate')?.addEventListener('click', async () => {
+  try {
+    await ensureSession();
+    if (!sess?.named) { openSignIn(); return; }
+    const r = await api('wroomCreate', { ...creds() });
+    WROOM.code = r.room; store.set('wroom:' + code, r.room);
+    renderWatchRoomState({ found: true, members: [sess.name], chat: [] });
+    startWatchRoomPoll();
+    toast(`Private room ${r.room} created — share the code with friends!`);
+  } catch (e) { toast(e.message || 'Could not create watch room.'); }
+});
+$('#wRoomJoinForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const rm = ($('#wRoomCodeIn')?.value || '').trim().toUpperCase();
+  if (!rm) return;
+  try {
+    await ensureSession();
+    if (!sess?.named) { openSignIn(); return; }
+    const r = await api('wroomJoin', { ...creds(), room: rm });
+    WROOM.code = r.room; store.set('wroom:' + code, r.room);
+    if ($('#wRoomCodeIn')) $('#wRoomCodeIn').value = '';
+    startWatchRoomPoll();
+    toast(`Joined watch room ${r.room}!`);
+  } catch (err) { toast(err.message || 'Watch room not found.'); }
+});
+$('#wRoomSendForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const inp = $('#wRoomMsgIn');
+  const text = (inp?.value || '').trim();
+  if (!text || !WROOM.code) return;
+  inp.value = '';
+  try {
+    await ensureSession();
+    await api('wroomSend', { ...creds(), room: WROOM.code, text });
+    pollWatchRoom();
+  } catch (err) { toast(err.message || 'Could not send message.'); }
+});
+$('#wRoomCopy')?.addEventListener('click', () => {
+  if (!WROOM.code) return;
+  const shareUrl = `${location.origin}${location.pathname}?room=${encodeURIComponent(WROOM.code)}`;
+  navigator.clipboard?.writeText(shareUrl).then(() => toast(`Copied room invite (${WROOM.code})!`)).catch(() => toast(`Room code: ${WROOM.code}`));
+});
+$('#wRoomLeave')?.addEventListener('click', () => leaveWatchRoom(false));
+(() => {
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom && /^[a-z0-9]{4,8}$/i.test(urlRoom)) {
+    WROOM.code = urlRoom.toUpperCase();
+    store.set('wroom:' + code, WROOM.code);
+  }
+  if (WROOM.code) setTimeout(() => { if (sess?.vid) startWatchRoomPoll(); }, 1500);
+})();
+
+// ---- Live Translation (captions + chat) ----
+W.lang = store.get('lang', '');
+const TR_CACHE = new Map();
+async function translateText(text, lang) {
+  if (!lang || !text || text.length < 2) return text;
+  const key = `${lang}::${text}`;
+  if (TR_CACHE.has(key)) return TR_CACHE.get(key);
+  const p = fetch('/api/translate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: text.slice(0, 400), targetLang: lang }),
+  }).then((r) => r.ok ? r.json() : { text }).then((d) => d.text || text).catch(() => text);
+  TR_CACHE.set(key, p);
+  return p;
+}
+function applyLiveTranslation(el, originalText) {
+  const lang = W.lang;
+  if (!lang || !el || !originalText) return;
+  el.dataset.origText = originalText;
+  translateText(originalText, lang).then((tr) => {
+    if (W.lang === lang && el.isConnected && tr && tr !== originalText) {
+      el.textContent = tr;
+      el.title = `Original: ${originalText}`;
+    }
+  });
+}
+if ($('#wLangSel')) {
+  $('#wLangSel').value = W.lang || '';
+  $('#wLangSel').addEventListener('change', (e) => {
+    W.lang = e.target.value || '';
+    store.set('lang', W.lang);
+    toast(W.lang ? `Live translation on (${W.lang})` : 'Showing original language');
+    for (const el of $$('#wMsgs .wv-mt')) {
+      const orig = el.dataset.origText || el.textContent;
+      if (!W.lang) { if (el.dataset.origText) el.textContent = el.dataset.origText; el.title = ''; }
+      else applyLiveTranslation(el, orig);
+    }
+    if (W.info) renderCaps(W.info);
+  });
+}
+
+// ---- Super Chat "Moments" (shareable shout-out replay card) ----
+let activeMoment = null;
+function openMomentCard(m) {
+  const dlg = $('#wMomentDlg');
+  const cv = $('#wMomentCanvas');
+  if (!dlg || !cv || !m) return;
+  activeMoment = m;
+  const ctx = cv.getContext('2d');
+  const Wc = cv.width, Hc = cv.height;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#38bdf8';
+  const hostName = W.info?.host?.name || W.info?.title || 'Live Show';
+  const showTitle = W.info?.title || 'Live Broadcast';
+
+  const g = ctx.createLinearGradient(0, 0, Wc, Hc);
+  g.addColorStop(0, '#090d18'); g.addColorStop(0.6, '#10182b'); g.addColorStop(1, '#0b1020');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Wc, Hc);
+  const rad = ctx.createRadialGradient(Wc * 0.85, Hc * 0.18, 20, Wc * 0.85, Hc * 0.18, 420);
+  rad.addColorStop(0, accent + '44'); rad.addColorStop(1, 'transparent');
+  ctx.fillStyle = rad; ctx.fillRect(0, 0, Wc, Hc);
+
+  ctx.fillStyle = accent;
+  ctx.beginPath(); ctx.roundRect(48, 44, 232, 42, 21); ctx.fill();
+  ctx.fillStyle = '#061018'; ctx.font = '700 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText('SUPER CHAT MOMENT', 66, 71);
+
+  ctx.fillStyle = '#ffffff'; ctx.font = '800 56px system-ui, -apple-system, sans-serif';
+  ctx.fillText(String(m.paid || '$5'), 48, 168);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '600 24px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`${m.name || 'Viewer'} got a shout-out on ${hostName}’s stream`, 48, 216);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(48, 250, Wc - 96, 174, 18); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#f8fafc'; ctx.font = '600 28px system-ui, -apple-system, sans-serif';
+  const words = String(m.text || 'Thanks for the awesome stream!').split(/\s+/);
+  let line = '', y = 306;
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > Wc - 156 && line) { ctx.fillText(line, 76, y); line = w; y += 38; if (y > 395) break; }
+    else line = test;
+  }
+  if (line && y <= 405) ctx.fillText(line, 76, y);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.58)'; ctx.font = '500 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText(showTitle.slice(0, 62), 48, Hc - 42);
+  ctx.textAlign = 'right';
+  ctx.fillText(location.host, Wc - 48, Hc - 42);
+  ctx.textAlign = 'left';
+
+  dlg.showModal();
+}
+$('#wMomentCopy')?.addEventListener('click', () => {
+  if (!activeMoment) return;
+  const hostName = W.info?.host?.name || 'the host';
+  const txt = `I got a ${activeMoment.paid || ''} shout-out on ${hostName}’s live stream! “${activeMoment.text || ''}” ${location.href}`;
+  navigator.clipboard?.writeText(txt).then(() => toast('Copied shout-out text!')).catch(() => toast('Ready to share!'));
+});
+$('#wMomentDl')?.addEventListener('click', () => {
+  const cv = $('#wMomentCanvas');
+  if (!cv) return;
+  const a = document.createElement('a');
+  a.download = `super-chat-moment-${Date.now()}.png`;
+  a.href = cv.toDataURL('image/png');
+  a.click();
+});
+
+// ---- Hot Seat (60s camera slot unlocked by Hot Seat super chat) ----
+function syncHotSeatBtn(info) {
+  const btn = $('#wHotSeatBtn');
+  if (!btn) return;
+  const pass = info?.hotSeatPass;
+  const active = !!(pass && pass.expires > Date.now());
+  btn.hidden = !active;
+  if (active) {
+    btn.textContent = `🔥 Join Hot Seat (${pass.sec || 60}s)`;
+  }
+}
+$('#wHotSeatBtn')?.addEventListener('click', async () => {
+  try {
+    await ensureSession();
+    const r = await api('whotseat', { ...creds() });
+    toast(`Hot Seat claimed! Get ready — you have ${r.sec || 60}s on camera when the host pulls you in.`);
+    if ($('#wJoinBtn') && !$('#wJoinBtn').hidden) $('#wJoinBtn').click();
+  } catch (e) {
+    toast(e.message || 'Send a Hot Seat super chat to unlock the 60-second camera slot.');
+  }
+});
