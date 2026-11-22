@@ -6293,6 +6293,8 @@ function renderScenes() {
   const all = [...strip.children];
   const stop = all[keep] || all.find((b) => b.classList.contains('on')) || all[0];
   if (stop) stop.tabIndex = 0;
+  // A re-render (any state update) must not throw a keyboard user out of the strip: put focus back where it was.
+  if (keep >= 0 && all[keep]) all[keep].focus({ preventScroll: true });
   if (keep >= 0) stop?.focus();
 }
 /** Roving tabindex: Tab enters and leaves the scene strip in one step; arrows, Home and End move inside it. */
@@ -7628,7 +7630,8 @@ let inviteOpener = null;
 $('#inviteDlg').addEventListener('close', () => {
   const back = inviteOpener?.isConnected && !inviteOpener.closest('[hidden]') ? inviteOpener : [$('#enterTop'), $('#micBtn')].find((b) => b && !b.hidden && b.offsetParent);
   inviteOpener = null;
-  setTimeout(() => back?.focus(), 0);
+  // Only if focus is still lost: on a busy page this runs late, and must not pull a user back from where they went.
+  setTimeout(() => { const at = document.activeElement; if (!at || at === document.body || $('#inviteDlg').contains(at)) back?.focus(); }, 0);
 });
 $('#autoStage').checked = store.get('autoStage', false);
 $('#autoStage').onchange = (e) => store.set('autoStage', e.target.checked);
