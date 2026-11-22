@@ -432,6 +432,21 @@ export function initPanels(api) {
   }
 }
 
+/** Run after other modules add sections (studio-tools, live-events): their sections get smooth folding, and each
+    panel's "Find a setting" chips are rebuilt so they list every section, not just the ones in index.html. */
 export function refreshSections() {
   smoothSections();
+  for (const p of $$('.panel')) {
+    const head = $('.panel-head.ph2', p);
+    if (!head) continue;
+    const secs = $$('details.psec', p).filter((d) => !d.parentElement.closest('details.psec'));
+    const old = $('.ph-tools', p);
+    if (old && $$('.ph-chip', old).length === secs.filter((s) => $('summary b', s)?.textContent.trim()).length) continue;
+    const q = $('.ph-tools input', p)?.value || '';
+    old?.remove(); $('.ph-empty', p)?.remove();
+    if (secs.length >= 3) {
+      addFinder(p, secs);
+      if (q) { const inp = $('.ph-tools input', p); inp.value = q; inp.dispatchEvent(new Event('input')); }
+    }
+  }
 }

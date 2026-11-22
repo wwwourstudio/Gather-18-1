@@ -12,7 +12,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(__dirname, 'out');
-const ALL = ['seat', 'handle', 'v5', 'journey', 'watch', 'pay', 'store', 'voice', 'ai', 'acct', 'turn', 'live', 'livebuiltin', 'e2e', 'feat', 'mod', 'twitch', 'round', 'round4', 'round5', 'round6', 'google', 'subs'];
+const ALL = ['seat', 'commerce', 'auction', 'handle', 'v5', 'journey', 'watch', 'pay', 'store', 'voice', 'ai', 'acct', 'turn', 'live', 'livebuiltin', 'e2e', 'feat', 'mod', 'twitch', 'round', 'round4', 'round5', 'round6', 'google', 'subs'];
 const NOISE = /irc-ws\.chat\.twitch\.tv|tunnel via proxy|ERR_TUNNEL|ERR_PROXY|gis is not defined|status of 403|\[GSI_LOGGER\]/; // Google rejects the stand-in client ID, or the sandbox blocks its frame
 const pick = process.argv.slice(2).filter((a) => ALL.includes(a));
 const suites = pick.length ? pick : ALL;

@@ -395,6 +395,8 @@ body { background: var(--bg, #080c16); color: var(--ink); }
 .wv-type-badge .i { width: 14px; height: 14px; }
 .wv-type-badge[data-type="shopping"] { color: #fde68a; }
 .wv-type-badge[data-type="gamer"] { color: #7dd3fc; }
+/* Offline reads quiet; on air, the header's ON AIR pill carries the red. */
+.wv-type-badge:not([data-on="1"]) { color: var(--ink-3); }
 .wv-opt-btn {
   flex: none;
   height: 26px;
@@ -2486,3 +2488,37 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-wr-msgs li b { color: var(--accent-text); font-weight: 600; flex-shrink: 0; }
 .wv-wr-msgs li span { color: var(--ink); flex: 1; word-break: break-word; }
 .wv-wr-msgs li time { font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+
+/* ---------------------------------------------------------------- live actions under the video (renderLiveActs) */
+.wv-acts { display: grid; gap: 6px; padding: 8px 20px 0; }
+.wv-acts[hidden] { display: none; }
+.wv-act { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 10px 8px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--surface-2); }
+.wv-act.fresh { animation: wv-in .22s var(--ease-out, ease-out); }
+.wv-act-tag { flex: none; padding: 3px 7px; border-radius: 5px; font: 800 10.5px/1.2 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: #fff; background: var(--accent, #2f6bf0); }
+.wv-act[data-kind="giveaway"] .wv-act-tag { background: #db2777; }
+.wv-act[data-kind="raid"] .wv-act-tag { background: var(--live, #e11d48); }
+.wv-act[data-kind="shoutout"] .wv-act-tag { background: #7c3aed; }
+.wv-act-main { display: grid; min-width: 0; flex: 1 1 auto; }
+.wv-act-t { font: 700 14px/1.3 var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-act-s { font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-act-clock { flex: none; font: 700 13px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-2); }
+.wv-act-clock:empty { display: none; }
+.wv-act .btn { flex: none; }
+.wv-act.mine { border-color: #16a34a; background: linear-gradient(135deg, rgba(22, 163, 74, .2), var(--surface-2)); }
+.wv-act.mine .wv-act-s { color: #86efac; font-weight: 600; }
+@media (max-width: 640px) {
+  .wv-acts { padding: 8px 10px 0; }
+  .wv-act { flex-wrap: wrap; row-gap: 8px; }
+  .wv-act-main { flex-basis: calc(100% - 140px); }
+  .wv-act .btn { flex: 1 1 0; }
+}
+/* Phones (portrait): the live-action bar sits right under the sticky video, above the chat, so a viewer can bid
+   in time. The landscape phone layout keeps it inside the stage column. */
+@media (max-width: 900px) and (orientation: portrait), (max-width: 900px) and (min-height: 501px) {
+  .wv { grid-template-rows: 48px auto auto auto auto auto; }
+  .wv-acts { grid-row: 4; padding: 8px 10px; }
+  .wv-chat { grid-row: 5; }
+  .wv-below, .wv-below-v2 { grid-row: 6; }
+  .wv-tx-foot { grid-row: 7; }
+}
+.wv-msgs li.sys { list-style: none; margin: 6px 8px; padding: 6px 10px; border-radius: 8px; text-align: center; font: 600 12.5px/1.4 var(--font-ui); color: var(--ink-2); background: color-mix(in srgb, var(--accent, #2f6bf0) 12%, transparent); }

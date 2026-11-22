@@ -308,6 +308,7 @@ function render(info) {
   renderTops(W.recentChat);
   renderAbout(info);
   renderShopUI(info);
+  renderLiveActs(info);
   renderMode(info);
   renderInteractive(info);
   renderParty(info);
@@ -355,6 +356,7 @@ const nameColor = (n) => NAME_COLORS[[...String(n)].reduce((h, c) => (h * 31 + c
 function msgEl(m) {
   const li = document.createElement('li');
   li.dataset.id = m.id; li.dataset.name = m.name; if (m.sc) li.dataset.sc = m.sc;
+  if (m.sys) { li.className = 'sys'; li.textContent = m.text; return li; } // auction results, giveaway winners
   if (m.paid) li.className = 'paid' + (m.status === 'answered' ? ' answered' : '') + (m.status === 'pending' ? ' pending' : '');
   else li.className = 'row' + (m.q ? ' q' : '');
   const mine = sess?.named && m.name === sess.name;
@@ -561,6 +563,7 @@ function renderSources(info) {
 
 function showPlayer(info) {
   const box = $('#wPlayer');
+  queueMicrotask(() => renderStreamType(info));
   if (W.source === 'direct') {
     const v = W.direct.video;
     const playing = W.direct.state === 'live' && v;
@@ -2334,9 +2337,147 @@ function renderHost(info) {
   $('#wHostLinks').hidden = !links.length;
 }
 
+
+// ---------------------------------------------------------------- live actions under the video
+// Auction (bid), giveaway (enter), shoutout (go follow) and raid (countdown, then off to the next show). The cards
+// themselves are drawn into the video by the studio; this bar holds what a viewer can do about them.
+W.myBids = store.get('bids:' + code, {});
+W.entered = store.get('entered:' + code, {});
+W.raidStay = '';
+const usd = (c) => '$' + ((c || 0) / 100).toFixed((c || 0) % 100 ? 2 : 0);
+const mmss = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+function actRow(kind, html) { const d = document.createElement('div'); d.className = 'wv-act'; d.dataset.kind = kind; d.innerHTML = html; return d; }
+function needName() { if (!sess?.named) { openSignIn(); return true; } return false; }
+
+async function placeBid(a, amt, btn) {
+  try {
+    await ensureSession(); if (needName()) return;
+    btn.disabled = true;
+    const r = await api('wbid', { ...creds(), auction: a.id, amt });
+    W.myBids[a.id] = amt; store.set('bids:' + code, W.myBids);
+    toast(`You lead at ${usd(amt)}!`);
+    if (W.info) { W.info.auction = r.auction; renderLiveActs(W.info); }
+  } catch (e) { toast(e.message, true); poll(); }
+  finally { btn.disabled = false; }
+}
+async function payAuction(a, btn) {
+  try {
+    btn.disabled = true;
+    const r = await api('wauctionpay', { ...creds(), auction: a.id });
+    if (r.mode === 'paid') return toast('Already paid. Thank you!');
+    if (r.mode === 'stripe') {
+      const host = $('#wShopCheckout'); if (!host) return;
+      if ($('#wMode')) $('#wMode').hidden = false;
+      host.hidden = false;
+      host.innerHTML = '<div class="wv-co-bar"><b></b><button type="button" class="btn sm ghost" id="wCoCancel">Cancel</button></div><div id="wCoMount"></div>';
+      host.querySelector('b').textContent = `${a.title} · ${usd(a.top.amt)}`;
+      $('#wCoCancel').onclick = () => { try { shopCheckoutMount?.destroy(); } catch {} shopCheckoutMount = null; host.hidden = true; replaceKids(host); };
+      const stripe = (await loadStripe())(r.pk, r.account ? { stripeAccount: r.account } : undefined);
+      try { shopCheckoutMount?.destroy(); } catch {}
+      shopCheckoutMount = await stripe.initEmbeddedCheckout({
+        fetchClientSecret: async () => r.clientSecret,
+        onComplete: async () => {
+          try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
+          try { shopCheckoutMount?.destroy(); } catch {}
+          shopCheckoutMount = null; host.hidden = true; replaceKids(host);
+          toast(`Paid! ${a.title} is yours.`);
+        },
+      });
+      shopCheckoutMount.mount($('#wCoMount'));
+      host.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    const names = { paypal: 'PayPal', venmo: 'Venmo', cashapp: 'Cash App', stripe: 'Card' };
+    const ways = Object.entries(r.pay || {}).map(([m, h]) => `${names[m] || m}: ${h}`);
+    if (r.url) window.open(r.url, '_blank', 'noopener');
+    toast(ways.length ? `Send ${r.amount} to the host — ${ways.join(' · ')}` : r.url ? `Finish your ${r.amount} order on the store that just opened.` : `The host will tell you how to pay ${r.amount}.`);
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; }
+}
+async function enterGiveaway(gv, btn) {
+  try {
+    await ensureSession(); if (needName()) return;
+    btn.disabled = true;
+    await api('wenter', { ...creds(), giveaway: gv.id });
+    W.entered[gv.id] = true; store.set('entered:' + code, W.entered);
+    toast('You’re in! Good luck.');
+    renderLiveActs(W.info);
+  } catch (e) { toast(e.message, true); btn.disabled = false; }
+}
+function actButton(label, primary, onClick) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm' + (primary ? ' primary' : ''); b.textContent = label; b.onclick = () => onClick(b); return b;
+}
+
+function renderLiveActs(info) {
+  const box = $('#wActs'); if (!box || !info) return;
+  const now = Date.now(), a = info.auction, gv = info.giveaway, so = info.shoutout, raid = info.raid;
+  const rows = [];
+  if (raid && W.raidStay !== raid.at + raid.url && raid.at > now - 4000) {
+    const r = actRow('raid', `<span class="wv-act-tag">Raid</span><span class="wv-act-main"><b class="wv-act-t"></b><small class="wv-act-s">The host is sending everyone to their next show</small></span><span class="wv-act-clock num" data-raid="${raid.at}"></span>`);
+    r.querySelector('.wv-act-t').textContent = `Heading to ${raid.name}`;
+    r.append(actButton('Go now', true, () => goRaid(raid)), actButton('Stay here', false, () => { W.raidStay = raid.at + raid.url; renderLiveActs(W.info); }));
+    rows.push(r);
+  }
+  if (a && (a.status === 'live' || now - (a.endedAt || 0) < 60_000) && a.status !== 'cancelled') {
+    const live = a.status === 'live' && a.endsAt > now;
+    const mine = !!(a.top && W.myBids[a.id] === a.top.amt && a.top.name === sess?.name);
+    const next = a.top ? a.top.amt + a.inc : a.start;
+    const r = actRow('auction', `<span class="wv-act-tag">${live ? 'Auction' : a.status === 'sold' ? 'Sold' : 'Ended'}</span><span class="wv-act-main"><b class="wv-act-t"></b><small class="wv-act-s"></small></span><span class="wv-act-clock num" ${live ? `data-ends="${a.endsAt}"` : ''}></span>`);
+    r.querySelector('.wv-act-t').textContent = `${a.title} · ${usd(a.top ? a.top.amt : a.start)}`;
+    r.querySelector('.wv-act-s').textContent = a.top ? (live ? (mine ? 'You’re winning' : `${a.top.name} leads`) : mine ? 'You won!' : `Won by ${a.top.name}`) : live ? `No bids yet · raises of ${usd(a.inc)}` : 'No bids';
+    r.classList.toggle('mine', mine);
+    if (live && !mine) for (const amt of [next, next + a.inc * 2]) r.append(actButton(`Bid ${usd(amt)}`, amt === next, (b) => placeBid(a, amt, b)));
+    if (!live && mine && a.status === 'sold') r.append(actButton(`Pay ${usd(a.top.amt)}`, true, (b) => payAuction(a, b)));
+    rows.push(r);
+  }
+  if (gv && gv.status !== 'cancelled' && (gv.status === 'open' || now - (gv.endedAt || 0) < 60_000)) {
+    const open = gv.status === 'open' && gv.endsAt > now, inIt = !!W.entered[gv.id];
+    const won = !!(gv.status === 'drawn' && gv.winner && gv.winner === sess?.name && inIt);
+    const r = actRow('giveaway', `<span class="wv-act-tag">Giveaway</span><span class="wv-act-main"><b class="wv-act-t"></b><small class="wv-act-s"></small></span><span class="wv-act-clock num" ${open ? `data-ends="${gv.endsAt}"` : ''}></span>`);
+    r.querySelector('.wv-act-t').textContent = gv.prize;
+    r.querySelector('.wv-act-s').textContent = gv.status === 'drawn' ? (won ? 'You won! The host will be in touch.' : gv.winner ? `Winner: ${gv.winner}` : 'Nobody entered') : `${gv.entries || 0} entered${inIt ? ' · you’re in' : ''}`;
+    r.classList.toggle('mine', won);
+    if (open && !inIt) r.append(actButton('Enter', true, (b) => enterGiveaway(gv, b)));
+    rows.push(r);
+  }
+  if (so && !raid) {
+    const r = actRow('shoutout', `<span class="wv-act-tag">Shoutout</span><span class="wv-act-main"><b class="wv-act-t"></b><small class="wv-act-s"></small></span>`);
+    r.querySelector('.wv-act-t').textContent = so.name; r.querySelector('.wv-act-s').textContent = so.game || 'Go say hi';
+    if (so.url) { const l = document.createElement('a'); l.className = 'btn sm'; l.textContent = 'Go follow'; l.href = so.url; l.target = '_blank'; l.rel = 'noopener'; r.append(l); }
+    rows.push(r);
+  }
+  // Rebuild only when something a viewer can see changed (keeps focus and avoids flicker on every poll).
+  const key = JSON.stringify([raid, W.raidStay, a && [a.id, a.status, a.top, a.endsAt], gv && [gv.id, gv.status, gv.entries, gv.winner, W.entered[gv.id]], so, sess?.name]);
+  if (box.dataset.k !== key) {
+    const had = new Set([...box.children].map((x) => x.dataset.kind));
+    for (const r of rows) if (!had.has(r.dataset.kind)) r.classList.add('fresh'); // only new rows slide in
+    box.dataset.k = key; replaceKids(box, ...rows); tickActs();
+  }
+  box.hidden = !rows.length;
+}
+function goRaid(raid) {
+  const url = /^\/w\//.test(raid.url) || /^https:\/\//.test(raid.url) ? raid.url : '';
+  if (!url) return;
+  W.raidStay = raid.at + raid.url; // go once
+  location.href = url.startsWith('/w/') ? `${url}${url.includes('?') ? '&' : '?'}raid=${encodeURIComponent(W.info?.title || '')}` : url;
+}
+function tickActs() {
+  const now = Date.now();
+  for (const el of $$('#wActs [data-ends]')) el.textContent = mmss(Number(el.dataset.ends) - now);
+  for (const el of $$('#wActs [data-raid]')) {
+    const left = Number(el.dataset.raid) - now;
+    el.textContent = left > 0 ? `in ${Math.ceil(left / 1000)} s` : 'now';
+    const raid = W.info?.raid;
+    if (left <= 0 && raid && W.raidStay !== raid.at + raid.url) goRaid(raid);
+  }
+}
+setInterval(tickActs, 500);
+// Arriving from a raid: say hello.
+{ const from = new URLSearchParams(location.search).get('raid'); if (from) setTimeout(() => toast(`👋 You arrived with the raid from ${from.slice(0, 60)}`), 1200); }
+
 // ---------------------------------------------------------------- Watch Party Bento Hub (Creator Profile + Showcase)
 const STREAM_TYPES = {
-  live: { label: 'Live Stream', short: 'Live', icon: 'i-radio' },
+  live: { label: 'Stream', short: 'Stream', icon: 'i-radio' },
   shopping: { label: 'Live Shopping', short: 'Shopping', icon: 'i-shopping-bag' },
   gamer: { label: 'Gamer Stream', short: 'Gamer', icon: 'i-gamepad-2' },
 };
@@ -2353,7 +2494,10 @@ function renderStreamType(info) {
   const badge = $('#wWatchBadge');
   if (badge) {
     badge.dataset.type = type;
-    $('#wWatchBadgeTxt').textContent = cfg.label;
+    const onAir = W.source === 'direct' ? W.direct?.state === 'live' : !!W.iframe;
+    // The header's ON AIR pill already says live; the badge only says "Offline" when the show isn't on.
+    badge.dataset.on = onAir ? '1' : '';
+    $('#wWatchBadgeTxt').textContent = onAir ? cfg.label : `Offline · ${cfg.label}`;
     $('#wWatchBadgeIcon')?.setAttribute('href', `/icons.svg#${cfg.icon}`);
   }
   if ($('#wCreatorType')) $('#wCreatorType').textContent = cfg.label;

@@ -7,6 +7,7 @@ import { createNotifier } from './notify.js';
 import { drawThemedFeatured, drawPurchaseAlert, drawShopDropBadge, drawVoiceOnAir, drawGoalConfetti, drawCountdownScreen, drawSponsorCard, resolveCardColors } from './stage-theme.js';
 import { initAudioStudio } from './audio-studio.js';
 import { initStudioTools } from './studio-tools.js';
+import * as liveEvents from './live-events.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
@@ -1141,6 +1142,7 @@ async function onServer(m) {
     case 'queue': renderQueue(m.items); break;
     case 'wreport': if (m.count >= 3) toast(`A watch-page message was hidden after ${m.count} spam reports.`, { ms: 6000 }); break;
     case 'ai': upsertAI(m.item, false); break;
+    case 'auction': case 'giveaway': liveEvents.onMsg(m); break;
     case 'caption': showCaption(m.from, m.name, m.text, m.final); break;
     case 'host': {
       const wasHost = S.host === S.id;
@@ -1664,26 +1666,20 @@ function draw(now = performance.now()) {
   if (!framed) drawFrame();
   drawChrome();
   // Brand-themed overlays: live drop stock badge, purchase alerts, voice waveform, sponsors, goal confetti, countdown screen.
-  try {
-    const font = stageFont();
-    const sh = S.state.shop;
-    if (sh?.pinned && sh.items?.length) {
-      const pinnedItem = sh.items.find((x) => x.id === sh.pinned);
-      if (pinnedItem) drawShopDropBadge(g, W, H, pinnedItem, sh.dropUntil || 0, S.state.brand, font);
-    }
-    if (S.state.purchaseAlert?.ts) drawPurchaseAlert(g, W, H, S.state.purchaseAlert, S.state.brand, font);
-    if (S.state.voiceOnAir?.ts) drawVoiceOnAir(g, W, H, S.state.voiceOnAir, S.state.brand, font, t);
-    const activeSponsor = (S.state.sponsors || []).find((sp) => sp.on);
-    if (activeSponsor) drawSponsorCard(g, W, H, activeSponsor, S.state.brand, font);
-    if (window.__gatherConfettiUntil > Date.now()) drawGoalConfetti(g, W, H, S.state.brand, t);
-    if (S.state.countdown?.on) {
-      if (S.state.countdown.autoLive && S.state.countdown.target && S.state.countdown.target <= Date.now()) {
-        if (isHost()) setStage({ countdown: { ...S.state.countdown, on: false } });
-      } else {
-        drawCountdownScreen(g, W, H, S.state.countdown, S.state.brand, font, S.feed.slice(-3));
-      }
-    }
-  } catch {}
+  // Each overlay draws on its own: one that fails (bad data) must never blank the others, and logs once.
+  const font = stageFont(), brand = S.state.brand || {}, wall = Date.now();
+  const sh = S.state.shop, sp = S.state.sponsors;
+  overlay('drop', () => { if (sh?.pinned && sh.items?.length) drawShopDropBadge(g, W, H, sh, brand, font, wall); });
+  overlay('purchase', () => { if (S.state.purchaseAlert?.ts) drawPurchaseAlert(g, W, H, S.state.purchaseAlert, brand, font, wall); });
+  overlay('voice', () => { if (S.state.voiceOnAir?.ts) drawVoiceOnAir(g, W, H, S.state.voiceOnAir, brand, font, t); });
+  overlay('sponsor', () => { const on = sp?.activeId && (sp.slots || []).find((x) => x.id === sp.activeId); if (on) drawSponsorCard(g, W, H, on, brand, font); });
+  overlay('live-events', () => liveEvents.draw(g, W, H, brand, font, wall));
+  overlay('confetti', () => { if (window.__gatherConfettiUntil > wall) drawGoalConfetti(g, W, H, t, brand.color); });
+  overlay('countdown', () => {
+    if (!S.state.countdown?.on) return;
+    if (S.state.countdown.autoLive && S.state.countdown.target && S.state.countdown.target <= wall) { if (isHost()) setStage({ countdown: { ...S.state.countdown, on: false } }); }
+    else drawCountdownScreen(g, W, H, S.state.countdown, brand, font, S.feed.slice(-3), wall);
+  });
   drawScAlert(t);
   if (sceneFade.active) {
     const raw = (t - sceneFade.from) / sceneFade.dur;
@@ -1693,6 +1689,12 @@ function draw(now = performance.now()) {
       g.save(); g.globalAlpha = Math.max(0, Math.min(1, 1 - ease)); g.drawImage(fadeSnap, 0, 0, W, H); g.restore();
     }
   }
+}
+const overlayErrs = new Set();
+function overlay(name, fn) {
+  try { g.save(); fn(); }
+  catch (e) { if (!overlayErrs.has(name)) { overlayErrs.add(name); console.warn(`stage overlay "${name}" failed:`, e); } }
+  finally { g.restore(); }
 }
 let camRects = []; // where the built-in layout put cameras this frame
 /** Lift a banner off any small camera tile (Spotlight's thumbnails) so it never covers a guest's face. */
@@ -5181,6 +5183,9 @@ const HELP = [
   ['Change stage colours, fonts and animations', 'brand colour color font animation style', 'brand', '#fontCardGrid', 'Stage → Brand'],
   ['Add my logo or a transparent overlay', 'logo overlay watermark frame ai', 'overlays', '#overlayPick', 'Stage → Overlays → Stage overlay'],
   ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support', 'shop', '#tipList', 'Shop → Support links'],
+  ['Run a live auction', 'auction bid bidding whatnot sell highest bidder sudden death', 'shop', '#auTitle', 'Shop → Live auction'],
+  ['Run a giveaway', 'giveaway raffle contest prize winner draw', 'shop', '#gwPrize', 'Shop → Giveaway'],
+  ['Shout out or raid another creator', 'shoutout shout out raid host send viewers follow creator', 'show:gaming', '#soName', 'Audience → Play → Shoutout & raid'],
   ['Sell products in the live shop', 'shop merch store shopify etsy product sale', 'shop', '#shopDomain', 'Shop'],
   ['Start a live poll or prediction', 'poll prediction vote audience quiz', 'polls', '#pollQ', 'Polls'],
   ['Play with viewers (queue)', 'play gaming queue gamertag viewers', 'gaming', '#wpQueue', 'Play'],
@@ -9234,6 +9239,7 @@ const sharedToolsApi = {
 };
 try { initAudioStudio(sharedToolsApi); } catch (e) { console.warn('audio-studio init:', e); }
 try { initStudioTools(sharedToolsApi); } catch (e) { console.warn('studio-tools init:', e); }
+try { liveEvents.initLiveEvents({ ...sharedToolsApi, send: wsSend, inStudio: () => !!S.studio, requestStageRender }); } catch (e) { console.warn('live-events init:', e); }
 try { refreshSections(); } catch {}
 setInterval(syncAirPill, 1000);
 syncAirPill();

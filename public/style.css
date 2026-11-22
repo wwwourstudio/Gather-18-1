@@ -4954,3 +4954,16 @@ body:not(.pre) .rail-btn:hover { color: var(--ink); background: color-mix(in srg
 }
 
 
+
+/* ---------------------------------------------------------------- live auction · giveaway (public/live-events.js) */
+.le-setup { display: grid; gap: var(--sp-3); }
+.le-live { display: grid; gap: var(--sp-2); padding: 12px; border-radius: var(--r-md); border: 1px solid var(--glass-border); background: var(--fill); }
+.le-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.le-head b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.le-clock { flex: none; font: 700 13px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-2); padding: 4px 7px; border-radius: 6px; background: var(--surface-3, rgba(255,255,255,.06)); }
+.le-clock.hot { color: #fff; background: var(--live); }
+.le-big { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.le-big .num { font: 800 26px/1.1 var(--font-display, inherit); color: var(--ink); }
+.le-big small { font-size: 12px; color: var(--ink-3); }
+.le-bids { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; color: var(--ink-3); }
+.le-bids li:first-child { color: var(--ink-2); font-weight: 600; }

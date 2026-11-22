@@ -141,7 +141,7 @@
           </dl>
         </div>
       </div>
-      <a class="wv-own" href="/" target="_blank" rel="noopener">Start show</a>
+      <a class="wv-own" href="/" target="_blank" rel="noopener" data-tip="Start your own show on gather">Host your own</a>
       <button class="icon-btn sm wv-share-top" id="wShareTop" type="button" aria-label="Share this show" data-tip="Share"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg></button>
     </div>
   </header>
@@ -149,7 +149,7 @@
   <!-- Thin Stream Options Strip directly under Header -->
   <nav class="wv-opts" id="wOptsBar" aria-label="Stream options">
     <div class="wv-opts-l">
-      <span class="wv-type-badge" id="wWatchBadge"><svg class="i sm" aria-hidden="true"><use id="wWatchBadgeIcon" href="/icons.svg#i-radio"/></svg><span id="wWatchBadgeTxt">Live Stream</span></span>
+      <span class="wv-type-badge" id="wWatchBadge"><svg class="i sm" aria-hidden="true"><use id="wWatchBadgeIcon" href="/icons.svg#i-radio"/></svg><span id="wWatchBadgeTxt">Offline · Stream</span></span>
       <div class="wv-sources" id="wTabs" role="tablist" aria-label="Watch on" hidden></div>
     </div>
     <div class="wv-opts-r">
@@ -214,6 +214,9 @@
         </div>
       </div>
 
+      <!-- Live actions right under the video: auction bidding, giveaway entry, shoutout, raid (watch.js renderLiveActs) -->
+      <div class="wv-acts" id="wActs" aria-live="polite" hidden></div>
+
       <!-- Redesigned Below-Video Broadcast Hub: Clean Borderless Show Header + Unified Dock -->
       <div class="wv-below-v2" id="wBelowHub">
         <header class="wv-show-bar" id="wCreatorCard" aria-label="Show header">
@@ -222,7 +225,7 @@
             <div class="wv-show-meta">
               <div class="wv-show-title-row">
                 <h2 class="wv-show-title" id="wCreatorTitle">Live show</h2>
-                <span class="wv-creator-type" id="wCreatorType">Live Stream</span>
+                <span class="wv-creator-type" id="wCreatorType">Stream</span>
               </div>
               <div class="wv-show-sub-row">
                 <b id="wCreatorName">Broadcast Host</b>
