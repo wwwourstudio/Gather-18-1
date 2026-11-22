@@ -3094,3 +3094,29 @@ body.pre .land-feats { display: grid; grid-template-columns: repeat(4, minmax(0,
 @media (prefers-reduced-motion: reduce) { .psec::before, .mood.on .mood-eq i { transition: none; animation: none; } }
 /* selected segments take the accent too, not a fixed navy */
 .seg > button.on, .seg > [aria-checked="true"], .seg > [aria-selected="true"] { background: color-mix(in srgb, var(--accent) 22%, var(--surface-3)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 4px 12px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+
+/* ---------------------------------------------------------------- polish pass */
+/* chat header: keep the title on one line; the mood meter and tabs already say what this is */
+.panel-head.ph2.chat-head .ph-sub { display: none; }
+.panel-head.ph2.chat-head .ph-title { flex: 0 0 auto; }
+.panel-head.ph2.chat-head .ph-title h2 { white-space: nowrap; }
+.panel-head.ph2.chat-head .ph-ic { width: 30px; height: 30px; border-radius: 10px; }
+/* the layout suggestion: a quiet glass pill, not a full-width alarm */
+.scene-suggest { width: auto; max-width: 100%; align-self: flex-start; padding: 4px 6px 4px 12px; border-radius: 999px; font-size: 12.5px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--glass-bg, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px -16px color-mix(in srgb, var(--accent) 80%, transparent); animation: sug-in 0.35s cubic-bezier(.2,.8,.2,1); }
+.scene-suggest .btn.sm { height: 26px; border-radius: 999px; padding: 0 12px; }
+.scene-suggest .icon-btn.sm { width: 26px; height: 26px; }
+@keyframes sug-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+/* the scene strip fades out at its edges instead of cutting off */
+#sceneStrip { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); scroll-behavior: smooth; }
+#sceneStrip > * { transition: transform 0.22s var(--ease-out), box-shadow 0.22s; }
+#sceneStrip > *:hover { transform: translateY(-2px); }
+/* light mode: primary buttons keep white text readable */
+:root[data-theme="light"] .panel .btn.primary, :root[data-theme="light"] .wp-handle .btn { color: #fff; }
+:root[data-theme="light"] .wp-handle .btn:not(:disabled) { background: var(--accent); }
+/* softer focus rings in the accent */
+.panel .input:focus, .panel input:focus-visible, .panel select:focus, .panel textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); outline: none; }
+/* scrollbars in panels: thin and quiet */
+.panel-body { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink-3) 35%, transparent) transparent; }
+#sceneSuggest:not([hidden]) { width: fit-content; max-width: 100%; justify-self: start; align-self: flex-start; margin-right: auto; }

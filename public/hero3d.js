@@ -61,7 +61,7 @@ void main() {
     float inside = 1.0 - smoothstep(-0.002, 0.003, d);
     if (inside <= 0.0) {
       // a soft shadow under the pane
-      col *= 1.0 - mix(0.12, 0.06, L) * exp(-max(d, 0.0) * 22.0) * smoothstep(0.0, 0.02, d);
+      col *= 1.0 - mix(0.07, 0.06, L) * exp(-max(d, 0.0) * 22.0) * smoothstep(0.0, 0.02, d);
       col *= 1.0 - L * 0.05 * smoothstep(0.004, 0.0, d); // a hairline edge so light-mode glass reads
       continue;
     }
@@ -69,14 +69,14 @@ void main() {
     float edge = clamp(-d / 0.09, 0.0, 1.0);
     vec2 n = normalize(lp + 1e-4) * (1.0 - edge);
     vec3 g = light(p + n * 0.06, 1.9);
-    g = mix(g, vec3(1.0), mix(0.035, 0.22, L)); // milky tint
+    g = mix(g, vec3(1.0), mix(0.05, 0.22, L)); g *= mix(1.25, 1.0, L); // milky tint; a touch brighter than what's behind it
     // a highlight that sweeps slowly across the glass
     float sweep = smoothstep(0.05, 0.0, abs(lp.x * 0.8 + lp.y - mod(T * 0.12 + float(i) * 0.7, 2.4) + 1.2)) * 0.12;
     // bright rim, stronger along the top-left edge (light from above)
     float rim = smoothstep(0.0035, 0.0, abs(d + 0.0018)) * (0.25 + 0.75 * clamp(0.5 + lp.y * 2.0 - lp.x, 0.0, 1.0));
     float body = 0.5 + 0.5 * clamp(lp.y * 3.0, -1.0, 1.0); // lighter toward the top: the glass has thickness
     vec3 paneCol = g * mix(0.96, 1.04, body) + vec3(sweep * 0.6) + vec3(rim) * mix(0.3, 0.22, L);
-    col = mix(col, paneCol, inside * mix(0.7, 0.8, L));
+    col = mix(col, paneCol, inside * mix(0.5, 0.8, L));
   }
   // fine grain so the gradients never band
   float grain = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + T) * 43758.5453) - 0.5;
