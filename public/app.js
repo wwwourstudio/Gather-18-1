@@ -1,6 +1,6 @@
 import { createAudioChain, createVideoFx, needsProcessing } from './fx.js';
 import { initPanels, refreshSections } from './panels.js';
-import { icon, busy, togglePopover } from './ui.js';
+import { icon, busy, togglePopover, cssEsc, replaceKids } from './ui.js';
 import { configureGoogle, googleConfigured, googleSignedIn, googleToken, googleSignOut, saveToDrive, findLiveChat, pollLiveChat, ytModerate, googleSignInToken, setYouTubeThumbnail } from './google.js';
 import { TIERS, tierOf, drawOrder, isSystem, ensureSystem, blockerFor, overlaps, snapMove, snapResize, resolve, SAFE, GRID, PRESETS, materialize } from './layout.js';
 import { createNotifier } from './notify.js';
@@ -177,12 +177,12 @@ function applyAdaptiveAccent(hex) {
 }
 
 // ---------------------------------------------------------------- utils (single unified notification queue)
-const notifier = createNotifier('#toasts');
+const notifier = createNotifier($('#toasts') || '#toasts');
 function toast(msg, opts = {}) { return notifier.push(msg, opts); }
 toast.dismiss = (key) => notifier.dismiss(key);
 toast.clear = () => notifier.clear();
 // A dialog opened after a toast would cover it; bring the toasts back on top.
-for (const d of document.querySelectorAll('dialog')) new MutationObserver(() => { const box = $('#toasts'); if (d.open && box.children.length && box.showPopover) { try { box.hidePopover(); box.showPopover(); } catch {} } }).observe(d, { attributes: true, attributeFilter: ['open'] });
+for (const d of document.querySelectorAll('dialog')) new MutationObserver(() => { const box = $('#toasts'); if (d.open && box && box.children.length && box.showPopover) { try { box.hidePopover(); box.showPopover(); } catch {} } }).observe(d, { attributes: true, attributeFilter: ['open'] });
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 const fmtTime = (ms) => { const s = Math.floor(ms / 1000); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 const newCode = () => 'gather-' + [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -383,7 +383,7 @@ async function listDevices() {
   fill($('#camSelect'), devs.filter((d) => d.kind === 'videoinput'), S.local.camRaw?.getSettings().deviceId || S.prefs.camId, 'camera');
   fill($('#micSelect'), devs.filter((d) => d.kind === 'audioinput'), S.local.audio?.getSettings().deviceId || S.prefs.micId, 'microphone');
   function fill(sel, list, cur, kind) {
-    sel.replaceChildren(new Option(`Default ${kind}`, ''), ...list.filter((d) => d.deviceId && d.deviceId !== 'default').map((d, i) => new Option(d.label || `${kind[0].toUpperCase() + kind.slice(1)} ${i + 1}`, d.deviceId)));
+    replaceKids(sel, new Option(`Default ${kind}`, ''), ...list.filter((d) => d.deviceId && d.deviceId !== 'default').map((d, i) => new Option(d.label || `${kind[0].toUpperCase() + kind.slice(1)} ${i + 1}`, d.deviceId)));
     sel.value = [...sel.options].some((o) => o.value === cur) ? cur : '';
   }
 }
@@ -1124,12 +1124,12 @@ async function onServer(m) {
       renderCrew();
       break;
     }
-    case 'state': startSceneFade(S.state, m.state); S.state = m.state; renderAll(); renderChatMood(); break;
+    case 'state': startSceneFade(S.state, m.state); S.state = m.state; requestStageRender(); renderAll(); renderChatMood(); break;
     case 'chat': addMsg(m.msg); break;
     case 'guest-brief': S.brief = m.brief || null; renderGuestBrief(); break;
     case 'like': setLikes(m.id, m.n, m.from); break;
     case 'feed': for (const it of m.items || []) addExternal(it); break;
-    case 'unfeed': for (const id of m.ids || []) $$(`#msgs li[data-fid="${CSS.escape(id)}"]`).forEach((li) => li.remove()); break;
+    case 'unfeed': for (const id of m.ids || []) $$(`#msgs li[data-fid="${cssEsc(id)}"]`).forEach((li) => li.remove()); break;
     case 'viewer-want': viewerWant(m.vid); break;
     case 'vsignal': viewerSignal(m.from, m.data); break;
     case 'viewer-left': closeViewer(m.vid); break;
@@ -1177,7 +1177,7 @@ async function onServer(m) {
 }
 
 // ---------------------------------------------------------------- peers
-const cssId = (id) => String(id).replace(/[^a-z0-9_-]/gi, '');
+const cssId = (id) => String(id ?? '').replace(/[^a-z0-9_-]/gi, '');
 function addPeer(info) {
   let p = S.peers.get(info.id);
   if (!p) { p = { id: info.id, pc: null, stream: new MediaStream(), pending: [], meters: [], rtt: null, conn: 'new' }; S.peers.set(info.id, p); }
@@ -1307,6 +1307,7 @@ function setStage(patch) {
   if (S.studio) wsSend({ type: 'state', state: S.state });
   else { store.set('accent', S.state.brand.color); store.set('bg', S.state.brand.bg); store.set('title', S.state.title); }
   applyAdaptiveAccent(S.state.brand?.color);
+  requestStageRender();
   renderAll();
 }
 function toggleStage(id) {
@@ -1327,16 +1328,65 @@ function cardVideo(id) { return $(`#card-${cssId(id)} video`); }
 const canvas = $('#stageCanvas');
 const g = canvas.getContext('2d');
 const fadeSnap = document.createElement('canvas');
-let sceneFade = { active: false, from: 0, dur: 280 };
+const fadeSnapCtx = fadeSnap.getContext('2d');
+let sceneFade = { active: false, from: 0, dur: 240 };
+const tileAnim = new Map(); // participant id -> { x, y, w, h, r, sx, sy, sw, sh, sr, tx, ty, tw, th, tr, t0, dur }
+let lastAnimW = 0, lastAnimH = 0;
+
+function smoothTileRect(id, target, now) {
+  const tr = target.r ?? 0;
+  if (editor.on || reduceMotion()) {
+    tileAnim.set(id, { x: target.x, y: target.y, w: target.w, h: target.h, r: tr, sx: target.x, sy: target.y, sw: target.w, sh: target.h, sr: tr, tx: target.x, ty: target.y, tw: target.w, th: target.h, tr, t0: now, dur: 0 });
+    return target;
+  }
+  const cur = tileAnim.get(id);
+  if (!cur) {
+    tileAnim.set(id, { x: target.x, y: target.y, w: target.w, h: target.h, r: tr, sx: target.x, sy: target.y, sw: target.w, sh: target.h, sr: tr, tx: target.x, ty: target.y, tw: target.w, th: target.h, tr, t0: now, dur: 0 });
+    return target;
+  }
+  const moved = Math.abs(cur.tx - target.x) > 0.5 || Math.abs(cur.ty - target.y) > 0.5 || Math.abs(cur.tw - target.w) > 0.5 || Math.abs(cur.th - target.h) > 0.5 || Math.abs(cur.tr - tr) > 0.5;
+  if (moved) {
+    cur.sx = cur.x; cur.sy = cur.y; cur.sw = cur.w; cur.sh = cur.h; cur.sr = cur.r;
+    cur.tx = target.x; cur.ty = target.y; cur.tw = target.w; cur.th = target.h; cur.tr = tr;
+    cur.t0 = now; cur.dur = 260;
+    requestStageRender();
+  }
+  if (cur.dur > 0) {
+    const raw = (now - cur.t0) / cur.dur;
+    if (raw >= 1) {
+      cur.x = cur.tx; cur.y = cur.ty; cur.w = cur.tw; cur.h = cur.th; cur.r = cur.tr; cur.dur = 0;
+    } else {
+      const u = Math.max(0, raw), e = 1 - Math.pow(1 - u, 3);
+      cur.x = cur.sx + (cur.tx - cur.sx) * e;
+      cur.y = cur.sy + (cur.ty - cur.sy) * e;
+      cur.w = cur.sw + (cur.tw - cur.sw) * e;
+      cur.h = cur.sh + (cur.th - cur.sh) * e;
+      cur.r = cur.sr + (cur.tr - cur.sr) * e;
+    }
+  }
+  return { x: cur.x, y: cur.y, w: cur.w, h: cur.h, r: cur.r };
+}
+
+function hasActiveTileAnim(now) {
+  for (const a of tileAnim.values()) {
+    if (a.dur > 0 && now - a.t0 < a.dur) return true;
+  }
+  return false;
+}
+
 function startSceneFade(prev, next) {
   if (!prev || !next || editor.on) return;
-  const prevKey = `${prev.layout || ''}|${prev.scene || ''}`;
-  const nextKey = `${next.layout || ''}|${next.scene || ''}`;
+  const prevKey = `${prev.layout || ''}|${prev.scene || ''}|${prev.presenter || ''}|${(prev.stage || []).join(',')}`;
+  const nextKey = `${next.layout || ''}|${next.scene || ''}|${next.presenter || ''}|${(next.stage || []).join(',')}`;
   if (prevKey === nextKey || (prev.aspect || '16:9') !== (next.aspect || '16:9')) return;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !canvas.width || !canvas.height) { sceneFade.active = false; return; }
-  fadeSnap.width = canvas.width; fadeSnap.height = canvas.height;
-  fadeSnap.getContext('2d').drawImage(canvas, 0, 0);
-  sceneFade = { active: true, from: performance.now(), dur: 280 };
+  requestStageRender();
+  if (reduceMotion() || !canvas.width || !canvas.height) { sceneFade.active = false; return; }
+  if (fadeSnap.width !== canvas.width || fadeSnap.height !== canvas.height) {
+    fadeSnap.width = canvas.width; fadeSnap.height = canvas.height;
+  }
+  fadeSnapCtx.clearRect(0, 0, fadeSnap.width, fadeSnap.height);
+  fadeSnapCtx.drawImage(canvas, 0, 0);
+  sceneFade = { active: true, from: performance.now(), dur: 240 };
 }
 const speaking = new Map(); // id -> last time above threshold
 
@@ -1558,9 +1608,10 @@ function drawChrome() {
 const TIER_Z = Object.fromEntries(TIERS.map((x) => [x.id, x.z]));
 /** The scene's elements, with any missing system element (lower third, ticker, logo…) at its default spot. */
 function stageElements() { return ensureSystem(S.state.elements || [], isVertical(), () => 'sys'); }
-function draw() {
-  const t = performance.now();
+function draw(now = performance.now()) {
+  const t = now;
   syncAspect();
+  if (lastAnimW !== W || lastAnimH !== H) { tileAnim.clear(); lastAnimW = W; lastAnimH = H; }
   drawBackground(t);
   const inStudio = !!S.studio;
   const els = drawOrder(stageElements()).filter((e) => !e.hidden);
@@ -1573,7 +1624,13 @@ function draw() {
   const byId = new Map(people.map((p) => [p.id, p]));
   const stageIds = inStudio ? S.state.stage : [myId()];
   const onStage = stageIds.map((id) => byId.get(id)).filter(Boolean);
+  const onStageIds = new Set(onStage.map((p) => p.id));
   const custom = S.state.layout === 'custom';
+  const hasMedia = custom && els.some((e) => e.type === 'media');
+  for (const id of tileAnim.keys()) {
+    if (id === '__media__') { if (!hasMedia) tileAnim.delete(id); }
+    else if (!onStageIds.has(id)) tileAnim.delete(id);
+  }
   if (!onStage.length) {
     editorOnly((c) => { c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '600 22px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Add someone to the stage from “In the studio”.', W / 2, H / 2); });
   }
@@ -1584,14 +1641,19 @@ function draw() {
     const hasOtherPanels = els.some((e) => !e.hidden && ['media', 'chat', 'score', 'bounty', 'ai', 'tip', 'callin', 'image', 'text', 'timer', 'shape'].includes(e.type));
     const onlyVideo = onStage.length === 1 && !hasTicker && !hasOtherPanels;
     if (onlyVideo) {
-      const fullRect = { x: 0, y: 0, w: W, h: H, r: 0 };
+      const fullRect = smoothTileRect(onStage[0].id, { x: 0, y: 0, w: W, h: H, r: 0 }, t);
       drawTile(onStage[0], fullRect, t);
       camRects = [fullRect];
     } else {
       const bottom = hasTicker ? tick.y * H : H;
       const rects = layoutRects(onStage.length, custom ? 'split' : S.state.layout, { x: 0, y: 0, w: W, h: bottom });
-      onStage.forEach((p, i) => rects[i] && drawTile(p, { ...rects[i], r: 0 }, t));
-      camRects = rects.slice(0, onStage.length);
+      camRects = [];
+      onStage.forEach((p, i) => {
+        if (!rects[i]) return;
+        const animRect = smoothTileRect(p.id, { ...rects[i], r: 0 }, t);
+        drawTile(p, animRect, t);
+        camRects.push(animRect);
+      });
     }
   } else camRects = [];
   let framed = false;
@@ -1645,7 +1707,7 @@ function drawElement(e, t, onStage, custom) {
     case 'slot': {
       if (!custom) return;
       const p = onStage[e.index], r = { ...px(e), r: e.radius };
-      if (p) drawTile(p, r, t);
+      if (p) drawTile(p, smoothTileRect(p.id, r, t), t);
       else editorOnly((c) => {
         c.strokeStyle = 'rgba(255,255,255,.28)'; c.setLineDash([8, 8]); c.lineWidth = 2; c.beginPath(); c.roundRect(r.x, r.y, r.w, r.h, r.r ?? 10); c.stroke();
         c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '500 15px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -1653,7 +1715,7 @@ function drawElement(e, t, onStage, custom) {
       });
       return;
     }
-    case 'media': if (custom) drawMediaEl(e); return;
+    case 'media': if (custom) drawMediaEl(e, t); return;
     case 'shape': drawShapeEl(e); return;
     case 'ai': drawAiEl(e); return;
     case 'tip': drawTipEl(e); return;
@@ -1682,28 +1744,52 @@ const accentOf = () => normalizeHex(S.state?.brand?.color) || '#3b82f6';
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
 function contrastInk(hex) { const n = parseInt(hex.slice(1), 16); const [r, gg, b] = [n >> 16, (n >> 8) & 255, n & 255]; return (0.299 * r + 0.587 * gg + 0.114 * b) > 170 ? '#111827' : '#ffffff'; }
 
-// Render loop: rAF while visible; a worker clock keeps recordings smooth in background tabs.
-// Frame budget: the program is captured at 30 fps, so drawing faster only burns CPU. On a slow machine (no GPU,
-// one core) a frame can cost 50–100 ms; back off so drawing never takes more than about half the main thread
-// (80 % while recording or live), leaving time for signalling, chat and clicks.
-let lastFrame = 0, nextFrame = 0, frameGap = 1000 / 30;
-function drawProgram() {
+// Render loop: rAF-driven while visible (full refresh rate during layout/presenter transitions, adaptive
+// 30 fps steady-state to preserve CPU); background worker fallback keeps recordings alive in hidden tabs.
+let lastFrame = 0, nextFrame = 0, frameGap = 1000 / 30, stageRafId = 0, stageDirty = false;
+function isStageAnimating(now) {
+  if (editor.on || S.local.pres?.game || sceneFade.active || hasActiveTileAnim(now)) return true;
+  if (S.state.banner && S.banner.t0 && now - S.banner.t0 < 950) return true;
+  return false;
+}
+function requestStageRender() {
+  stageDirty = true;
+  nextFrame = 0;
+  if (!stageRafId) stageRafId = requestAnimationFrame(frame);
+}
+function drawProgram(now = performance.now()) {
   const t0 = performance.now();
-  lastFrame = t0; S.local.pres?.draw?.(); draw(); flushEditorLayers(); updateDucking(); updateAutoMute();
-  const cost = performance.now() - t0, onAir = !!(S.rec || S.live || S.viewers?.size); // direct watch-page viewers count as on air
-  // Game mode draws at 60 fps; everything else at 30 (what recordings and streams capture).
-  frameGap = Math.max(editor.on || S.local.pres?.game ? 0 : 1000 / 30 - 2, cost * (onAir ? 1.25 : 2));
-  nextFrame = t0 + frameGap;
+  lastFrame = now;
+  stageDirty = false;
+  S.local.pres?.draw?.();
+  draw(now);
+  flushEditorLayers();
+  const cost = performance.now() - t0;
+  const onAir = !!(S.rec || S.live || S.viewers?.size); // direct watch-page viewers count as on air
+  const animating = isStageAnimating(now);
+  // During layout switches, presenter transitions, stage editing, or game mode, paint every rAF vsync;
+  // otherwise step down to 30 fps (matching capture/stream cadence) while honoring CPU headroom.
+  const baseGap = animating ? 0 : (1000 / 30 - 2);
+  const cpuGuard = animating ? (cost > 16 ? cost * 1.15 : 0) : cost * (onAir ? 1.25 : 2);
+  frameGap = Math.max(baseGap, cpuGuard);
+  nextFrame = now + frameGap;
 }
 function frame(now) {
-  requestAnimationFrame(frame);
-  if (now >= nextFrame - 1) drawProgram();
+  stageRafId = requestAnimationFrame(frame);
+  if (stageDirty || now >= nextFrame - 1) drawProgram(now);
   meters(); speakingCards(); updateDucking(); updateAutoMute();
 }
-requestAnimationFrame(frame);
-// rAF stops in background tabs; a worker clock keeps the program (and so recordings) drawing there.
+stageRafId = requestAnimationFrame(frame);
+// rAF pauses in background tabs; a worker clock keeps recordings and live output flowing only while hidden or stalled.
 const clock = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),33)'], { type: 'text/javascript' })));
-clock.onmessage = () => { const now = performance.now(); if (now - lastFrame > Math.max(120, frameGap + 60) && now >= nextFrame) drawProgram(); };
+clock.onmessage = () => {
+  const now = performance.now();
+  if ((document.hidden || now - lastFrame > Math.max(120, frameGap + 60)) && now >= nextFrame) {
+    drawProgram(now);
+    updateDucking();
+    updateAutoMute();
+  }
+};
 
 function meters() {
   const lvl = Math.min(100, (localMeter?.level() || 0) * 400 * (S.local.micOn ? 1 : 0));
@@ -2006,7 +2092,7 @@ function likeBtn(id, n = 0) {
 }
 function setLikes(id, n, from) {
   if (from === S.id) LIKED.add(id);
-  for (const b of document.querySelectorAll(`#msgs [data-like="${CSS.escape(id)}"]`)) { b.querySelector('span').textContent = n ? String(n) : ''; b.setAttribute('aria-pressed', String(LIKED.has(id))); }
+  for (const b of document.querySelectorAll(`#msgs [data-like="${cssEsc(id)}"]`)) { b.querySelector('span').textContent = n ? String(n) : ''; b.setAttribute('aria-pressed', String(LIKED.has(id))); }
 }
 /** Wrap a message: avatar on the left, then the name line (with time and like) and the words. */
 function chatShell(li, { id, name, ts, av, likes }) {
@@ -2460,8 +2546,8 @@ function presenterOf() {
   const people = participants();
   return people.find((p) => p.id === S.state.presenter && p.sharing) || people.find((p) => p.sharing) || null;
 }
-function drawMediaEl(e) {
-  const r = px(e), R = e.radius ?? 12, who = presenterOf();
+function drawMediaEl(e, t = performance.now()) {
+  const r = smoothTileRect('__media__', { ...px(e), r: e.radius ?? 12 }, t), R = r.r ?? (e.radius ?? 12), who = presenterOf();
   const src = who ? (who.me ? S.local.pres?.source : $('#pres-' + cssId(who.id))) : null;
   const sw = src ? (src.videoWidth || src.width) : 0, sh = src ? (src.videoHeight || src.height) : 0;
   g.save();
@@ -2695,7 +2781,7 @@ function addElement(type, { edit = true } = {}) {
   const els = stageElements();
   const spot = freeSpot(e, els);
   if (spot) Object.assign(e, spot);
-  else { e.stack = true; toast(`No free space for the ${ELABEL[type].toLowerCase()}, so it’s stacked on top. Drag it where you want it.`, { ms: 4200 }); }
+  else { e.stack = true; toast(`No free space for the ${String(ELABEL[type] || type || 'element').toLowerCase()}, so it’s stacked on top. Drag it where you want it.`, { ms: 4200 }); }
   e.home = [e.x, e.y, e.w, e.h];
   const patch = { elements: [...els, e] };
   if (type === 'slot' && S.state.layout !== 'custom') patch.layout = 'custom';
@@ -2776,7 +2862,7 @@ function renderEditor() {
     const safe = document.createElement('div'); safe.className = 'safe-guides'; safe.setAttribute('aria-hidden', 'true');
     safe.innerHTML = `<i class="safe action" style="inset:${SAFE.action * 100}%"></i><i class="safe title" style="inset:${SAFE.title * 100}%"></i>`;
     const guides = document.createElement('div'); guides.className = 'snap-guides'; guides.id = 'snapGuides';
-    layer.replaceChildren(safe, ...boxes, guides);
+    replaceKids(layer, safe, ...boxes, guides);
     layer.style.setProperty('--grid-x', (GRID / W * 100) + '%'); layer.style.setProperty('--grid-y', (GRID / H * 100) + '%');
   }
   renderLayers();
@@ -2812,7 +2898,7 @@ function renderLayers() {
       rows.push(li);
     }
   }
-  list.replaceChildren(...rows);
+  replaceKids(list, ...rows);
   $('#elEmpty').hidden = !!els.length;
 }
 function toggleBtn(name, label, pressed, fn) {
@@ -2940,7 +3026,7 @@ function renderProps() {
   f.push(`<label class="toggle-inline"><input type="checkbox" class="toggle sm" data-k="hidden" ${e.hidden ? 'checked' : ''}><span>Hidden</span></label>`);
   f.push(`<label class="toggle-inline"><input type="checkbox" class="toggle sm" data-k="locked" ${e.locked ? 'checked' : ''}><span>Locked</span></label>`);
   f.push(`<div class="row"><button type="button" class="btn sm" data-order="1">${icon('arrow-up', { size: 'sm' })}Bring forward</button><button type="button" class="btn sm" data-order="-1">${icon('arrow-down', { size: 'sm' })}Send back</button><button type="button" class="btn sm" data-reset ${e.home ? '' : 'disabled'}>${icon('rotate-ccw', { size: 'sm' })}Reset</button></div>`);
-  if (!isSystem(e)) f.push(`<button type="button" class="btn sm danger" data-del>${icon('trash-2', { size: 'sm' })}Delete ${ELABEL[e.type].toLowerCase()}</button>`);
+  if (!isSystem(e)) f.push(`<button type="button" class="btn sm danger" data-del>${icon('trash-2', { size: 'sm' })}Delete ${String(ELABEL[e.type] || e.type || 'element').toLowerCase()}</button>`);
   box.innerHTML = f.join('');
   box.querySelectorAll('input, select, textarea').forEach((inp) => { inp.disabled = !isHost() && !inp.dataset.upload; });
 }
@@ -2991,7 +3077,7 @@ $('#elProps').addEventListener('click', (ev) => {
 function showGuides(guides, blocked) {
   const box = $('#snapGuides');
   if (!box) return;
-  box.replaceChildren(...guides.map((gd) => { const i = document.createElement('i'); i.className = `guide ${gd.axis} ${gd.kind}`; i.style[gd.axis === 'x' ? 'left' : 'top'] = gd.at * 100 + '%'; return i; }));
+  replaceKids(box, ...guides.map((gd) => { const i = document.createElement('i'); i.className = `guide ${gd.axis} ${gd.kind}`; i.style[gd.axis === 'x' ? 'left' : 'top'] = gd.at * 100 + '%'; return i; }));
   $$('.ebox.blocking').forEach((b) => b.classList.remove('blocking'));
   if (blocked) $(`.ebox[data-id="${blocked.id}"]`)?.classList.add('blocking');
 }
@@ -3152,7 +3238,7 @@ $('#resetScene').onclick = () => { if (isHost()) resetScene(); };
 $$('[data-add]').forEach((b) => b.addEventListener('click', () => { if (!isHost()) return toast('Only the host can change the stage.', { err: true }); addElement(b.dataset.add); }));
 function renderTemplates() {
   const wrap = $('#tplList');
-  wrap.replaceChildren(...TEMPLATES.map((tpl) => {
+  replaceKids(wrap, ...TEMPLATES.map((tpl) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'tile tpl'; b.disabled = !isHost();
     const pv = scenePreview(tpl);
     const nm = document.createElement('span'); nm.textContent = tpl.name;
@@ -3166,7 +3252,7 @@ function renderTemplates() {
 function savedLayouts() { return store.get('layouts', []); }
 function renderSaved() {
   const ul = $('#savedList'), list = savedLayouts();
-  ul.replaceChildren(...list.map((l, i) => {
+  replaceKids(ul, ...list.map((l, i) => {
     const li = document.createElement('li'); li.className = 'el-row';
     const b = document.createElement('button'); b.type = 'button'; b.className = 'menu-item compact el-pick'; b.textContent = l.name; b.disabled = !isHost();
     b.onclick = () => loadLayout(l);
@@ -3337,7 +3423,7 @@ function renderAILog() {
   const ids = new Set(S.ai.items.map((it) => it.id));
   for (const li of log.querySelectorAll('li[data-aid]')) if (!ids.has(li.dataset.aid)) { li.remove(); aiShown.delete(li.dataset.aid); }
   for (const it of S.ai.items) {
-    const cur = log.querySelector(`li[data-aid="${CSS.escape(it.id)}"]`);
+    const cur = log.querySelector(`li[data-aid="${cssEsc(it.id)}"]`);
     if (cur) { cur.replaceWith(aiItemLi(it, host, shown)); continue; }
     if (aiShown.has(it.id)) continue; // trimmed off the top of a long chat: don't bring it back at the bottom
     aiShown.add(it.id); appendLog(aiItemLi(it, host, shown));
@@ -3453,7 +3539,7 @@ function renderTips() {
   const saved = { ...store.get('tips', {}) };
   for (const k of ['paypal', 'venmo', 'cashapp', 'stripe']) if (pay[k] && !saved[k]) saved[k] = pay[k];
   if (!box.children.length) {
-    box.replaceChildren(...TIP_FIELDS.map(([id, name, ph]) => {
+    replaceKids(box, ...TIP_FIELDS.map(([id, name, ph]) => {
       const row = document.createElement('div'); row.className = 'tip-row'; row.dataset.provider = id;
       const tag = document.createElement('span'); tag.className = 'tip-tag'; tag.textContent = name; tag.style.setProperty('--c', TIP_INFO[id].color);
       const inp = document.createElement('input'); inp.className = 'input sm'; inp.placeholder = ph; inp.value = saved[id] || ''; inp.spellcheck = false; inp.setAttribute('aria-label', name + ' link');
@@ -3557,7 +3643,7 @@ async function acctApi(action, body = {}) {
   return data;
 }
 // Settings that follow you between devices once you're signed in. API keys and RTMP stream keys never sync.
-const SYNC_KEYS = ['tips', 'layouts', 'presets', 'accent', 'bg', 'title', 'theme', 'aiProv', 'startMic', 'startCam', 'quality', 'audioFx', 'videoFx', 'brandPrefs', 'streamPrefs', 'streamType', 'hashtags', 'notifyPrefs', 'onboardingDone', 'destTemplates', 'creatorProfile', 'watchPrefs'];
+const SYNC_KEYS = ['tips', 'layouts', 'presets', 'accent', 'bg', 'title', 'theme', 'keys', 'aiProv', 'startMic', 'startCam', 'quality', 'audioFx', 'videoFx', 'brandPrefs', 'streamPrefs', 'streamType', 'hashtags', 'notifyPrefs', 'onboardingDone', 'destTemplates', 'creatorProfile', 'watchPrefs'];
 let syncT = null, applyingSync = false, acctBootP = Promise.resolve();
 const rawSet = store.set;
 store.set = (k, v) => {
@@ -3662,9 +3748,9 @@ function renderSyncNote(t) {
   const st = $('#acSyncStatusText'); if (st && t) st.textContent = t;
 }
 let acView = 'in'; // in | up | forgot | reset
-let acPane = 'profile'; // profile | studio | audience | sync | security
+let acPane = 'profile'; // profile | studio | audience | sync | shortcuts | security
 function setAcPane(pane) {
-  acPane = ['profile', 'studio', 'audience', 'sync', 'security'].includes(pane) ? pane : 'profile';
+  acPane = ['profile', 'studio', 'audience', 'sync', 'shortcuts', 'security'].includes(pane) ? pane : 'profile';
   $$('#acIn [data-ac-pane]').forEach((b) => {
     const on = b.dataset.acPane === acPane;
     b.classList.toggle('on', on);
@@ -3673,19 +3759,24 @@ function setAcPane(pane) {
   $$('#acIn [data-ac-panel]').forEach((p) => {
     p.hidden = p.dataset.acPanel !== acPane;
   });
+  if (acPane === 'shortcuts') {
+    mountShortcutsRoot(true);
+    renderShortcutsList();
+  }
 }
 function renderAcctDlg() {
   const u = acct.user;
-  $('#acOut').hidden = !!u || acView === 'forgot' || acView === 'reset';
+  $('#acOut').hidden = !!u || acView === 'forgot' || acView === 'reset' || acView === 'shortcuts';
   $('#acForgotView').hidden = acView !== 'forgot';
   $('#acResetView').hidden = acView !== 'reset';
+  if ($('#acShortcutsView')) $('#acShortcutsView').hidden = !!u || acView !== 'shortcuts';
   $('#acIn').hidden = !u;
   $$('#acTabs button').forEach((b) => { const on = b.dataset.ac === acView; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#acNameRow').hidden = acView !== 'up';
   $('#acGo').textContent = acView === 'up' ? 'Create account' : 'Sign in';
   $('#acPass').autocomplete = acView === 'up' ? 'new-password' : 'current-password';
-  $('#acWhy').hidden = !!u || !S.afterSignIn;
-  const outView = !u && acView !== 'forgot' && acView !== 'reset', up = acView === 'up';
+  $('#acWhy').hidden = !!u || !S.afterSignIn || acView === 'shortcuts';
+  const outView = !u && acView !== 'forgot' && acView !== 'reset' && acView !== 'shortcuts', up = acView === 'up';
   $('#acGoogleBtn').hidden = $('#acOr').hidden = !outView || !googleConfigured();
   $('#acGoogleText').textContent = up ? 'Sign up with Google' : 'Continue with Google';
   $('#acAgreeRow').hidden = !up; $('#acMeter').hidden = !up; $('#acForgot').hidden = up;
@@ -3696,7 +3787,11 @@ function renderAcctDlg() {
   $('#acUpAvatar').classList.toggle('has', !!av);
   $('#acUpAvatar').setAttribute('aria-label', av ? 'Change your profile photo' : 'Add a profile photo');
   document.querySelector('#acctDlg .ac-card').classList.toggle('signed', !!u);
-  $('#acH').textContent = u ? 'Account & Creator Settings' : acView === 'forgot' ? 'Reset your password' : acView === 'reset' ? 'Choose a new password' : acView === 'up' ? 'Create your account' : 'Welcome back';
+  $('#acH').textContent = u ? 'Account & Creator Settings' : acView === 'shortcuts' ? 'Keyboard shortcuts' : acView === 'forgot' ? 'Reset your password' : acView === 'reset' ? 'Choose a new password' : acView === 'up' ? 'Create your account' : 'Welcome back';
+  if (!u && acView === 'shortcuts') {
+    mountShortcutsRoot(false);
+    renderShortcutsList();
+  }
   if (u) {
     // accounts made with Google have no password: no change-password form, and deleting asks for the email
     $('#acPwDetails').hidden = !u.hasPassword;
@@ -3856,6 +3951,8 @@ $('#umSignOut')?.addEventListener('click', () => { closeUserMenu(); $('#acSignOu
 
 $$('#acIn [data-ac-pane]').forEach((b) => b.addEventListener('click', () => setAcPane(b.dataset.acPane)));
 $$('#acThemeSeg [data-ac-theme]').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.acTheme)));
+$('#acOpenShortcutsOut')?.addEventListener('click', () => { acView = 'shortcuts'; renderAcctDlg(); setTimeout(() => $('#shortcutsSearch')?.focus(), 30); });
+$('#acShortcutsBack')?.addEventListener('click', () => { acView = store.get('hadAccount', false) ? 'in' : 'up'; renderAcctDlg(); });
 
 $$('#acTabs button').forEach((b) => b.addEventListener('click', () => { acView = b.dataset.ac; acErr('#acErr', ''); renderAcctDlg(); }));
 $('#acForm').addEventListener('submit', async (e) => {
@@ -4070,6 +4167,12 @@ async function uploadBrandAssets(brand) {
   }
   if (Object.keys(patch).length) setStage({ brand: patch });
 }
+const brandSyncSubs = [];
+const stateSyncSubs = [];
+function notifyBrandSync() {
+  const b = S.state?.brand || {};
+  for (const fn of brandSyncSubs) { try { fn(b); } catch {} }
+}
 function brandPref(patch) {
   // Keep the look for the next studio too (images live in this browser).
   const keep = ['color', 'bg', 'panel', 'panelColor', 'font', 'tag', 'bannerStyle', 'anim', 'motion', 'alertStyle', 'pack', 'frame', 'dim', 'logoPos', 'logoSize'];
@@ -4078,6 +4181,7 @@ function brandPref(patch) {
   store.set('brandPrefs', prefs);
   setStage({ brand: patch });
   if (typeof window.__gatherBrandSync === 'function') window.__gatherBrandSync();
+  notifyBrandSync();
 }
 async function brandDataUrl(kind, data) {
   const imgs = savedBrandImgs(); imgs[kind] = data;
@@ -4212,6 +4316,7 @@ function renderBrandPanel() {
   for (const id of ['#bgImgPick', '#overlayPick', '#logoPick', '#bgImgAiBtn', '#logoAiBtnLook', '#overlayAiBtnLook', '#emoteAiBtn']) {
     if ($(id)) $(id).disabled = !host;
   }
+  notifyBrandSync();
 }
 
 // ---------------------------------------------------------------- stream tab: format, captions, upcoming
@@ -4329,7 +4434,7 @@ function renderUpcoming() {
   const ul = $('#upList');
   const rows = S.streams.filter((x) => x.status === 'scheduled' || (x.status === 'live' && Date.now() - x.when < 6 * 3600e3));
   $('#upEmpty').hidden = true; // "Plan a stream for later" already says it
-  ul.replaceChildren(...rows.map((st) => {
+  replaceKids(ul, ...rows.map((st) => {
     const li = document.createElement('li'); li.className = 'up-item';
     const top = document.createElement('div'); top.className = 'up-top';
     const t = document.createElement('b'); t.textContent = st.title; t.title = st.title;
@@ -4632,7 +4737,7 @@ async function templateImage(t) {
 const aidPromptFor = (t) => AID.prompt[t] ?? `${{ cover: 'Cover art', backdrop: 'A studio backdrop', logo: 'A logo', overlay: 'A stage frame' }[t]} for “${AID.title() || 'my show'}”, a ${AID.kind()}`;
 function aidRender() {
   const t = AID.target, src = aiImageSource();
-  $('#aidTarget').replaceChildren(...AID.targets.map((k) => {
+  replaceKids($('#aidTarget'), ...AID.targets.map((k) => {
     const b = document.createElement('button'); b.type = 'button'; b.role = 'tab'; b.textContent = AID_TARGETS[k].label;
     b.classList.toggle('on', k === t); b.setAttribute('aria-selected', String(k === t));
     b.onclick = () => { AID.target = k; aidRender(); };
@@ -4640,7 +4745,7 @@ function aidRender() {
   }));
   if (document.activeElement !== $('#aidPrompt')) $('#aidPrompt').value = aidPromptFor(t);
   $('#aidPrompt').placeholder = `Describe the ${AID_TARGETS[t].label.toLowerCase()} you want`;
-  $('#aidChips').replaceChildren(...AID_STYLES[t].map((st) => {
+  replaceKids($('#aidChips'), ...AID_STYLES[t].map((st) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'wiz-ai-chip' + (AID.style[t] === st ? ' on' : ''); b.textContent = st;
     b.setAttribute('aria-pressed', String(AID.style[t] === st)); b.onclick = () => { AID.style[t] = AID.style[t] === st ? '' : st; aidRender(); };
     return b;
@@ -4658,7 +4763,7 @@ function aidRender() {
     add.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg><span>Add image</span><small>drop · paste · browse</small>';
     add.onclick = () => $('#aidFile').click(); tiles.push(add);
   }
-  $('#aidRefs').replaceChildren(...tiles);
+  replaceKids($('#aidRefs'), ...tiles);
   const mine = savedBrandImgs().logo || wiz.logoData;
   $('#aidUseLogo').hidden = !mine || AID.refs.length >= 3;
   // preview + history
@@ -4670,7 +4775,7 @@ function aidRender() {
   $('#aidBusy').hidden = !AID.busy;
   const hist = AID.results[t];
   $('#aidHistory').hidden = !hist.length;
-  $('#aidHistory').replaceChildren(...hist.map((d, i) => {
+  replaceKids($('#aidHistory'), ...hist.map((d, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'aid-hist' + (d === pick ? ' on' : ''); b.style.aspectRatio = AID_TARGETS[t].ar;
     b.setAttribute('aria-label', `Result ${i + 1}`); b.innerHTML = `<img alt="" src="${d}">`; b.onclick = () => { AID.pick[t] = d; aidRender(); };
     return b;
@@ -5085,6 +5190,7 @@ const HELP = [
   ['A guest can’t connect', 'connect firewall turn network corporate', 'settings', '#turnUrl', 'Settings → Your own relay server'],
   ['Switch to light mode', 'light dark theme appearance', 'settings', '#themeSeg', 'Settings → Appearance'],
   ['Auto-mute silent microphones', 'auto mute silence inactive quiet noise mic', 'settings', '#autoMuteChk', 'Settings → Microphone → Auto-mute when silent'],
+  ['Keyboard shortcuts', 'shortcuts hotkeys keybindings keyboard accessibility', null, '#shortcutsRoot', 'Your account → Shortcuts'],
 ];
 const POPULAR = [3, 2, 5, 10, 14, 17];
 function helpGo(row) {
@@ -5093,6 +5199,7 @@ function helpGo(row) {
   if ($('#helpDlg').open) $('#helpDlg').close();
   if (tab) setTab(tab);
   if (sel === '#userBtn') return openAccount();
+  if (sel === '#shortcutsRoot') return openShortcutsLightbox();
   if (sel === '#wizOpen') { setTab('stream'); return openWizard(); }
   const el = $(sel);
   if (!el) return;
@@ -5116,11 +5223,11 @@ function renderHelp() {
   const hits = store.get('helpHits', {});
   const popular = [...POPULAR.map((i) => HELP[i]), ...HELP].filter((r, i, a) => a.indexOf(r) === i)
     .sort((a, b) => (hits[b[0]] || 0) - (hits[a[0]] || 0)).slice(0, 6);
-  $('#helpPopular').replaceChildren(...popular.map(helpRow));
+  replaceKids($('#helpPopular'), ...popular.map(helpRow));
   $('#helpPopWrap').hidden = !!q;
   const words = q.split(/\s+/).filter(Boolean);
   const res = q ? HELP.filter((r) => words.every((w) => (r[0] + ' ' + r[1] + ' ' + r[4]).toLowerCase().includes(w))) : [];
-  $('#helpResults').replaceChildren(...res.map(helpRow));
+  replaceKids($('#helpResults'), ...res.map(helpRow));
   $('#helpNone').hidden = !q || !!res.length;
 }
 $('#helpSearch').addEventListener('input', renderHelp);
@@ -5158,7 +5265,7 @@ function renderSocialMatrix(box) {
   const list = liveDests();
   if (box.contains(document.activeElement) && document.activeElement.tagName === 'INPUT' && document.activeElement.type !== 'checkbox') return;
   const order = ['youtube', 'twitch', 'kick', 'facebook', 'linkedin', 'x', 'instagram', 'tiktok', 'rumble', 'custom'];
-  box.replaceChildren(...order.map((kind) => {
+  replaceKids(box, ...order.map((kind) => {
     const p = PLATFORMS[kind];
     const existing = list.find((d) => d.kind === kind);
     const on = !!existing?.on;
@@ -5208,7 +5315,7 @@ function renderDests(force) {
     return;
   }
   $$('.plat-tile[data-plat]').forEach((t) => t.classList.toggle('added', t.dataset.plat !== 'custom' && list.some((d) => d.kind === t.dataset.plat)));
-  box.replaceChildren(...list.map((d, i) => {
+  replaceKids(box, ...list.map((d, i) => {
     const p = PLATFORMS[d.kind] || PLATFORMS.custom;
     const li = document.createElement('li'); li.className = 'dest' + (d.on ? '' : ' off');
     li.innerHTML = `<div class="dest-top"><span class="pill caps src-${d.kind}"></span><label class="toggle-inline"><input type="checkbox" class="toggle sm" data-k="on"><span>Send</span></label><button type="button" class="icon-btn sm" data-del aria-label="Remove"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-trash-2"/></svg></button></div>
@@ -5442,7 +5549,7 @@ async function uploadRecording() {
       note.textContent = `Uploading to Drive · ${Math.round(f * 100)}% of ${(rec.blob.size / 1048576).toFixed(1)} MB`;
     });
     rec.saved = file;
-    note.replaceChildren(document.createTextNode('Saved to Drive → gather recordings. '));
+    replaceKids(note, document.createTextNode('Saved to Drive → gather recordings. '));
     if (file.webViewLink) { const a = document.createElement('a'); a.href = file.webViewLink; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open in Drive'; note.append(a); }
     if (!$('#recDlg').open) toast('Recording saved to Google Drive.');
   } catch (e) {
@@ -5710,7 +5817,7 @@ function renderGuestBrief() {
     edBtn.onclick = openGuestBrief;
     body.append(edBtn);
   }
-  bar.replaceChildren(head, body);
+  replaceKids(bar, head, body);
 }
 
 let draftBriefFiles = [];
@@ -5728,7 +5835,7 @@ function addBriefLinkRow(label = '', url = '') {
 function renderBriefDraftFiles() {
   const wrap = $('#gbFilesEdit');
   if (!wrap) return;
-  wrap.replaceChildren(...draftBriefFiles.map((f, i) => {
+  replaceKids(wrap, ...draftBriefFiles.map((f, i) => {
     const row = document.createElement('div'); row.className = 'gb-file-row';
     const sp = document.createElement('span'); sp.textContent = `${f.name} (${fmtBytes(f.size)})`;
     const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn sm'; del.innerHTML = icon('x', { size: 'sm' }); del.setAttribute('aria-label', 'Remove file');
@@ -5810,7 +5917,9 @@ function setPhase(p) {
   renderAll();
 }
 function renderAll() {
-  renderScorePanel(); renderBountyPanel(); renderBrandKit(); renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
+  renderScorePanel(); renderBountyPanel(); renderBrandKit(); renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec();
+  for (const fn of stateSyncSubs) { try { fn(S.state); } catch {} }
+}
 function renderHeader() {
   // The studio name belongs to the studio you're in; outside one the header is just the wordmark.
   const inside = !!S.studio || S.phase === 'reconnecting';
@@ -5880,7 +5989,7 @@ function renderCrew() {
     const avImg = assetImg(p.avatar), span = $('span', ini);
     if (avImg) { span.textContent = ''; span.style.backgroundImage = `url("${avImg.src}")`; span.classList.add('has-av'); }
     else { span.textContent = initials(p.name); span.style.backgroundImage = ''; span.classList.remove('has-av'); }
-    const tags = $('.tagrow', li); tags.replaceChildren();
+    const tags = $('.tagrow', li); replaceKids(tags);
     const on = S.state.stage.includes(p.id);
     tags.insertAdjacentHTML('beforeend', on ? '<span class="cstate on"><i></i>On stage</span>' : '<span class="cstate"><i></i>Backstage</span>'); // "Live" only ever means broadcasting
     $('.crew-thumb', li).classList.toggle('pickable', host);
@@ -5900,18 +6009,21 @@ function renderCrew() {
 }
 function renderCrewSubs() {
   for (const p of participants()) {
-    const card = $(`#card-${cssId(p.id)}`);
+    const id = cssId(p?.id);
+    if (!id) continue;
+    const card = document.getElementById('card-' + id);
     const sub = card && $('.crew-sub', card);
     if (!sub) continue;
     if (p.me) {
       const autoMuted = !!S.local.autoMuted && !S.local.micOn;
       card.classList.toggle('auto-muted', autoMuted);
       const micTxt = S.local.micOn ? 'mic on' : autoMuted ? 'auto-muted' : 'muted';
-      sub.textContent = S.local.pres ? `Presenting ${{ screen: 'a screen', video: 'a video', pdf: 'slides' }[S.local.pres.kind]}` : S.local.camOn ? `Camera on · ${micTxt}` : (autoMuted ? 'Auto-muted (silence)' : 'Camera off');
+      const presLbl = S.local.pres ? ({ screen: 'a screen', video: 'a video', pdf: 'slides' }[S.local.pres.kind] || 'content') : '';
+      sub.textContent = S.local.pres ? `Presenting ${presLbl}` : S.local.camOn ? `Camera on · ${micTxt}` : (autoMuted ? 'Auto-muted (silence)' : 'Camera off');
     }
     else {
       card.classList.remove('auto-muted');
-      const c = p.peer.conn;
+      const c = p.peer?.conn;
       sub.textContent = c === 'connected' ? `Connected${p.peer.rtt != null ? ` · ${p.peer.rtt} ms` : ''}` : c === 'failed' ? 'Connection failed · retrying' : c === 'disconnected' ? 'Reconnecting…' : 'Connecting…';
     }
   }
@@ -5974,7 +6086,7 @@ function renderGuide() {
   $('#guideProg').textContent = `Getting started · ${states.filter(Boolean).length} of ${GUIDE.length} done`;
   $('#guideStep').textContent = GUIDE[next].label;
   $('#guideGo').dataset.step = GUIDE[next].id;
-  $('#guideDots').replaceChildren(...GUIDE.map((g, i) => { const d = document.createElement('i'); d.className = states[i] ? 'done' : i === next ? 'now' : ''; return d; }));
+  replaceKids($('#guideDots'), ...GUIDE.map((g, i) => { const d = document.createElement('i'); d.className = states[i] ? 'done' : i === next ? 'now' : ''; return d; }));
   return true;
 }
 $('#guideGo').onclick = () => GUIDE.find((g) => g.id === $('#guideGo').dataset.step)?.go();
@@ -6002,7 +6114,7 @@ function renderPanels() {
   $('#brandHint').textContent = host ? 'Brand changes apply to everyone in the studio.' : 'Only the host can change the brand.';
   const b = S.state.brand;
   applyAdaptiveAccent(b.color);
-  $$('#swatches button').forEach((x) => x.classList.toggle('on', x.dataset.color.toLowerCase() === b.color.toLowerCase()));
+  $$('#swatches button').forEach((x) => x.classList.toggle('on', String(x.dataset.color || '').toLowerCase() === String(b?.color || '').toLowerCase()));
   $$('#bgs button').forEach((x) => x.classList.toggle('on', x.dataset.bg === b.bg));
   $('#colorPick').value = normalizeHex(b.color) || '#3b82f6';
   $('#namesChk').checked = b.names;
@@ -6026,7 +6138,7 @@ function renderPresets() {
   const presets = store.get('presets', DEFAULT_PRESETS);
   const ul = $('#bannerPresets');
   const live = S.state.banner?.text;
-  ul.replaceChildren(...presets.map((text, i) => {
+  replaceKids(ul, ...presets.map((text, i) => {
     const li = document.createElement('li'); li.className = 'preset' + (live === text ? ' live' : '');
     const p = document.createElement('p'); p.textContent = text;
     const row = document.createElement('div'); row.className = 'row';
@@ -6178,7 +6290,7 @@ function renderScenes() {
   save.onclick = () => { setTab('layouts'); $('#layoutName').focus(); };
   save.tabIndex = -1;
   const keep = strip.contains(document.activeElement) ? [...strip.children].indexOf(document.activeElement) : -1;
-  strip.replaceChildren(...chips, save);
+  replaceKids(strip, ...chips, save);
   const all = [...strip.children];
   const stop = all[keep] || all.find((b) => b.classList.contains('on')) || all[0];
   if (stop) stop.tabIndex = 0;
@@ -6330,10 +6442,8 @@ $('#studioTitle').addEventListener('blur', (e) => {
   if (isHost() && S.studio && v && v !== (S.state.title || DEFAULT_TITLE)) setStage({ title: v });
   else e.target.textContent = S.state.title || DEFAULT_TITLE;
 });
-$('#keysChk').checked = store.get('keys', true);
 // the phone layout keeps the composer above the fixed dock, whatever the dock's height (the guide adds a row)
 new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', $('.dock').offsetHeight + 'px')).observe($('.dock'));
-$('#keysChk').onchange = (e) => store.set('keys', e.target.checked);
 
 // Appearance: dark by default; light or follow the OS on request.
 function applyTheme(t) {
@@ -6791,7 +6901,7 @@ function renderDeck() {
 S.lobby = [];
 function renderLobby() {
   const ul = $('#lobbyList');
-  ul.replaceChildren(...(S.lobby || []).map((w) => {
+  replaceKids(ul, ...(S.lobby || []).map((w) => {
     const li = document.createElement('li'); li.className = 'lobby-card';
     const av = document.createElement('span'); av.className = 'lobby-av'; av.textContent = initials(w.name);
     const info = document.createElement('div'); info.className = 'lobby-info';
@@ -6891,7 +7001,7 @@ function renderAds() {
   $('#adsSwitch').checked = !!a.on; $('#adsSwitch').disabled = !host;
   $('#adEvery').value = String(a.every || 12);
   $$('#adPosSeg button').forEach((b) => { b.classList.toggle('on', b.dataset.ap === (a.pos || 'br')); b.disabled = !host; });
-  $('#adList').replaceChildren(...(a.items || []).map((id, i) => {
+  replaceKids($('#adList'), ...(a.items || []).map((id, i) => {
     const d = document.createElement('div'); d.className = 'ad-thumb';
     const im = assetImg(id); if (im) { const x = document.createElement('img'); x.src = im.src; x.alt = ''; d.append(x); }
     const del = document.createElement('button'); del.type = 'button'; del.className = 'icon-btn sm on-media'; del.innerHTML = icon('x', { size: 'sm' }); del.setAttribute('aria-label', 'Remove sponsor image'); del.disabled = !host;
@@ -6911,7 +7021,7 @@ function renderGreenRoom() {
   $$('#grFx button').forEach((b) => b.classList.toggle('on', b.dataset.fx === S.videoFx.effect));
   for (const [from, to] of [['#camSelect', '#grCam'], ['#micSelect', '#grMic']]) {
     const src = $(from), dst = $(to);
-    if (dst.options.length !== src.options.length) dst.replaceChildren(...[...src.options].map((o) => new Option(o.text, o.value)));
+    if (dst.options.length !== src.options.length) replaceKids(dst, ...[...src.options].map((o) => new Option(o.text, o.value)));
     dst.value = src.value;
   }
 }
@@ -6960,7 +7070,7 @@ async function presentLibrary(it) {
 const KIND_LABEL = { pdf: 'PDF', video: 'Video', audio: 'Audio', image: 'Image', link: 'Web', youtube: 'YouTube' };
 function renderLibrary() {
   const ul = $('#libList');
-  ul.replaceChildren(...S.library.map((it) => {
+  replaceKids(ul, ...S.library.map((it) => {
     const li = document.createElement('li'); li.className = 'el-row lib-row';
     const k = document.createElement('span'); k.className = 'pill caps lib-kind k-' + it.kind; k.textContent = KIND_LABEL[it.kind];
     const nm = document.createElement('span'); nm.className = 'menu-item compact el-pick'; nm.textContent = it.name;
@@ -6970,7 +7080,7 @@ function renderLibrary() {
   }));
   $('#libEmpty').hidden = !!S.library.length;
   const sel = $('#sceneMedia'); const cur = sel.value;
-  sel.replaceChildren(new Option('No media', ''), ...S.library.map((it) => new Option(`${KIND_LABEL[it.kind]} · ${it.name}`, it.id)));
+  replaceKids(sel, new Option('No media', ''), ...S.library.map((it) => new Option(`${KIND_LABEL[it.kind]} · ${it.name}`, it.id)));
   sel.value = cur;
 }
 
@@ -7016,7 +7126,7 @@ function renderVoiceNames() {
   const list = elevenVoice() ? [['rachel', 'Rachel · warm'], ['sarah', 'Sarah · bright'], ['elli', 'Elli · young'], ['adam', 'Adam · deep'], ['josh', 'Josh · friendly'], ['antoni', 'Antoni · smooth']]
     : [['coral', 'Coral · warm'], ['sage', 'Sage · calm'], ['ash', 'Ash · clear'], ['ballad', 'Ballad · soft'], ['verse', 'Verse · lively'], ['nova', 'Nova · bright'], ['alloy', 'Alloy · neutral'], ['echo', 'Echo · low'], ['fable', 'Fable · British'], ['onyx', 'Onyx · deep'], ['shimmer', 'Shimmer · light']];
   const sel = $('#aiVoiceName'), key = list.map((x) => x[0]).join();
-  if (sel.dataset.list !== key) { sel.dataset.list = key; sel.replaceChildren(...list.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; })); }
+  if (sel.dataset.list !== key) { sel.dataset.list = key; replaceKids(sel, ...list.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; })); }
   sel.value = voiceName();
 }
 renderVoiceNames();
@@ -7062,11 +7172,11 @@ function offerOpen(url, label) {
 function findScene(name) {
   const n = String(name || '').toLowerCase().trim();
   const list = sceneList();
-  return list.find((s) => s.name.toLowerCase() === n) || list.find((s) => s.name.toLowerCase().includes(n) || n.includes(s.name.toLowerCase()));
+  return list.find((s) => String(s?.name || '').toLowerCase() === n) || list.find((s) => String(s?.name || '').toLowerCase().includes(n) || n.includes(String(s?.name || '').toLowerCase()));
 }
 function findLib(name) {
   const n = String(name || '').toLowerCase().trim();
-  return S.library.find((i) => i.name.toLowerCase() === n) || S.library.find((i) => i.name.toLowerCase().includes(n) || n.includes(i.name.toLowerCase()));
+  return S.library.find((i) => String(i?.name || '').toLowerCase() === n) || S.library.find((i) => String(i?.name || '').toLowerCase().includes(n) || n.includes(String(i?.name || '').toLowerCase()));
 }
 function producerCtx() {
   const sc = sceneList().find((x) => x.id === activeSceneId());
@@ -7122,7 +7232,7 @@ async function askProducer(text) {
   upsertAI({ id: uid(), role: 'user', text, provider: prov, done: true });
   upsertAI(ans);
   S.ai.busy = true; setAiStatus('thinking');
-  $('#cmdReply').textContent = ''; $('#cmdReply').classList.remove('err'); $('#cmdActs').replaceChildren(); $('#cmdShow').hidden = true;
+  $('#cmdReply').textContent = ''; $('#cmdReply').classList.remove('err'); replaceKids($('#cmdActs')); $('#cmdShow').hidden = true;
   let reply = '';
   const fail = (msg) => { upsertAI({ ...ans, text: msg, error: true, done: true }); $('#cmdReply').textContent = msg; $('#cmdReply').classList.add('err'); };
   try {
@@ -7451,7 +7561,7 @@ function renderInviteSeats(list) {
       slots.push(btn);
     }
   }
-  box.replaceChildren(...slots);
+  replaceKids(box, ...slots);
 }
 
 function renderInviteShort() {
@@ -7598,12 +7708,205 @@ $('#recDlg').addEventListener('close', () => { $('#recVideo').pause(); });
 // Close buttons inside forms are type="button", so Enter submits the form instead of closing the dialog.
 $$('button[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog')?.close('cancel')));
 
-// ---------------------------------------------------------------- keyboard
+// ---------------------------------------------------------------- keyboard + user lightbox shortcuts
+const SHORTCUT_GROUPS = [
+  {
+    id: 'controls',
+    title: 'Audio & video',
+    items: [
+      { keys: ['M'], action: 'Mute or unmute microphone', single: true },
+      { keys: ['V'], action: 'Toggle camera on or off', single: true },
+      { keys: ['S'], action: 'Share or stop screen presentation', single: true },
+      { keys: ['R'], action: 'Start or stop recording', note: 'Host', single: true },
+      { keys: ['M'], action: 'Mark highlight moment', note: 'Clip & Post', single: true },
+    ],
+  },
+  {
+    id: 'scenes',
+    title: 'Scenes & slides',
+    items: [
+      { keys: ['1', '–', '9'], sep: true, action: 'Switch to scene 1–9', note: 'Host', single: true },
+      { keys: ['←', '→'], action: 'Previous or next PDF slide', single: true },
+      { keys: ['PgUp', 'PgDn'], action: 'Jump slides while presenting', single: true },
+      { keys: ['←', '→'], action: 'Step through scenes strip or tour', single: false },
+    ],
+  },
+  {
+    id: 'editor',
+    title: 'Stage editor',
+    items: [
+      { keys: ['↑', '↓', '←', '→'], action: 'Nudge selected stage layer', note: 'Host · 8 px', single: false },
+      { keys: ['Shift', '+', 'Arrows'], sep: true, action: 'Large nudge selected layer', note: 'Host · 40 px', single: false },
+      { keys: ['Alt', '+', 'Drag'], sep: true, action: 'Stack overlapping layers freely', note: 'Host', single: false },
+      { keys: ['Del', 'Backspace'], action: 'Remove selected stage layer', note: 'Host', single: true },
+      { keys: ['Right-click'], action: 'Open stage layer actions menu', note: 'Host', single: false },
+      { keys: ['Esc'], action: 'Deselect layer or exit stage editor', note: 'Host', single: false },
+    ],
+  },
+  {
+    id: 'chat',
+    title: 'Chat, AI & navigation',
+    items: [
+      { keys: ['/'], action: 'Open Sam AI bar or focus chat', note: 'Host opens AI', single: true },
+      { keys: ['Enter'], action: 'Send chat message', note: 'Shift + Enter for new line', single: false },
+      { keys: ['⌘/Ctrl', '+', 'Enter'], sep: true, action: 'Run AI Designer prompt', note: 'Host', single: false },
+      { keys: ['Tab', 'Arrows'], action: 'Move across tabs and segmented controls', single: false },
+      { keys: ['?'], action: 'Open Keyboard Shortcuts in user menu', single: false },
+      { keys: ['Esc'], action: 'Close menus, dialogs, or stage editor', single: false },
+    ],
+  },
+];
+
+let shortcutsCat = 'all';
+let shortcutsQuery = '';
+
+function mountShortcutsRoot(signedIn) {
+  const root = $('#shortcutsRoot');
+  const host = signedIn ? $('#acShortcutsHost') : $('#acShortcutsOutHost');
+  if (root && host && root.parentElement !== host) host.append(root);
+}
+
+function syncSingleKeyPref(enabled) {
+  const on = !!enabled;
+  store.set('keys', on);
+  const chk = $('#shortcutsKeysChk'), note = $('#shortcutsSingleNote');
+  if (chk) chk.checked = on;
+  if (note) note.textContent = on
+    ? 'Active outside text inputs · turn off for voice control or screen readers'
+    : 'Paused for voice control or screen readers';
+  renderShortcutsList();
+}
+
+function renderShortcutsList() {
+  const body = $('#shortcutsBody'), empty = $('#shortcutsEmpty');
+  if (!body) return;
+  const q = shortcutsQuery.trim().toLowerCase();
+  const singleOn = store.get('keys', true);
+  const nodes = [];
+
+  for (const grp of SHORTCUT_GROUPS) {
+    if (shortcutsCat !== 'all' && grp.id !== shortcutsCat) continue;
+    const filtered = grp.items.filter((it) => {
+      if (!q) return true;
+      const hay = `${grp.title} ${it.action} ${it.note || ''} ${it.keys.join(' ')}`.toLowerCase();
+      return hay.includes(q);
+    });
+    if (!filtered.length) continue;
+
+    const sec = document.createElement('section');
+    sec.className = 'sf-group';
+    const h = document.createElement('h4');
+    h.className = 'sf-group-h';
+    h.textContent = grp.title;
+    const ul = document.createElement('ul');
+    ul.className = 'sf-list';
+
+    for (const it of filtered) {
+      const li = document.createElement('li');
+      li.className = 'sf-row' + (it.single && !singleOn ? ' is-paused' : '');
+
+      const act = document.createElement('span');
+      act.className = 'sf-action';
+      const label = document.createElement('span');
+      label.textContent = it.action;
+      act.append(label);
+      if (it.note) {
+        const sep = document.createElement('span');
+        sep.className = 'sf-note';
+        sep.textContent = `· ${it.note}`;
+        act.append(sep);
+      }
+
+      const keys = document.createElement('span');
+      keys.className = 'sf-keys';
+      for (const token of it.keys) {
+        if (it.sep && (token === '+' || token === '–')) {
+          const s = document.createElement('span');
+          s.className = 'sf-sep';
+          s.setAttribute('aria-hidden', 'true');
+          s.textContent = token;
+          keys.append(s);
+        } else {
+          const kbd = document.createElement('kbd');
+          kbd.textContent = token;
+          keys.append(kbd);
+        }
+      }
+
+      li.append(act, keys);
+      ul.append(li);
+    }
+
+    sec.append(h, ul);
+    nodes.push(sec);
+  }
+
+  replaceKids(body, ...nodes);
+  if (empty) empty.hidden = nodes.length > 0;
+}
+
+function isShortcutsLightboxOpen() {
+  const dlg = $('#acctDlg');
+  if (!dlg?.open) return false;
+  return acct.user ? acPane === 'shortcuts' : acView === 'shortcuts';
+}
+
+function openShortcutsLightbox() {
+  const dlg = $('#acctDlg');
+  if (isShortcutsLightboxOpen()) {
+    dlg.close();
+    return;
+  }
+  if (acct.user) openAccount('in', 'shortcuts');
+  else openAccount('shortcuts');
+  setTimeout(() => $('#shortcutsSearch')?.focus(), 40);
+}
+
+(function initShortcutsPane() {
+  if (!$('#shortcutsRoot')) return;
+  $('#shortcutsKeysChk')?.addEventListener('change', (e) => syncSingleKeyPref(e.target.checked));
+  $('#shortcutsSearch')?.addEventListener('input', (e) => {
+    shortcutsQuery = e.target.value || '';
+    renderShortcutsList();
+  });
+  $('#shortcutsSearch')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && shortcutsQuery) {
+      e.preventDefault();
+      e.stopPropagation();
+      shortcutsQuery = '';
+      e.target.value = '';
+      renderShortcutsList();
+    }
+  });
+
+  $$('#shortcutsCats > button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      shortcutsCat = btn.dataset.cat || 'all';
+      $$('#shortcutsCats > button').forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+      renderShortcutsList();
+    });
+  });
+
+  syncSingleKeyPref(store.get('keys', true));
+})();
+
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const ae = document.activeElement, tag = ae?.tagName;
   // Typing is never a shortcut: inputs, and any contenteditable (the show title is "plaintext-only").
-  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || ae?.isContentEditable || document.querySelector('dialog[open]')) return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || ae?.isContentEditable) return;
+  const openDlg = document.querySelector('dialog[open]');
+  if (e.key === '?') {
+    if (openDlg && !isShortcutsLightboxOpen()) return;
+    e.preventDefault();
+    openShortcutsLightbox();
+    return;
+  }
+  if (openDlg) return;
   const k = (e.key || '').toLowerCase();
   if (!k) return;
   if (k === 'escape') { if (editor.on) { e.preventDefault(); setEditing(false); } return; } // never swallow Esc for menus
@@ -7869,7 +8172,7 @@ function gotSuperchat(item, fresh) {
     message that every viewer sees replaces it (it arrives as a normal watch-page message with its amount). */
 function superInChat(x) {
   const log = $('#msgs'); if (!log) return;
-  let li = log.querySelector(`[data-sc="${CSS.escape(x.id)}"]`);
+  let li = log.querySelector(`[data-sc="${cssEsc(x.id)}"]`);
   if (x.status !== 'pending') { li?.remove(); return; }
   if (li) return;
   li = document.createElement('li'); li.className = 'msg ext paid sc-pending'; li.dataset.sc = x.id;
@@ -7918,7 +8221,7 @@ function renderBountyPanel() {
   const box = $('#bountyList'); if (!box) return;
   const list = (S.state.bounties || []).filter((b) => b.status === 'active');
   $('#bountyEmpty').hidden = !!list.length;
-  box.replaceChildren(...list.map((b) => {
+  replaceKids(box, ...list.map((b) => {
     const li = document.createElement('li'); li.className = 'bounty-item';
     const t = document.createElement('div');
     t.append(Object.assign(document.createElement('b'), { textContent: b.text }), Object.assign(document.createElement('small'), { textContent: `${b.amount} from ${b.name}` }));
@@ -7963,7 +8266,7 @@ function renderSupers() {
   $('#scEmpty').hidden = !!items.length;
   const total = [...S.supers.values()].filter((x) => x.status === 'confirmed' || x.status === 'answered').reduce((s, x) => s + x.amount, 0);
   $('#scTotal').textContent = total ? `${money(total)} confirmed` : '';
-  box.replaceChildren(...items.map((x) => {
+  replaceKids(box, ...items.map((x) => {
     const li = document.createElement('li'); li.className = 'sc-item ' + x.status;
     const top = document.createElement('div'); top.className = 'sc-top';
     const amt = document.createElement('span'); amt.className = 'paid-amt'; amt.textContent = money(x.amount);
@@ -8062,7 +8365,7 @@ function renderShowcaseSec() {
   const list = S.state.notices || [];
   if ($('#wpNoticeCount')) $('#wpNoticeCount').textContent = list.length ? `${list.length} active` : '';
   if ($('#wpNoticeList')) {
-    $('#wpNoticeList').replaceChildren(...list.map((n, i) => {
+    replaceKids($('#wpNoticeList'), ...list.map((n, i) => {
       const li = document.createElement('li'); li.className = 'showcase-item';
       const top = document.createElement('div'); top.className = 'showcase-item-top';
       const k = document.createElement('span'); k.className = 'pill caps'; k.textContent = n.kind || 'notice';
@@ -8231,7 +8534,7 @@ function renderShop() {
   if (!$('#shopList')) return;
   const sh = shopCfg();
   $('#shopCount').textContent = sh.items.length ? `${sh.items.length} product${sh.items.length === 1 ? '' : 's'}${sh.pinned ? ' · 1 pinned' : ''}` : '';
-  $('#shopList').replaceChildren(...sh.items.map((p) => {
+  replaceKids($('#shopList'), ...sh.items.map((p) => {
     const li = document.createElement('li'); li.className = 'shop-item' + (sh.pinned === p.id ? ' pinned' : '');
     const im = document.createElement(p.img ? 'img' : 'div'); if (p.img) { im.src = p.img; im.alt = ''; im.loading = 'lazy'; } else im.className = 'ph';
     const txt = document.createElement('div'); const t = document.createElement('b'); t.textContent = p.title; const sm = document.createElement('small');
@@ -8319,7 +8622,7 @@ $('#pollGo').onclick = () => {
 $('#pollEnd').onclick = () => { if (S.state.poll) setStage({ poll: { ...S.state.poll, until: Math.min(S.state.poll.until, Date.now()) } }); renderPoll(); };
 function renderPoll() {
   const p = S.state.poll, box = $('#pollLive'); if (!box) return;
-  if (!p) { box.replaceChildren(); $('#pollState').textContent = ''; return; }
+  if (!p) { replaceKids(box); $('#pollState').textContent = ''; return; }
   const open = p.until > Date.now(), total = S.pollCounts.reduce((a, b) => a + b, 0);
   $('#pollState').textContent = open ? `Live · ${fmtTime(p.until - Date.now())} left · ${total} vote${total === 1 ? '' : 's'}` : `Closed · ${total} votes`;
   const rows = p.opts.map((o, i) => {
@@ -8334,7 +8637,7 @@ function renderPoll() {
   const title = document.createElement('p'); title.className = 'hint'; title.style.margin = '0';
   title.textContent = p.kind === 'predict' && !open && p.answer < 0 ? 'Voting closed. Click the right answer to settle the prediction.' : p.q;
   const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'btn sm ghost'; clear.textContent = 'Remove from screen'; clear.onclick = () => setStage({ poll: null });
-  box.replaceChildren(title, ...rows, clear);
+  replaceKids(box, title, ...rows, clear);
 }
 /** The host reads live counts from the same cached feed viewers use (one GET every 2 s, only while a poll exists). */
 setInterval(async () => {
@@ -8369,7 +8672,7 @@ function renderQueue(items) {
   if (!$('#queueList')) return;
   const waiting = S.queue.filter((x) => x.status !== 'called');
   $('#queueCount').textContent = waiting.length ? `${waiting.length} waiting` : '';
-  $('#queueList').replaceChildren(...S.queue.map((x) => { const li = document.createElement('li'); li.className = x.status; const a = document.createElement('span'); a.textContent = x.name; const b = document.createElement('small'); b.textContent = x.status === 'called' ? 'called' : x.tag || ''; li.append(a, b); return li; }));
+  replaceKids($('#queueList'), ...S.queue.map((x) => { const li = document.createElement('li'); li.className = x.status; const a = document.createElement('span'); a.textContent = x.name; const b = document.createElement('small'); b.textContent = x.status === 'called' ? 'called' : x.tag || ''; li.append(a, b); return li; }));
 }
 $('#queueNext').onclick = () => { wsSend({ type: 'qpick' }); toast('The next player sees “You’re up!” with a button to join the stage.'); };
 $('#queueClear').onclick = () => { wsSend({ type: 'qclear' }); S.queue = []; renderQueue(); };
@@ -8380,7 +8683,7 @@ function renderEmotes() {
   if (!$('#emoteList')) return;
   const list = S.state.emotes || [];
   $('#emoteCount').textContent = list.length ? `${list.length}` : '';
-  $('#emoteList').replaceChildren(...list.map((e) => {
+  replaceKids($('#emoteList'), ...list.map((e) => {
     const f = document.createElement('figure'); const src = assetImg(e.asset)?.src; const im = document.createElement(src ? 'img' : 'span'); if (src) { im.alt = e.name; im.src = src; } else { im.className = 'ph'; im.textContent = '…'; } const c = document.createElement('figcaption'); c.textContent = `:${e.name}:`;
     f.title = 'Click to remove'; f.style.cursor = 'pointer'; f.onclick = () => setStage({ emotes: list.filter((x) => x !== e) });
     f.append(im, c); return f;
@@ -8538,10 +8841,10 @@ function renderVoice() {
   $('#vmEmpty').hidden = !!items.length;
   const fresh = items.filter((x) => x.status === 'new').length;
   $('#vmCount').textContent = items.length ? `${items.length}${fresh ? ` · ${fresh} new` : ''}` : '';
-  $('#vmList').replaceChildren(...items.map((x) => voiceRow(x, false)));
+  replaceKids($('#vmList'), ...items.map((x) => voiceRow(x, false)));
   // In the studio chat too, so a raised hand is seen where the host is already looking.
   const log = $('#msgs');
-  if (log) for (const x of items) { const old = log.querySelector(`[data-vm="${CSS.escape(x.id)}"]`); const el = voiceRow(x, true); if (old) old.replaceWith(el); else appendLog(el); }
+  if (log) for (const x of items) { const old = log.querySelector(`[data-vm="${cssEsc(x.id)}"]`); const el = voiceRow(x, true); if (old) old.replaceWith(el); else appendLog(el); }
   if (log) for (const el of log.querySelectorAll('[data-vm]')) if (!S.vms.has(el.dataset.vm)) el.remove();
 }
 
@@ -8697,10 +9000,10 @@ if (document.readyState === 'complete') window.gatherBoot?.done(); else addEvent
       if (m.ai) {
         typing.hidden = false;
         const li = bubble({ ...m, t: '' }); const p = li.querySelector('p');
-        const dots = el('span', 'hz-dots'); dots.append(el('i'), el('i'), el('i')); p.replaceChildren(dots);
+        const dots = el('span', 'hz-dots'); dots.append(el('i'), el('i'), el('i')); replaceKids(p, dots);
         push(li); await sleep(1100);
         typing.hidden = true;
-        const txt = document.createTextNode(''), cur = el('span', 'cur'); p.replaceChildren(txt, cur);
+        const txt = document.createTextNode(''), cur = el('span', 'cur'); replaceKids(p, txt, cur);
         for (const ch of m.t) { txt.data += ch; await sleep(22); }
         await sleep(500); cur.remove();
         return;
@@ -8826,21 +9129,48 @@ const sharedToolsApi = {
   shopCfg,
   watchCfg,
   brandPref,
+  applyBrand: brandPref,
   brandDataUrl,
+  getBrand: () => S.state?.brand || {},
+  onBrandSync: (fn) => {
+    if (typeof fn !== 'function') return;
+    brandSyncSubs.push(fn);
+    try { fn(S.state?.brand || {}); } catch {}
+  },
+  onStateSync: (fn) => {
+    if (typeof fn !== 'function') return;
+    stateSyncSubs.push(fn);
+    try { fn(S.state); } catch {}
+  },
+  getPeers: () => participants().map((p) => ({ ...p, isHost: p.id === S.host })),
   getState: () => S.state,
   getCanvas: () => canvas,
   getStream: () => { try { return canvas.captureStream ? canvas.captureStream(30) : null; } catch { return null; } },
   addElement,
   patchEl,
   getElements: () => S.state.elements || [],
-  hitStageElement: (nx, ny) => {
+  hitStageElement: (x, y) => {
+    let nx = x, ny = y;
+    if (x > 1 || y > 1) {
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      nx = (x - r.left) / r.width;
+      ny = (y - r.top) / r.height;
+      if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
+    }
     const els = drawOrder(stageElements()).filter((e) => !e.hidden).reverse();
     return els.find((e) => nx >= e.x && nx <= e.x + e.w && ny >= e.y && ny <= e.y + e.h) || null;
   },
   stageElementAction: (id, act) => {
     const els = elementsCopy(), idx = els.findIndex((x) => x.id === id);
     if (idx < 0) return;
-    if (act === 'delete') { els.splice(idx, 1); setStage({ elements: els }); }
+    if (act === 'edit') { editor.sel = id; setEditing(true); }
+    else if (act === 'center') {
+      els[idx].x = Math.max(0, (1 - (els[idx].w || 0.2)) / 2);
+      els[idx].y = Math.max(0, (1 - (els[idx].h || 0.2)) / 2);
+      setStage({ elements: els });
+    }
+    else if (act === 'delete' || act === 'del') { els.splice(idx, 1); setStage({ elements: els }); }
     else if (act === 'hide') { els[idx].hidden = !els[idx].hidden; setStage({ elements: els }); }
     else if (act === 'front') { const [it] = els.splice(idx, 1); els.push(it); setStage({ elements: els }); }
     else if (act === 'back') { const [it] = els.splice(idx, 1); els.unshift(it); setStage({ elements: els }); }
@@ -8852,14 +9182,28 @@ const sharedToolsApi = {
     patchEl(e.id, { x: Math.max(0, Math.min(1 - e.w, e.x + dx)), y: Math.max(0, Math.min(1 - e.h, e.y + dy)) });
     return true;
   },
-  getLiveDiagnostics: () => ({
-    camOk: !!S.local.cam && S.local.camOn,
-    micOk: !!S.local.audio && S.local.micOn,
-    relayOk: !!S.relayOn,
-    destCount: readyDests().length,
-    inStudio: !!S.studio,
-  }),
+  getLiveDiagnostics: () => {
+    const dests = readyDests();
+    const hasCam = !!(S.local.cam && S.local.camOn);
+    const hasMic = !!(S.local.audio && S.local.micOn);
+    return {
+      camOk: hasCam,
+      micOk: hasMic,
+      relayOk: !!S.relayOn,
+      destCount: dests.length,
+      inStudio: !!S.studio,
+      hasCam,
+      camLabel: S.local.camRaw?.label || S.local.cam?.label || '',
+      hasMic,
+      micLabel: S.local.audio?.label || '',
+      hasKey: dests.length > 0,
+      relayConfigured: !!S.relayOn,
+    };
+  },
   playMusicFile: (f) => playBgMusicFile(f),
+  setMusicRate: (rate) => {
+    if (bgMusic.el) bgMusic.el.playbackRate = Math.max(0.5, Math.min(2, Number(rate) || 1));
+  },
   playStreamBuffer: async (audioBuffer, { duck = false } = {}) => {
     try {
       const ctx = audioCtx();

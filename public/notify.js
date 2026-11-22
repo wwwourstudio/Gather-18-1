@@ -7,6 +7,40 @@ export function createNotifier(root) {
   let active = null; // { key, msg, count, opts, el, timer }
   let hideCoaches = () => {};
 
+  function resolveRoot() {
+    if (!root) return null;
+    if (typeof root === 'string') return typeof document !== 'undefined' ? document.querySelector(root) : null;
+    return typeof root === 'object' && root.nodeType === 1 ? root : null;
+  }
+
+  function replaceKids(el, ...nodes) {
+    if (!el || typeof el !== 'object') return;
+    if (typeof el.replaceChildren === 'function') {
+      el.replaceChildren(...nodes);
+    } else {
+      el.innerHTML = '';
+      if (typeof el.append === 'function') el.append(...nodes);
+      else for (const n of nodes) if (n != null) el.appendChild(typeof n === 'string' ? document.createTextNode(n) : n);
+    }
+  }
+
+  function syncPopover(box, open) {
+    if (!box) return;
+    try {
+      if (open && typeof box.showPopover === 'function') {
+        if (box.matches?.(':popover-open')) box.hidePopover();
+        box.showPopover();
+      } else if (!open && typeof box.hidePopover === 'function') {
+        if (!box.matches || box.matches(':popover-open')) box.hidePopover();
+      }
+    } catch {}
+  }
+
+  function prefersReducedMotion() {
+    try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch { return false; }
+  }
+
   function setCoachVisibility(hasActive) {
     const ss = document.getElementById('sceneSuggest');
     const gd = document.getElementById('guide');
@@ -27,7 +61,10 @@ export function createNotifier(root) {
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'toast-count';
-        item.el.querySelector('.toast-txt')?.after(badge);
+        const txt = item.el.querySelector('.toast-txt');
+        if (txt && typeof txt.after === 'function') txt.after(badge);
+        else if (txt && txt.parentNode) txt.parentNode.insertBefore(badge, txt.nextSibling);
+        else item.el.appendChild(badge);
       }
       badge.textContent = `×${item.count}`;
     } else if (badge) {
@@ -41,13 +78,20 @@ export function createNotifier(root) {
     active = null;
     clearTimeout(cur.timer);
     const el = cur.el;
+    const cleanup = () => {
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+      const box = resolveRoot();
+      if (!active && !queue.length && box && !box.children.length) syncPopover(box, false);
+    };
     if (el && el.isConnected) {
-      if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (animate && !prefersReducedMotion()) {
         el.classList.add('out');
-        setTimeout(() => el.remove(), 200);
+        setTimeout(cleanup, 200);
       } else {
-        el.remove();
+        cleanup();
       }
+    } else {
+      cleanup();
     }
     if (queue.length) {
       showNext();
@@ -93,9 +137,9 @@ export function createNotifier(root) {
 
   function showNext() {
     if (active || !queue.length) return;
+    const box = resolveRoot();
+    if (!box) return;
     const item = queue.shift();
-    if (!root) return;
-    root.replaceChildren();
     const el = document.createElement('div');
     el.className = 'toast' + (item.opts.err ? ' err' : '') + (item.opts.tone ? ' ' + item.opts.tone : '');
     el.setAttribute('role', item.opts.err ? 'alert' : 'status');
@@ -103,7 +147,7 @@ export function createNotifier(root) {
     const txt = document.createElement('span');
     txt.className = 'toast-txt';
     txt.textContent = item.msg;
-    el.append(txt);
+    el.appendChild(txt);
     if (item.opts.action) {
       const [label, fn] = item.opts.action;
       const b = document.createElement('button');
@@ -113,7 +157,7 @@ export function createNotifier(root) {
       b.onclick = () => {
         try { fn(); } finally { finishActive(true); }
       };
-      el.append(b);
+      el.appendChild(b);
     }
     const close = document.createElement('button');
     close.type = 'button';
@@ -121,12 +165,13 @@ export function createNotifier(root) {
     close.setAttribute('aria-label', 'Dismiss notification');
     close.textContent = '×';
     close.onclick = () => finishActive(true);
-    el.append(close);
+    el.appendChild(close);
 
     item.el = el;
     active = item;
     renderCount(item);
-    root.append(el);
+    replaceKids(box, el);
+    syncPopover(box, true);
     setCoachVisibility(true);
     attachSwipe(el, () => { if (active === item) finishActive(false); });
     const ms = item.opts.ms ?? (item.opts.err ? 5500 : 3800);

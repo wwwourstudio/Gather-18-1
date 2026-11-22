@@ -237,11 +237,11 @@ export function drawThemedFeatured(g, W, H, f, brand, font, elapsedMs, rect) {
 }
 
 /** Themeable live purchase alert ("Riley just bought the hoodie"). */
-export function drawPurchaseAlert(g, W, H, alert, brand, font, now) {
+export function drawPurchaseAlert(g, W, H, alert, brand, font, now = Date.now()) {
   if (!alert || !alert.ts) return;
   const elapsed = now - alert.ts;
   const dur = 6800;
-  if (elapsed < 0 || elapsed > dur) return;
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > dur) return;
   const c = resolveCardColors(brand);
   const bw = Math.min(480, Math.round(W * 0.42));
   const bh = 78;
@@ -289,7 +289,7 @@ export function drawPurchaseAlert(g, W, H, alert, brand, font, now) {
 }
 
 /** Live shopping stock counter & drop timer badge on stage ("12 left!"). */
-export function drawShopDropBadge(g, W, H, shop, brand, font, now) {
+export function drawShopDropBadge(g, W, H, shop, brand, font, now = Date.now()) {
   if (!shop || !shop.pinned) return;
   const item = (shop.items || []).find((x) => x.id === shop.pinned);
   if (!item) return;
@@ -336,11 +336,11 @@ export function drawShopDropBadge(g, W, H, shop, brand, font, now) {
 }
 
 /** Voice super chat on air: animated waveform & viewer's name while music ducks. */
-export function drawVoiceOnAir(g, W, H, voice, brand, font, now) {
+export function drawVoiceOnAir(g, W, H, voice, brand, font, now = Date.now()) {
   if (!voice || !voice.ts) return;
   const elapsed = now - voice.ts;
   const dur = (voice.dur || 8) * 1000;
-  if (elapsed < 0 || elapsed > dur + 800) return;
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > dur + 800) return;
   const c = resolveCardColors(brand);
   const bw = Math.min(440, Math.round(W * 0.38));
   const bh = 82;

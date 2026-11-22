@@ -9,6 +9,7 @@
 //   Guest Green Room, Clip & Post / Auto Shorts (9:16 vertical), and Team Workspaces & Roles.
 
 import { MOTION_PRESETS, ALERT_STYLES, OVERLAY_PACKS } from './stage-theme.js';
+import { replaceKids } from './ui.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -97,7 +98,9 @@ function initBrandRedesign(api) {
   if (!brandPanel || $('#brandColorWell')) return;
   const applyBrand = (patch) => {
     if (!api.isHost()) return api.toast('Ask the host to change brand settings.', { err: true });
-    api.applyBrand(patch);
+    if (typeof api.applyBrand === 'function') api.applyBrand(patch);
+    else if (typeof api.brandPref === 'function') api.brandPref(patch);
+    else api.setStage({ brand: patch });
   };
 
   // A. Upgrade Stage Palette & Colour: replace full-width ugly color input with crisp hex + well + harmony bar
@@ -235,7 +238,7 @@ function initBrandRedesign(api) {
         fontSel.value = c.dataset.font;
         fontSel.dispatchEvent(new Event('change', { bubbles: true }));
         applyBrand({ font: c.dataset.font });
-        syncFontUI({ font: c.dataset.font, tag: api.getBrand?.().tag });
+        syncFontUI({ font: c.dataset.font, tag: api.getBrand?.()?.tag });
       };
     });
     $$('#tagSeg button', brandPanel).forEach((btn) => btn.addEventListener('click', () => {
@@ -302,9 +305,9 @@ function initBrandRedesign(api) {
     panelColorRow.after(swWrap);
     panelColorRow.hidden = false;
     const syncPanelUI = (b = {}) => {
-      const col = b.panelColor || '#0f172a';
-      const isSolid = b.panel === 'solid';
-      $$('.psw', swWrap).forEach((x) => x.classList.toggle('on', x.dataset.pc.toLowerCase() === col.toLowerCase()));
+      const col = String(b?.panelColor || '#0f172a');
+      const isSolid = b?.panel === 'solid';
+      $$('.psw', swWrap).forEach((x) => x.classList.toggle('on', String(x.dataset.pc || '').toLowerCase() === col.toLowerCase()));
       const prev = $('#miniPanelPrev', swWrap);
       if (prev) {
         prev.style.background = isSolid ? col : `color-mix(in srgb, ${col} 72%, transparent)`;
@@ -354,7 +357,7 @@ function initBrandRedesign(api) {
       const list = store.get('customThemes', []);
       const box = $('#customThemesList', actions);
       box.hidden = !list.length;
-      box.replaceChildren(...list.map((t, idx) => {
+      replaceKids(box, ...list.map((t, idx) => {
         const chip = document.createElement('div');
         chip.className = 'ct-pill';
         const btn = document.createElement('button');
@@ -511,7 +514,8 @@ function initOverlaysUpgrades(api) {
       if (!api.isHost()) return api.toast('Ask the host to apply overlay packs.', { err: true });
       const pack = OVERLAY_PACKS[b.dataset.pack];
       if (!pack) return;
-      api.applyBrand({ ...pack.brand, pack: b.dataset.pack });
+      const _ab = typeof api.applyBrand === 'function' ? api.applyBrand : (typeof api.brandPref === 'function' ? api.brandPref : (p) => api.setStage({ brand: p }));
+      _ab({ ...pack.brand, pack: b.dataset.pack });
       $('#cdTitle', cdSec).value = pack.countdown.title;
       $('#cdSub', cdSec).value = pack.countdown.subtitle;
       api.setStage({ ticker: pack.ticker });
@@ -553,7 +557,7 @@ function initOverlaysUpgrades(api) {
   function renderSponsors() {
     const sp = api.getState?.()?.sponsors || { slots: [], activeId: '' };
     const list = $('#spList', spSec);
-    list.replaceChildren(...(sp.slots || []).map((s) => {
+    replaceKids(list, ...(sp.slots || []).map((s) => {
       const li = document.createElement('li');
       const on = sp.activeId === s.id;
       li.innerHTML = `<div class="sp-row"><div><b></b><small></small></div><div class="row"><button type="button" class="btn sm ${on ? 'primary' : ''}" data-act="toggle">${on ? 'Hide' : 'Show'}</button><button type="button" class="btn sm ghost" data-act="del">×</button></div></div>`;
@@ -694,7 +698,7 @@ function initAiWorkflowUpgrade(api) {
     if (wantProduct) els.push({ id: 'media0', type: 'media', x: 0.64, y: 0.08, w: 0.33, h: wantQr ? 0.50 : 0.78, radius: 14 });
     if (wantChat) els.push({ id: 'chat0', type: 'chat', x: 0.73, y: 0.08, w: 0.24, h: wantQr ? 0.54 : 0.80, max: 7, size: 17, bg: true });
     if (wantQr) els.push({ id: 'qr0', type: 'callin', x: 0.73, y: 0.66, w: 0.24, h: 0.24, label: 'Scan to join live' });
-    if (wantScore) els.push({ id: 'score0', type: 'score', x: 0.25, y: 0.04, w: 0.50, h: 0.13, a: 'Home', b: 'Away', sa: 0, sb: 0, round: 'Round 1', ca: api.getBrand?.().color || '#3b82f6', cb: '#f43f5e' });
+    if (wantScore) els.push({ id: 'score0', type: 'score', x: 0.25, y: 0.04, w: 0.50, h: 0.13, a: 'Home', b: 'Away', sa: 0, sb: 0, round: 'Round 1', ca: api.getBrand?.()?.color || '#3b82f6', cb: '#f43f5e' });
     if (wantTimer) els.push({ id: 'timer0', type: 'timer', mode: 'countdown', target: Date.now() + 5 * 60e3, x: 0.04, y: 0.82, w: 0.22, h: 0.12, size: 38, color: '#ffffff' });
 
     api.setStage({ layout: 'custom', elements: els });
@@ -741,6 +745,7 @@ function initShowPowerTools(api) {
   interactiveSec.className = 'psec';
   interactiveSec.id = 'hotSeatSec';
   interactiveSec.dataset.sec = 'hotseat-goals';
+  interactiveSec.dataset.audGroup = 'supers';
   interactiveSec.innerHTML = `
     <summary><b>Hot seat &amp; goal effects</b><span class="hint">interactive show triggers</span></summary>
     <div class="psec-body form">
@@ -765,6 +770,7 @@ function initShowPowerTools(api) {
   clipSec.className = 'psec';
   clipSec.id = 'clipPostSec';
   clipSec.dataset.sec = 'clips';
+  clipSec.dataset.audGroup = 'stage';
   clipSec.innerHTML = `
     <summary><b>Clip &amp; post · Auto shorts</b><span class="hint">vertical 9:16 + captions</span></summary>
     <div class="psec-body form">
@@ -782,6 +788,7 @@ function initShowPowerTools(api) {
   teamSec.className = 'psec';
   teamSec.id = 'teamWorkSec';
   teamSec.dataset.sec = 'team';
+  teamSec.dataset.audGroup = 'viewers';
   teamSec.innerHTML = `
     <summary><b>Green room &amp; team roles</b><span class="hint">backstage · workspace</span></summary>
     <div class="psec-body form">
@@ -835,7 +842,11 @@ function initShowPowerTools(api) {
         triggeredGoals.add(at);
         if (at === 50) { window.__gatherConfettiUntil = Date.now() + 25000; api.toast('🎉 $50 Goal hit! Confetti mode unlocked on stream!'); }
         if (at === 100) { api.setStage({ banner: { id: 'goal100', text: 'GOAL UNLOCKED: $100!', sub: 'Next round played with chat’s pick!' } }); }
-        if (at === 250) { api.applyBrand({ alertStyle: 'neon', frame: 'none' }); api.toast('🚀 $250 Goal hit! Upgraded stage alert theme activated!'); }
+        if (at === 250) {
+          const _ab = typeof api.applyBrand === 'function' ? api.applyBrand : (typeof api.brandPref === 'function' ? api.brandPref : (p) => api.setStage({ brand: p }));
+          _ab({ alertStyle: 'neon', frame: 'none' });
+          api.toast('🚀 $250 Goal hit! Upgraded stage alert theme activated!');
+        }
       }
     });
   };
@@ -867,7 +878,7 @@ function initShowPowerTools(api) {
       const sx = (sw - cropW) / 2;
       g.drawImage(srcCanvas, sx, 0, cropW, sh, 0, 0, 540, 960);
       // Branded caption overlay
-      const accent = api.getBrand?.().color || '#3b82f6';
+      const accent = api.getBrand?.()?.color || '#3b82f6';
       g.fillStyle = 'rgba(7,10,18,0.78)';
       g.beginPath(); g.roundRect(28, 760, 484, 118, 18); g.fill();
       g.fillStyle = accent; g.fillRect(28, 760, 6, 118);
@@ -898,7 +909,7 @@ function initShowPowerTools(api) {
       ul.innerHTML = '<li class="hint">No moments marked yet. Press M during a highlight or click Auto shorts.</li>';
       return;
     }
-    ul.replaceChildren(...moments.map((m) => {
+    replaceKids(ul, ...moments.map((m) => {
       const li = document.createElement('li');
       li.innerHTML = `<div class="sp-row"><div><b></b><small></small></div><button type="button" class="btn sm primary">9:16 Clip</button></div>`;
       $('b', li).textContent = m.label;
@@ -922,7 +933,7 @@ function initShowPowerTools(api) {
   };
   // Keyboard M to mark clip (when not typing)
   document.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (String(e.key || '').toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey) return;
     if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
     window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'hotkey M');
     api.toast('🎬 Moment marked (M) — ready in Clip & Post.');
@@ -939,7 +950,7 @@ function initShowPowerTools(api) {
     if (!backstage.length) {
       grList.innerHTML = '<li class="hint">Guests waiting backstage appear here with mic status and 1-tap branded intro.</li>';
     } else {
-      grList.replaceChildren(...backstage.map((p) => {
+      replaceKids(grList, ...backstage.map((p) => {
         const li = document.createElement('li');
         li.innerHTML = `<div class="sp-row"><div><b></b><small></small></div><button type="button" class="btn sm primary">Bring on air</button></div>`;
         $('b', li).textContent = p.name || 'Guest';
@@ -957,7 +968,7 @@ function initShowPowerTools(api) {
     }
 
     const rList = $('#teamRolesList', teamSec);
-    rList.replaceChildren(...peers.map((p) => {
+    replaceKids(rList, ...peers.map((p) => {
       const li = document.createElement('li');
       const cur = p.isHost ? 'host' : (roles[p.id] || 'guest');
       li.innerHTML = `<div class="sp-row"><b></b><select class="input sm" style="width:auto" ${p.isHost || !api.isHost() ? 'disabled' : ''}><option value="host">Host</option><option value="producer">Producer</option><option value="moderator">Moderator</option><option value="guest">Guest</option></select></div>`;
@@ -971,7 +982,7 @@ function initShowPowerTools(api) {
     }));
   }
   $('#wsExportBtn', teamSec).onclick = () => {
-    const ws = { brand: api.getBrand?.(), scenes: store.get('layouts', []), customThemes: store.get('customThemes', []) };
+    const ws = { brand: api.getBrand?.() || {}, scenes: store.get('layouts', []), customThemes: store.get('customThemes', []) };
     const blob = new Blob([JSON.stringify(ws, null, 2)], { type: 'application/json' });
     const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = 'gather-team-workspace.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(u), 3000);

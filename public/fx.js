@@ -474,15 +474,18 @@ export async function createVideoFx(srcTrack, opts) {
     cropG.drawImage(video, r0.x, r0.y, r0.w, r0.h, 0, 0, SEG, SEG);
     const ts = Math.max(lastTs + 1, performance.now()); lastTs = ts;
     const res = tseg.segmentForVideo(cropC, ts);
-    const bgMask = res.confidenceMasks?.[0];
-    if (!bgMask) { res.close?.(); return; }
-    const bg = bgMask.getAsFloat32Array(), d = segImg.data;
     let minX = SEG, minY = SEG, maxX = -1, maxY = -1;
-    for (let i = 0; i < SEG * SEG; i++) {
-      const v = 1 - bg[i]; d[i * 4] = v * 255; d[i * 4 + 3] = 255;
-      if (v > 0.5) { const x = i % SEG, y = (i - x) / SEG; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    try {
+      const bgMask = res?.confidenceMasks?.[0];
+      if (!bgMask) return;
+      const bg = bgMask.getAsFloat32Array(), d = segImg.data;
+      for (let i = 0; i < SEG * SEG; i++) {
+        const v = 1 - bg[i]; d[i * 4] = v * 255; d[i * 4 + 3] = 255;
+        if (v > 0.5) { const x = i % SEG, y = (i - x) / SEG; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+      }
+    } finally {
+      res?.close?.();
     }
-    res.close?.();
     segG.putImageData(segImg, 0, 0);
     fullG.clearRect(0, 0, FW, FH);
     fullG.drawImage(segC, r0.x * FW / W, r0.y * FH / H, r0.w * FW / W, r0.h * FH / H);

@@ -2,7 +2,7 @@
 // with platform embed fallback, Stream Stats HUD, Host Drawer, One-Tap Reaction Dock,
 // Live Chat Mood Meter synced with reactions, Consolidated Stage Tab, and 30s Clip Studio.
 import { configureGoogle, googleConfigured, googleSignInToken } from './google.js';
-import './ui.js';
+import { cssEsc, replaceKids } from './ui.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
@@ -324,10 +324,10 @@ function render(info) {
 
 function renderChat(items, gone = []) {
   const log = $('#wMsgs'), atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-  for (const id of gone) log.querySelector(`[data-id="${CSS.escape(id)}"]`)?.remove(); // deleted, hidden or reported away
+  for (const id of gone) log.querySelector(`[data-id="${cssEsc(id)}"]`)?.remove(); // deleted, hidden or reported away
   for (const m of items) {
     if (W.muted.has(String(m.name).toLowerCase())) continue;
-    const old = log.querySelector(`[data-id="${CSS.escape(m.id)}"] .wv-like span`);
+    const old = log.querySelector(`[data-id="${cssEsc(m.id)}"] .wv-like span`);
     if (old) old.textContent = m.likes ? String(m.likes) : '';
     const key = m.id + ':' + (m.status || '');
     if (W.shown.has(key)) continue;
@@ -338,8 +338,8 @@ function renderChat(items, gone = []) {
     if (W.booted && $('#wv').classList.contains('no-chat')) {
       const u = $('#wUnread'); u.textContent = Math.min(99, (+u.textContent || 0) + 1); u.hidden = false;
     }
-    log.querySelector(`[data-id="${CSS.escape(m.id)}"]`)?.remove();
-    log.querySelector(`[data-sc="${CSS.escape(m.sc || '')}"]`)?.remove();
+    log.querySelector(`[data-id="${cssEsc(m.id)}"]`)?.remove();
+    log.querySelector(`[data-sc="${cssEsc(m.sc || '')}"]`)?.remove();
     log.append(msgEl(m));
   }
   while (log.children.length > 200) log.firstChild.remove();
@@ -365,7 +365,7 @@ function msgEl(m) {
   const av = document.createElement('span'); av.className = 'wv-av'; av.style.background = nameColor(m.name);
   if (m.av && /^data:image\/(jpeg|png|webp);base64,/.test(m.av)) {
     av.style.background = 'none';
-    queueMicrotask(() => { const im = document.createElement('img'); im.src = m.av; im.alt = ''; av.replaceChildren(im); });
+    queueMicrotask(() => { const im = document.createElement('img'); im.src = m.av; im.alt = ''; replaceKids(av, im); });
   }
   av.textContent = (m.name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   av.setAttribute('aria-hidden', 'true');
@@ -458,7 +458,7 @@ function scNext() {
   if (!m) { SCPOP.busy = false; box.hidden = true; return; }
   SCPOP.busy = true;
   const amt = Number(m.amount) || Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0, tier = tierOf(amt);
-  box.dataset.tier = tier; box.replaceChildren();
+  box.dataset.tier = tier; replaceKids(box);
   const card = document.createElement('div'); card.className = 'wv-scpop-card';
   const amtEl = document.createElement('div'); amtEl.className = 'wv-scpop-amt num'; amtEl.textContent = m.paid;
   const who = document.createElement('div'); who.className = 'wv-scpop-who'; who.textContent = `${m.name} ${m.bounty ? 'set a bounty' : m.voice ? 'sent a voice super chat' : 'sent a super chat'}`;
@@ -497,14 +497,14 @@ function cashSound(amt) {
 function renderScTick(items) {
   const paid = items.filter((m) => m.paid && m.status !== 'pending' && m.status !== 'dismissed').slice(-8).reverse();
   const box = $('#wScTick'); box.hidden = !paid.length;
-  box.replaceChildren(...paid.map((m) => {
+  replaceKids(box, ...paid.map((m) => {
     const amt = Number(m.amount) || Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'wv-sctick-chip'; b.dataset.tier = tierOf(amt);
     const a = document.createElement('b'); a.className = 'num'; a.textContent = m.paid;
     const n = document.createElement('span'); n.textContent = m.name;
     b.append(a, n); if (m.voice) { const ic = document.createElement('span'); ic.textContent = '🎙'; b.append(ic); }
     b.title = m.text || '';
-    b.onclick = () => { const li = $(`#wMsgs [data-id="${CSS.escape(m.id)}"]`); li?.scrollIntoView({ block: 'center', behavior: 'smooth' }); li?.classList.add('flash'); setTimeout(() => li?.classList.remove('flash'), 1600); };
+    b.onclick = () => { const li = $(`#wMsgs [data-id="${cssEsc(m.id)}"]`); li?.scrollIntoView({ block: 'center', behavior: 'smooth' }); li?.classList.add('flash'); setTimeout(() => li?.classList.remove('flash'), 1600); };
     return b;
   }));
 }
@@ -528,7 +528,7 @@ function renderTops(items) {
   const top = [...by].sort((a, b) => b[1] - a[1]).slice(0, 5);
   $('#wTops').hidden = !top.length;
   if ($('#wTopsWrap')) $('#wTopsWrap').hidden = !top.length;
-  $('#wTops').replaceChildren(...top.map(([n, a], i) => { const s = document.createElement('span'); const amt = document.createElement('i'); amt.textContent = '$' + (Number.isInteger(a) ? a : a.toFixed(2)); s.append(amt, (i === 0 ? '👑 ' : '') + n); return s; }));
+  replaceKids($('#wTops'), ...top.map(([n, a], i) => { const s = document.createElement('span'); const amt = document.createElement('i'); amt.textContent = '$' + (Number.isInteger(a) ? a : a.toFixed(2)); s.append(amt, (i === 0 ? '👑 ' : '') + n); return s; }));
 }
 
 // ---------------------------------------------------------------- sources & direct WebRTC viewing
@@ -544,7 +544,7 @@ function renderSources(info) {
   const tkey = JSON.stringify(tabs);
   if (W.tabsKey !== tkey) {
     W.tabsKey = tkey;
-    $('#wTabs').replaceChildren(...tabs.map((t) => {
+    replaceKids($('#wTabs'), ...tabs.map((t) => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.setAttribute('role', 'tab'); b.dataset.src = t.id;
       b.textContent = t.label; b.onclick = () => { W.source = t.id; renderSources(W.info); };
       return b;
@@ -554,7 +554,7 @@ function renderSources(info) {
   const lkey = JSON.stringify(links);
   if (W.linksKey !== lkey) {
     W.linksKey = lkey;
-    $('#wLinks').replaceChildren(...links.map((l) => { const a = document.createElement('a'); a.className = 'btn sm ghost'; a.href = l.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = `Open on ${nameOf(l)}`; return a; }));
+    replaceKids($('#wLinks'), ...links.map((l) => { const a = document.createElement('a'); a.className = 'btn sm ghost'; a.href = l.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = `Open on ${nameOf(l)}`; return a; }));
   }
   showPlayer(info);
 }
@@ -564,7 +564,7 @@ function showPlayer(info) {
   if (W.source === 'direct') {
     const v = W.direct.video;
     const playing = W.direct.state === 'live' && v;
-    if (playing && v.parentElement !== box) box.replaceChildren(v);
+    if (playing && v.parentElement !== box) replaceKids(box, v);
     box.hidden = !playing; W.iframe = '';
     $('#wCtrls').hidden = !playing; $('#wUnmute').hidden = !playing || !v.muted;
     $('#wEmpty').hidden = !!playing;
@@ -576,7 +576,7 @@ function showPlayer(info) {
     W.iframe = W.source;
     const f = document.createElement('iframe');
     f.src = W.source; f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true; f.title = 'Live player';
-    box.replaceChildren(f); box.hidden = false; $('#wEmpty').hidden = true; $('#wUnmute').hidden = true; $('#wCtrls').hidden = true;
+    replaceKids(box, f); box.hidden = false; $('#wEmpty').hidden = true; $('#wUnmute').hidden = true; $('#wCtrls').hidden = true;
   }
 }
 
@@ -839,7 +839,7 @@ addEventListener('pagehide', () => {
 function initReactionDock() {
   const dock = $('#wReactDock');
   if (!dock) return;
-  dock.replaceChildren(...REACTS.map((e) => {
+  replaceKids(dock, ...REACTS.map((e) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'wv-react-btn';
@@ -913,7 +913,7 @@ $('#wHeart').oncontextmenu = (ev) => { ev.preventDefault(); $('#wReactPick').hid
   $('#wHeart').addEventListener('pointerdown', () => { hold = setTimeout(() => { $('#wReactPick').hidden = false; }, 450); });
   for (const ev of ['pointerup', 'pointerleave']) $('#wHeart').addEventListener(ev, () => clearTimeout(hold));
 }
-$('#wReactPick').replaceChildren(...REACTS.map((e) => {
+replaceKids($('#wReactPick'), ...REACTS.map((e) => {
   const b = document.createElement('button'); b.type = 'button'; b.textContent = e; b.setAttribute('aria-label', 'React ' + e);
   b.onclick = () => { sendReact(e); $('#wReactPick').hidden = true; };
   return b;
@@ -1002,7 +1002,7 @@ function tipRender() {
   const min = w.min || 2;
   SC.amount = Math.max(SC.amount, min);
   const amounts = [...new Set([min, 5, 10, 20, 50, 100].filter((a) => a >= min))].slice(0, 5);
-  $('#wTipAmts').replaceChildren(...amounts.map((a) => {
+  replaceKids($('#wTipAmts'), ...amounts.map((a) => {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.tier = tierOf(a); b.className = 'num'; b.textContent = '$' + a;
     b.setAttribute('aria-checked', String(a === SC.amount)); b.onclick = () => { SC.amount = a; SC.opened = false; const c = $('#wTipCustom'); if (c) c.value = ''; tipRender(); };
     return b;
@@ -1013,7 +1013,7 @@ function tipRender() {
     c.oninput = () => { const v = Math.round(Number(c.value)); if (v >= min) { SC.amount = v; SC.opened = false; tipSync(); } };
     return c;
   })());
-  $('#wTipMethods').replaceChildren(...methods.map((m) => {
+  replaceKids($('#wTipMethods'), ...methods.map((m) => {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.m = m; b.textContent = m === 'card' ? '💳 Card · Apple Pay' : m === 'stripe' ? 'Stripe link' : PAY[m].label;
     b.onclick = () => { SC.method = m; SC.opened = false; tipSync(); };
     return b;
@@ -1107,7 +1107,7 @@ function loadStripe() {
   stripeJs ||= new Promise((res, rej) => { if (window.Stripe) return res(window.Stripe); const s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/'; s.onload = () => res(window.Stripe); s.onerror = () => { stripeJs = null; rej(new Error('Couldn’t load the card form. Check your connection.')); }; document.head.append(s); });
   return stripeJs;
 }
-function checkoutClose() { try { checkout?.destroy(); } catch {} checkout = null; $('#wCheckout').hidden = true; $('#wCheckout').replaceChildren(); $('#wTipDock').classList.remove('paying'); }
+function checkoutClose() { try { checkout?.destroy(); } catch {} checkout = null; $('#wCheckout').hidden = true; replaceKids($('#wCheckout')); $('#wTipDock').classList.remove('paying'); }
 async function payOnSite() {
   showErr('#wTipErr', '');
   if ($('#wBounty').checked && !$('#wTipMsg').value.trim()) { $('#wTipMsg').focus(); return showErr('#wTipErr', 'Type the challenge first.'); }
@@ -1267,7 +1267,7 @@ function renderAbout(info) {
   const key = JSON.stringify(links);
   if (W.aboutKey === key) return;
   W.aboutKey = key;
-  $('#wAboutLinks').replaceChildren(...links.map((l) => {
+  replaceKids($('#wAboutLinks'), ...links.map((l) => {
     const li = document.createElement('li'), a = document.createElement('a');
     a.href = l.url; a.target = '_blank'; a.rel = 'noopener nofollow'; a.textContent = l.label;
     const host = document.createElement('span'); try { host.textContent = new URL(l.url).hostname.replace(/^www\./, ''); } catch {}
@@ -1287,7 +1287,7 @@ function renderCaps(info) {
   if (show) {
     const span = document.createElement('span');
     span.textContent = line.text;
-    $('#wCaps').replaceChildren(Object.assign(document.createElement('b'), { textContent: line.name }), span);
+    replaceKids($('#wCaps'), Object.assign(document.createElement('b'), { textContent: line.name }), span);
     if (W.lang) applyLiveTranslation(span, line.text);
   }
 }
@@ -1316,7 +1316,7 @@ W.muted = new Set(store.get('muted', []));
 async function likeMsg(id, btn) {
   if (W.liked.has(id)) return;
   W.liked.add(id); store.set('liked:' + code, [...W.liked].slice(-300)); btn?.setAttribute('aria-pressed', 'true');
-  const lk = $(`[data-id="${CSS.escape(id)}"] .wv-like span`); if (lk) lk.textContent = String((Number(lk.textContent) || 0) + 1);
+  const lk = $(`[data-id="${cssEsc(id)}"] .wv-like span`); if (lk) lk.textContent = String((Number(lk.textContent) || 0) + 1);
   try { await ensureSession(); await api('wsend', { ...creds(), type: 'like', msg: id }); } catch {}
 }
 async function deleteMsg(id, li) {
@@ -1360,7 +1360,7 @@ function openPicker() {
   const parts = [];
   if (emotes.length) { const h = document.createElement('h3'); h.textContent = 'This show'; parts.push(h, ...emotes.map((e) => btn(`:${e.name}:`, `:${e.name}: `, emoteSrc(e.asset)))); const h2 = document.createElement('h3'); h2.textContent = 'Emoji'; parts.push(h2); }
   parts.push(...EMOJI.map((e) => btn(e, e.length > 2 ? e + ' ' : e)));
-  box.replaceChildren(...parts); box.hidden = false; $('#wEmoji').setAttribute('aria-expanded', 'true');
+  replaceKids(box, ...parts); box.hidden = false; $('#wEmoji').setAttribute('aria-expanded', 'true');
 }
 function closePicker() { $('#wPicker').hidden = true; $('#wEmoji').setAttribute('aria-expanded', 'false'); }
 function insertText(t) { const x = $('#wText'), at = x.selectionStart ?? x.value.length; x.value = x.value.slice(0, at) + t + x.value.slice(x.selectionEnd ?? at); x.focus(); x.selectionStart = x.selectionEnd = at + t.length; }
@@ -1373,7 +1373,7 @@ $('#wText').addEventListener('input', () => {
   if (!m) { box.hidden = true; return; }
   const names = [...new Set([...$$('#wMsgs li[data-name]')].map((li) => li.dataset.name).reverse())].filter((n) => typeof n === 'string' && n !== sess?.name && n.toLowerCase().startsWith(m[1].toLowerCase())).slice(0, 6);
   if (!names.length) { box.hidden = true; return; }
-  box.replaceChildren(...names.map((n) => {
+  replaceKids(box, ...names.map((n) => {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = '@' + n;
     b.onclick = () => { const at = x.selectionStart; x.value = x.value.slice(0, at - m[0].length) + '@' + n + ' ' + x.value.slice(at); box.hidden = true; x.focus(); };
     return b;
@@ -1408,7 +1408,7 @@ function renderShopUI(info) {
   if (W.shopKey !== key) {
     W.shopKey = key;
     $('#wShopNote').textContent = items.length ? `Checkout happens on ${sh.store || 'the seller’s store'}.` : '';
-    $('#wProducts').replaceChildren(...items.map((p) => {
+    replaceKids($('#wProducts'), ...items.map((p) => {
       const li = document.createElement('li'); const a = document.createElement('a'); a.href = p.url; a.target = '_blank'; a.rel = 'noopener'; if (sale?.id === p.id) li.className = 'on-sale';
       const im = document.createElement(p.img ? 'img' : 'div'); if (p.img) { im.src = p.img; im.alt = ''; im.loading = 'lazy'; } else { im.className = 'ph'; im.textContent = '🛍'; }
       const b = document.createElement('b'); b.textContent = p.title; const sm = document.createElement('small'); sm.textContent = sale?.id === p.id ? `${p.price} · ${sale.pct ? sale.pct + '% off with ' : 'code '}${sale.code}` : p.price; a.append(im, b, sm); li.append(a); return li;
@@ -1561,12 +1561,12 @@ function renderShopDrop(info, force) {
   body.dataset.k = key;
   const tabs = $('#wModeTabs');
   tabs.hidden = !items.length || W.shopTab === 'bag';
-  tabs.replaceChildren(...[['drop', 'Featured'], ['all', `Lookbook (${items.length})`], ['qa', `Q&A (${qs.length})`]].map(([id, label]) => {
+  replaceKids(tabs, ...[['drop', 'Featured'], ['all', `Lookbook (${items.length})`], ['qa', `Q&A (${qs.length})`]].map(([id, label]) => {
     const b = document.createElement('button'); b.type = 'button'; b.role = 'tab'; b.textContent = label;
     b.setAttribute('aria-selected', String(W.shopTab === id)); b.onclick = () => { W.shopTab = id; renderShopDrop(W.info, true); };
     return b;
   }));
-  if (!items.length) { body.replaceChildren(Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'Nothing in the drop yet. When the host features a product, you can buy it right here without leaving the stream.' })); return; }
+  if (!items.length) { replaceKids(body, Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'Nothing in the drop yet. When the host features a product, you can buy it right here without leaving the stream.' })); return; }
   const out = [];
   if (W.shopTab === 'drop') {
     if (sale && sale.id === drop.id) {
@@ -1596,7 +1596,7 @@ function renderShopDrop(info, force) {
     acts.append(add); out.push(acts);
     if (items.length > 1) {
       const sw = document.createElement('div'); sw.className = 'wv-drop-switch';
-      sw.replaceChildren(...items.slice(0, 4).map((p) => {
+      replaceKids(sw, ...items.slice(0, 4).map((p) => {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'wv-drop-chip' + (p.id === drop.id ? ' on' : '');
         b.setAttribute('aria-pressed', String(p.id === drop.id)); b.setAttribute('aria-label', `Show ${p.title}`);
         const tx = document.createElement('span'); tx.append(Object.assign(document.createElement('b'), { textContent: p.title }), Object.assign(document.createElement('small'), { className: 'num', textContent: salePriceOf(p, sale) || money(p.price) }));
@@ -1618,7 +1618,7 @@ function renderShopDrop(info, force) {
     if (!qs.length) out.push(Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'No questions yet. Ask one and the host sees it highlighted.' }));
     else {
       const ul = document.createElement('ul'); ul.className = 'wv-qa';
-      ul.replaceChildren(...qs.map((q) => {
+      replaceKids(ul, ...qs.map((q) => {
         const li = document.createElement('li');
         li.append(Object.assign(document.createElement('p'), { textContent: q.text }));
         const meta = document.createElement('div'); meta.className = 'wv-qa-m';
@@ -1633,7 +1633,7 @@ function renderShopDrop(info, force) {
     }
   } else if (W.shopTab === 'all') {
     const ul = document.createElement('ul'); ul.className = 'wv-look';
-    ul.replaceChildren(...items.map((p, i) => {
+    replaceKids(ul, ...items.map((p, i) => {
       const li = document.createElement('li'); li.className = sale?.id === p.id ? 'sale' : '';
       const tx = document.createElement('div'); tx.className = 'wv-look-t';
       tx.append(Object.assign(document.createElement('span'), { className: 'wv-look-k num', textContent: `${String(i + 1).padStart(2, '0')} · ${p.id === sh.pinned ? 'Featured' : sale?.id === p.id ? 'Flash sale' : sh.store || 'Store'}` }),
@@ -1653,7 +1653,7 @@ function renderShopDrop(info, force) {
     } else {
       const ul = document.createElement('ul'); ul.className = 'wv-bag';
       let total = 0, sym = '$', known = true;
-      ul.replaceChildren(...bag.map((x) => {
+      replaceKids(ul, ...bag.map((x) => {
         const p = items.find((q) => q.id === x.id);
         const unit = parsePrice(salePriceOf(p, sale) || p.price); if (Number.isFinite(unit)) { total += unit * x.qty; sym = priceSym(p.price); } else known = false;
         const li = document.createElement('li');
@@ -1674,7 +1674,7 @@ function renderShopDrop(info, force) {
       out.push(sum, Object.assign(document.createElement('p'), { className: 'wv-bag-note', textContent: `Each Checkout opens ${sh.store || 'the seller’s store'}${sale?.code ? `, with code ${sale.code} copied for the sale item` : ''}. Your bag stays on this device.` }));
     }
   }
-  body.replaceChildren(...out);
+  replaceKids(body, ...out);
 }
 // Arena: the lobby code to copy, Clip that, your XP (kept on this device, for fun: no money, nothing on a server),
 // XP wagers on predictions, and the streamer's rig & settings.
@@ -1751,13 +1751,13 @@ function renderArena(info) {
       const c = document.createElement('button'); c.type = 'button'; c.className = 'btn sm wv-clipit'; c.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg><span>Clip that</span>';
       c.onclick = () => { $('#wClip').click(); awardXp(5); }; parts.push(c);
     }
-    top.replaceChildren(...parts); top.hidden = !parts.length;
+    replaceKids(top, ...parts); top.hidden = !parts.length;
   }
   const rig = $('#wArenaRig'), lines = String(w.rig || '').split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 10);
   const rk = lines.join('|');
   if (rig.dataset.k !== rk) {
     rig.dataset.k = rk; rig.hidden = !lines.length;
-    rig.replaceChildren(Object.assign(document.createElement('b'), { textContent: 'Rig & settings' }), ...lines.map((ln) => {
+    replaceKids(rig, Object.assign(document.createElement('b'), { textContent: 'Rig & settings' }), ...lines.map((ln) => {
       const i = ln.indexOf(':'), row = document.createElement('div');
       if (i > 0) row.append(Object.assign(document.createElement('span'), { textContent: ln.slice(0, i) }), Object.assign(document.createElement('em'), { textContent: ln.slice(i + 1).trim() }));
       else row.append(Object.assign(document.createElement('em'), { textContent: ln }));
@@ -1814,7 +1814,7 @@ function renderParty(info) {
     });
     if (myRank >= 3) { const li = document.createElement('li'); li.className = 'me'; li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal num', textContent: `#${myRank + 1}` }), Object.assign(document.createElement('b'), { textContent: 'You' }), Object.assign(document.createElement('em'), { className: 'num', textContent: rows[myRank].xp ? `${rows[myRank].xp} XP` : `${rows[myRank].msgs} msgs` })); items.push(li); }
     if (!items.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Say hi, win predictions, or send a super chat to top the board.'; items.push(li); }
-    $('#wPtBoard').replaceChildren(...items);
+    replaceKids($('#wPtBoard'), ...items);
   }
   $('#wCntParty').hidden = !(info.viewers > 1); $('#wCntParty').textContent = info.viewers > 1 ? String(info.viewers) : '';
   renderPartyMe();
@@ -1836,7 +1836,7 @@ function renderPlayExtras(info) {
   if (next.dataset.k === key) return;
   next.dataset.k = key;
   next.hidden = !qi.open || !up.length;
-  next.replaceChildren(Object.assign(document.createElement('span'), { className: 'wv-upnext-l', textContent: 'Up next' }), ...up.map((n, i) => {
+  replaceKids(next, Object.assign(document.createElement('span'), { className: 'wv-upnext-l', textContent: 'Up next' }), ...up.map((n, i) => {
     const c = document.createElement('span'); c.className = 'wv-upnext-c' + (n === sess?.name ? ' me' : '');
     c.append(Object.assign(document.createElement('b'), { className: 'num', textContent: String(i + 1) }), document.createTextNode(n === sess?.name ? `${n} (you)` : n));
     return c;
@@ -1849,7 +1849,7 @@ function renderMode(info) {
   box.hidden = !type;
   if (W.modeType !== type) {
     W.modeType = type;
-    const body = $('#wModeBody'); body.dataset.k = ''; body.replaceChildren();
+    const body = $('#wModeBody'); body.dataset.k = ''; replaceKids(body);
     if (type) { $('#wModeIcon').setAttribute('href', '/icons.svg#' + MODE_CFG[type].icon); $('#wModeTitle').textContent = MODE_CFG[type].title; }
     $('#wModeTabs').hidden = true; $('#wBagBtn').hidden = true; W.shopTab = 'drop';
     $('#wXpBadge').hidden = type !== 'gamer'; $('#wXpBadge').textContent = `${W.xp.toLocaleString()} XP`;
@@ -1909,7 +1909,7 @@ function renderHotspot(info) {
   if (hs.dataset.k === key) return;
   hs.dataset.k = key;
   hs.hidden = !build;
-  hs.replaceChildren(...(build ? [build()] : []));
+  replaceKids(hs, ...(build ? [build()] : []));
 }
 
 setInterval(async () => {
@@ -2315,9 +2315,9 @@ function renderHost(info) {
       api('havatar', {}).then((r) => {
         if (r.avatar) {
           W.hostAvatar = r.avatar;
-          const im1 = document.createElement('img'); im1.src = r.avatar; im1.alt = ''; av.replaceChildren(im1); av.style.background = 'none';
-          const im2 = document.createElement('img'); im2.src = r.avatar; im2.alt = ''; topAv.replaceChildren(im2); topAv.style.background = 'none';
-          if (slateAv) { const im3 = document.createElement('img'); im3.src = r.avatar; im3.alt = ''; slateAv.replaceChildren(im3); slateAv.style.background = 'none'; }
+          const im1 = document.createElement('img'); im1.src = r.avatar; im1.alt = ''; replaceKids(av, im1); av.style.background = 'none';
+          const im2 = document.createElement('img'); im2.src = r.avatar; im2.alt = ''; replaceKids(topAv, im2); topAv.style.background = 'none';
+          if (slateAv) { const im3 = document.createElement('img'); im3.src = r.avatar; im3.alt = ''; replaceKids(slateAv, im3); slateAv.style.background = 'none'; }
           if (W.info) renderCreatorCard(W.info);
         }
       }).catch(() => {});
@@ -2329,7 +2329,7 @@ function renderHost(info) {
   const key = JSON.stringify(links);
   if (W.hostLinks !== key) {
     W.hostLinks = key;
-    $('#wHostLinks').replaceChildren(...links.map((l) => { const li = document.createElement('li'), a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener nofollow'; a.textContent = l.label; li.append(a); return li; }));
+    replaceKids($('#wHostLinks'), ...links.map((l) => { const li = document.createElement('li'), a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener nofollow'; a.textContent = l.label; li.append(a); return li; }));
   }
   $('#wHostLinks').hidden = !links.length;
 }
@@ -2371,7 +2371,7 @@ function renderCreatorCard(info) {
   const hk = here.join('|') + nView;
   if ($('#wCreatorHere').dataset.k !== hk) {
     $('#wCreatorHere').dataset.k = hk;
-    $('#wCreatorAvs').replaceChildren(...here.slice(0, 5).map((nm) => { const a = document.createElement('i'); a.textContent = initialsOf(nm); a.title = nm; a.style.background = nameColor(nm); return a; }));
+    replaceKids($('#wCreatorAvs'), ...here.slice(0, 5).map((nm) => { const a = document.createElement('i'); a.textContent = initialsOf(nm); a.title = nm; a.style.background = nameColor(nm); return a; }));
     const others = Math.max(0, nView - Math.min(5, here.length));
     $('#wCreatorHereN').textContent = nView <= 1 ? 'You’re first here · share the link to start the party' : here.length ? `${here.slice(0, 2).join(', ')}${others ? ` +${others.toLocaleString()}` : ''} watching with you` : `${(nView - 1).toLocaleString()} watching with you`;
   }
@@ -2382,7 +2382,7 @@ function renderCreatorCard(info) {
   const tagKey = tags.join('|');
   if (tagsBox.dataset.k !== tagKey) {
     tagsBox.dataset.k = tagKey;
-    tagsBox.replaceChildren(...tags.map((t) => {
+    replaceKids(tagsBox, ...tags.map((t) => {
       const s = document.createElement('span');
       s.className = 'wv-tag';
       s.textContent = t.startsWith('#') ? t : '#' + t;
@@ -2399,11 +2399,11 @@ function renderCreatorCard(info) {
       fetchWAsset(info.brandLogo).then((data) => {
         if (!data || logo.dataset.k !== logoKey) return;
         const im = document.createElement('img'); im.src = data; im.alt = '';
-        logo.replaceChildren(im);
+        replaceKids(logo, im);
       });
     } else if (W.hostAvatar) {
       const im = document.createElement('img'); im.src = W.hostAvatar; im.alt = '';
-      logo.replaceChildren(im);
+      replaceKids(logo, im);
     }
   }
 }
@@ -2472,10 +2472,10 @@ function renderShowcase(info) {
       if (canTip) items.push(mkAct('i-tip', 'Send a Super Chat', 'Tip the streamer directly, right in chat', () => openTipDock()));
       if (items.length < 4) items.push(mkAct('i-share-2', 'Invite Friends', 'Share this Watch Party link', () => $('#wShareTop').click()));
       if (items.length < 4) items.push(mkAct('i-info', 'Show Details', 'View links, platforms, and host bio', () => openHostDrawer(true)));
-      deck.replaceChildren(...items.slice(0, 4));
-      nBox.replaceChildren(deck);
+      replaceKids(deck, ...items.slice(0, 4));
+      replaceKids(nBox, deck);
     } else {
-      nBox.replaceChildren(...notices.map((n) => {
+      replaceKids(nBox, ...notices.map((n) => {
         const card = document.createElement('article');
         card.className = 'wv-notice-card' + (n.kind === 'ad' ? ' ad' : '');
         const top = document.createElement('div'); top.className = 'wv-notice-top';
@@ -2513,7 +2513,7 @@ function renderShowcase(info) {
         subBtn.onclick = () => handleSubClick();
         em.append(subBtn);
       }
-      nextBox.replaceChildren(em);
+      replaceKids(nextBox, em);
     } else {
       const card = document.createElement('div'); card.className = 'wv-next-card';
       const top = document.createElement('div'); top.className = 'wv-next-top';
@@ -2532,7 +2532,7 @@ function renderShowcase(info) {
         rem.onclick = () => handleSubClick();
         card.append(rem);
       }
-      nextBox.replaceChildren(card);
+      replaceKids(nextBox, card);
     }
   }
 
@@ -2544,7 +2544,7 @@ function renderShowcase(info) {
       const em = document.createElement('div'); em.className = 'wv-sc-empty';
       em.append(Object.assign(document.createElement('b'), { textContent: 'Show takeaways & curated links' }));
       em.append(Object.assign(document.createElement('span'), { textContent: 'Key highlights, chapter notes, and host links surface here live during the broadcast.' }));
-      spotBox.replaceChildren(em);
+      replaceKids(spotBox, em);
     } else {
       const card = document.createElement('div'); card.className = 'wv-spot-card';
       if (spot.head) card.append(Object.assign(document.createElement('h3'), { textContent: spot.head }));
@@ -2563,7 +2563,7 @@ function renderShowcase(info) {
         }
         if (row.children.length) card.append(row);
       }
-      spotBox.replaceChildren(card);
+      replaceKids(spotBox, card);
     }
   }
 }
@@ -2644,7 +2644,7 @@ $('#wSubForm').addEventListener('submit', async (e) => {
   try {
     if (ok) {
       const r = await api('wsubok', { t: ok });
-      const all = SUBS.get(); all[(r.handle || r.name).toLowerCase()] = r.t; SUBS.set(all);
+      const all = SUBS.get(); const k = String(r?.handle || r?.name || '').toLowerCase(); if (k) all[k] = r.t; SUBS.set(all);
       if (W.subHost) renderSub(W.subHost);
       toast(`You’re subscribed. We’ll email you when ${r.name || 'they'} go live.`);
     } else {
@@ -2667,7 +2667,7 @@ function renderRoom(info) {
   const key = names.join('|');
   if ($('#wHereAvs').dataset.k !== key) {
     $('#wHereAvs').dataset.k = key;
-    $('#wHereAvs').replaceChildren(...names.slice(0, 7).map((nm) => { const a = document.createElement('i'); a.textContent = initialsOf(nm); a.title = nm; a.style.background = nameColor(nm); return a; }));
+    replaceKids($('#wHereAvs'), ...names.slice(0, 7).map((nm) => { const a = document.createElement('i'); a.textContent = initialsOf(nm); a.title = nm; a.style.background = nameColor(nm); return a; }));
   }
   const others = Math.max(0, n - Math.min(7, names.length));
   $('#wHereN').textContent = names.length ? (others ? `+${others.toLocaleString()} watching` : 'watching now') : `${n.toLocaleString()} watching now`;
@@ -2759,7 +2759,7 @@ async function buyProductInline(drop, sale) {
     if (!sess?.named) { openSignIn(); return; }
     host.hidden = false;
     host.innerHTML = '<div class="wv-co-bar"><b>Opening secure checkout…</b><button type="button" class="btn sm ghost" id="wCoCancel">Cancel</button></div><div id="wCoMount"></div>';
-    $('#wCoCancel').onclick = () => { try { shopCheckoutMount?.destroy(); } catch {} shopCheckoutMount = null; host.hidden = true; host.replaceChildren(); };
+    $('#wCoCancel').onclick = () => { try { shopCheckoutMount?.destroy(); } catch {} shopCheckoutMount = null; host.hidden = true; replaceKids(host); };
     const r = await api('wshopbuy', { ...creds(), itemId: drop.id });
     if (r.mode === 'stripe' && r.clientSecret && r.pk) {
       const StripeFn = await loadStripe();
@@ -2771,7 +2771,7 @@ async function buyProductInline(drop, sale) {
           try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
           try { shopCheckoutMount?.destroy(); } catch {}
           shopCheckoutMount = null;
-          host.hidden = true; host.replaceChildren();
+          host.hidden = true; replaceKids(host);
           toast(`Order confirmed! Thanks for grabbing ${drop.title}.`);
           poll();
         },
@@ -2780,7 +2780,7 @@ async function buyProductInline(drop, sale) {
       if (mount) shopCheckoutMount.mount(mount);
       host.querySelector('.wv-co-bar b').textContent = `${drop.title} · ${salePriceOf(drop, sale) || money(drop.price)}`;
     } else {
-      host.hidden = true; host.replaceChildren();
+      host.hidden = true; replaceKids(host);
       toast(`Reserved ${drop.title}!${r.remaining != null ? ` (${r.remaining} left)` : ''}`);
       if (r.url && /^https?:\/\//i.test(r.url)) {
         const a = document.createElement('a'); a.href = r.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.click();
@@ -2788,7 +2788,7 @@ async function buyProductInline(drop, sale) {
       poll();
     }
   } catch (e) {
-    host.hidden = true; host.replaceChildren();
+    host.hidden = true; replaceKids(host);
     toast(e.message || 'Couldn’t start checkout right now.');
   }
 }
@@ -2822,7 +2822,7 @@ async function loadCatchup() {
           const jump = document.createElement('button'); jump.type = 'button'; jump.className = 'btn sm ghost'; jump.textContent = 'Jump';
           jump.onclick = () => {
             setTab('chat');
-            const target = $(`#wMsgs [data-id="${CSS.escape(m.msgId)}"]`);
+            const target = $(`#wMsgs [data-id="${cssEsc(m.msgId)}"]`);
             if (target) { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.classList.add('flash'); setTimeout(() => target.classList.remove('flash'), 1600); }
             else toast('That chat moment scrolled past the live window.');
           };
@@ -2832,9 +2832,9 @@ async function loadCatchup() {
       }
       wrap.append(ul);
     }
-    body.replaceChildren(wrap);
+    replaceKids(body, wrap);
   } catch (e) {
-    body.replaceChildren(Object.assign(document.createElement('p'), { className: 'wv-cu-empty', textContent: e.message || 'Could not load recap right now.' }));
+    replaceKids(body, Object.assign(document.createElement('p'), { className: 'wv-cu-empty', textContent: e.message || 'Could not load recap right now.' }));
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Refresh recap'; }
   }
@@ -2861,7 +2861,7 @@ function renderWatchRoomState(data) {
   const ul = $('#wRoomMsgs');
   if (ul && Array.isArray(data?.chat)) {
     const atBottom = ul.scrollHeight - ul.scrollTop - ul.clientHeight < 40;
-    ul.replaceChildren(...data.chat.map((m) => {
+    replaceKids(ul, ...data.chat.map((m) => {
       const li = document.createElement('li');
       const d = new Date(m.ts || Date.now()).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       li.append(Object.assign(document.createElement('b'), { textContent: m.name }), Object.assign(document.createElement('span'), { textContent: m.text }), Object.assign(document.createElement('time'), { textContent: d }));

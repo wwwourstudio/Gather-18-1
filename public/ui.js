@@ -1,5 +1,47 @@
 // gather UI primitives — the behaviour half of ui.css: Icon, loading state, Popover anchoring, Tooltip.
 
+// Cross-browser compatibility polyfill for ParentNode.replaceChildren (older Safari/WebViews).
+for (const proto of [
+  typeof Element !== 'undefined' && Element.prototype,
+  typeof Document !== 'undefined' && Document.prototype,
+  typeof DocumentFragment !== 'undefined' && DocumentFragment.prototype,
+]) {
+  if (proto && typeof proto.replaceChildren !== 'function') {
+    proto.replaceChildren = function replaceChildren(...nodes) {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      for (const n of nodes) {
+        if (n == null) continue;
+        this.appendChild(typeof n === 'string' ? document.createTextNode(n) : n);
+      }
+    };
+  }
+}
+
+/** Cross-browser replacement for root.replaceChildren(...nodes) with safe null/fallback handling. */
+export function replaceKids(root, ...nodes) {
+  if (!root || typeof root !== 'object') return;
+  if (typeof root.replaceChildren === 'function') {
+    root.replaceChildren(...nodes);
+  } else {
+    root.innerHTML = '';
+    if (typeof root.append === 'function') {
+      root.append(...nodes);
+    } else {
+      for (const n of nodes) {
+        if (n == null) continue;
+        root.appendChild(typeof n === 'string' ? document.createTextNode(n) : n);
+      }
+    }
+  }
+}
+
+/** Cross-browser CSS identifier escaper with fallback when CSS.escape is unavailable. */
+export function cssEsc(s) {
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(String(s ?? ''))
+    : String(s ?? '').replace(/([^\w-])/g, '\\$1');
+}
+
 /** An icon from gather's sprite (scripts/icons.js). size: 'md' (20px) or 'sm' (16px). */
 export function icon(name, { size = 'md', cls = '' } = {}) {
   return `<svg class="i${size === 'sm' ? ' sm' : ''}${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="/icons.svg#i-${name}"/></svg>`;
@@ -39,7 +81,8 @@ document.addEventListener('pointerdown', (e) => {
   if (!el) return;
   for (const p of document.querySelectorAll('.popover:popover-open')) {
     if (!p.id) continue;
-    const ctrl = document.querySelector(`[aria-controls="${CSS.escape(p.id)}"][aria-expanded="true"]`);
+    const safeId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(p.id) : String(p.id).replace(/([^\w-])/g, '\\$1');
+    const ctrl = document.querySelector(`[aria-controls="${safeId}"][aria-expanded="true"]`);
     if (ctrl && ctrl.contains(el)) {
       justDismissedPop = p;
       setTimeout(() => { if (justDismissedPop === p) justDismissedPop = null; }, 400);

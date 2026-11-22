@@ -3,6 +3,8 @@
 // collapsible sections open and close smoothly and remember how you left them.
 // Plus the new tools that live in the panels: brand themes, "brand from your logo", built-in music and AI quick
 // actions. app.js hands over the few functions these need through initPanels().
+import { replaceKids } from './ui.js';
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const store = {
@@ -71,7 +73,9 @@ function addFinder(p, secs) {
   for (const s of secs) {
     const label = $('summary b', s)?.textContent.trim(); if (!label) continue;
     const c = document.createElement('button'); c.type = 'button'; c.className = 'ph-chip'; c.textContent = label.replace(/&amp;/g, '&');
+    if (s.dataset.sec) c.dataset.sec = s.dataset.sec;
     c.onclick = () => {
+      if (s.hidden && s.dataset.audGroup) p.dispatchEvent(new CustomEvent('gather:aud-jump', { bubbles: true, detail: { group: s.dataset.audGroup } }));
       if (!s.open) { toggle(s, true); saveSectionState(s, true); }
       requestAnimationFrame(() => s.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
       s.classList.remove('ph-flash'); void s.offsetWidth;
@@ -91,8 +95,9 @@ function addFinder(p, secs) {
   const input = $('input', find);
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
+    const liveSecs = $$('details.psec', p).filter((d) => !d.parentElement.closest('details.psec'));
     let hits = 0;
-    for (const s of secs) {
+    for (const s of liveSecs) {
       const hit = !q || s.textContent.toLowerCase().includes(q);
       s.hidden = !hit;
       if (hit) hits++;
@@ -107,6 +112,7 @@ function addFinder(p, secs) {
     }
     chips.hidden = !!q;
     empty.hidden = !q || hits > 0;
+    if (!q && p.dataset.panel === 'show') p.dispatchEvent(new CustomEvent('gather:aud-sync', { bubbles: true }));
   });
 }
 
@@ -356,9 +362,7 @@ export function initPanels(api) {
       const cols = await paletteFrom(f).catch(() => []);
       const pal = $('#btPal'); pal.hidden = !cols.length;
       if (!cols.length) return api.toast('Logo set on stage. It has no strong colours, so pick an accent below.');
-      pal.replaceChildren(
-        Object.assign(document.createElement('small'), { textContent: 'Colours from your logo — tap any to use as your accent:' }),
-        ...cols.map((h, i) => {
+      replaceKids(pal, Object.assign(document.createElement('small'), { textContent: 'Colours from your logo — tap any to use as your accent:' }), ...cols.map((h, i) => {
           const b = document.createElement('button');
           b.type = 'button'; b.className = 'bt-sw'; b.dataset.color = h;
           b.style.setProperty('--c', h); b.setAttribute('aria-label', 'Use ' + h); b.title = h;
@@ -369,8 +373,7 @@ export function initPanels(api) {
           };
           if (!i) { b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); }
           return b;
-        }),
-      );
+        }));
       applyBrand({ color: cols[0] });
       api.toast('Logo set on stage and your accent now matches it.');
     };

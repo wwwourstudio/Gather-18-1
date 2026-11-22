@@ -143,10 +143,11 @@
             <button type="button" class="um-item" role="menuitem" data-um-tab="studio"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg><span>Studio &amp; device defaults</span></button>
             <button type="button" class="um-item" role="menuitem" data-um-tab="audience"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg><span>Audience &amp; alerts</span></button>
             <button type="button" class="um-item" role="menuitem" data-um-tab="sync"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-globe"/></svg><span>Connected &amp; sync</span></button>
+            <button type="button" class="um-item" role="menuitem" data-um-tab="shortcuts"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-command"/></svg><span>Keyboard shortcuts</span><kbd class="um-kbd">?</kbd></button>
           </div>
           <div class="um-sep" role="separator"></div>
           <div class="um-group" role="group" aria-label="Quick actions">
-            <button type="button" class="um-item" role="menuitem" id="umStartShow"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span>Start or schedule show</span></button>
+            <button type="button" class="um-item host-only" role="menuitem" id="umStartShow"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span>Start or schedule show</span></button>
             <button type="button" class="um-item" role="menuitem" id="umStudioSettings"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><span>Audio &amp; video devices</span></button>
             <div class="um-theme-row">
               <span>Appearance</span>
@@ -162,8 +163,8 @@
       </div>
       <button class="icon-btn hdr-ic" id="helpTop" aria-label="Help" data-tip="Help"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-circle-help"/></svg></button>
       <button class="icon-btn hdr-ic" id="settingsTop" aria-label="Settings" data-tip="Settings"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
-      <button class="btn hdr in-studio" id="watchTop" hidden data-tip="Your public watch page"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-play"/></svg><span>Watch page</span></button>
-      <button class="btn hdr in-studio" id="enterTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-user-plus"/></svg><span id="enterTopText">Invite</span></button>
+      <button class="btn hdr host-only in-studio" id="watchTop" hidden data-tip="Your public watch page"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-play"/></svg><span>Watch page</span></button>
+      <button class="btn hdr host-only in-studio" id="enterTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-user-plus"/></svg><span id="enterTopText">Invite</span></button>
       <button class="btn hdr primary host-only in-studio live-top" id="liveTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span id="livePillText">Go live</span></button>
     </div>
   </header>
@@ -321,19 +322,25 @@
             <button type="button" role="tab" data-deck="people">In the studio <i class="count" id="peopleTabCount"></i></button>
             <button type="button" role="tab" data-deck="lobby" id="lobbyTab" hidden>Waiting <i class="count hot" id="lobbyCount">0</i></button>
           </div>
-          <button type="button" class="btn sm ghost host-only" id="moreLayoutsBtn" aria-expanded="false" title="Browse all layout templates">More layouts</button>
+          <div class="deck-filter host-only" id="sceneFilter" role="group" aria-label="Filter scenes">
+            <button type="button" class="df-btn on" data-sf="all" aria-pressed="true">All</button>
+            <button type="button" class="df-btn" data-sf="core" aria-pressed="false">Core</button>
+            <button type="button" class="df-btn" data-sf="present" aria-pressed="false">Present &amp; AI</button>
+            <button type="button" class="df-btn" data-sf="saved" aria-pressed="false">Saved</button>
+          </div>
+          <div class="scene-suggest host-only" id="sceneSuggest" hidden role="status" aria-live="polite">
+            <span class="scene-suggest-text" id="sceneSuggestText"></span>
+            <div class="scene-suggest-acts">
+              <button type="button" class="btn primary sm" id="sceneSuggestApply">Switch</button>
+              <button type="button" class="btn sm ghost" id="sceneSuggestAuto" hidden>Auto 3+</button>
+              <button type="button" class="icon-btn sm" id="sceneSuggestDismiss" aria-label="Dismiss layout suggestion"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+            </div>
+          </div>
           <span class="host-note" id="hostNote" hidden>The host switches scenes</span>
-          <label class="toggle-inline lock" id="lockWrap" hidden data-tip="New guests knock and wait for you"><input type="checkbox" class="toggle sm" id="lockSwitch" role="switch"> Lock</label>
-          <span class="crew-count caps num" id="crewCount">0 / 6</span>
-          <button type="button" class="icon-btn sm deck-toggle" id="deckToggle" aria-expanded="true" aria-controls="deckBody" aria-label="Hide scenes and people" data-tip="Hide"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
-        </div>
-        <div class="scene-suggest host-only" id="sceneSuggest" hidden role="status" aria-live="polite">
-          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg>
-          <span class="scene-suggest-text" id="sceneSuggestText"></span>
-          <div class="scene-suggest-acts">
-            <button type="button" class="btn primary sm" id="sceneSuggestApply">Switch</button>
-            <button type="button" class="btn sm ghost" id="sceneSuggestAuto" hidden>Auto 3+</button>
-            <button type="button" class="icon-btn sm" id="sceneSuggestDismiss" aria-label="Dismiss layout suggestion"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+          <div class="deck-head-r">
+            <label class="toggle-inline lock" id="lockWrap" hidden data-tip="New guests knock and wait for you"><input type="checkbox" class="toggle sm" id="lockSwitch" role="switch"><span>Lock</span></label>
+            <span class="crew-count num" id="crewCount">0 / 6</span>
+            <button type="button" class="icon-btn sm deck-toggle" id="deckToggle" aria-expanded="true" aria-controls="deckBody" aria-label="Hide scenes and people" data-tip="Hide"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
           </div>
         </div>
         <div class="deck-body" id="deckBody">
@@ -341,7 +348,7 @@
           <div class="deck-layer" data-layer="people">
             <ul class="crew-sk" aria-hidden="true"><li class="sk sk-card"></li><li class="sk sk-card"></li><li class="sk sk-card"></li></ul>
             <ul class="crew-list" id="crewList">
-              <li class="crew-add"><button class="tile dashed" id="addSlot" aria-label="Invite a guest"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg><span>Invite</span></button></li>
+              <li class="crew-add host-only"><button class="tile crew-add-btn" id="addSlot" aria-label="Invite a guest"><span class="crew-add-ic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg></span><b>Invite guest</b><small>Copy or share link</small></button></li>
             </ul>
           </div>
           <div class="deck-layer" data-layer="lobby"><ul class="lobby-list" id="lobbyList"></ul></div>
@@ -362,6 +369,10 @@
             </div>
             <span class="mood-pct num" id="chatMoodPct">50%</span>
           </div>
+          <button type="button" class="icon-btn sm host-only chat-mod-btn" id="chatModBtn" aria-expanded="false" aria-controls="chatModDrawer" aria-label="Moderation &amp; AI guard" data-tip="Moderators &amp; AI Auto-Mod">
+            <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg>
+            <span class="mod-dot" id="modPendingBadge" hidden>0</span>
+          </button>
           <button type="button" class="icon-btn sm host-only chat-opts-btn" id="chatOptsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="chatOptsPop" aria-label="Chat options" data-tip="Chat options"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
           <div class="popover glass raised chat-opts-pop" id="chatOptsPop" popover="auto" role="dialog" aria-label="Live chat options">
             <div class="chat-opts-head"><b>Live chat options</b><span>Host controls</span></div>
@@ -384,6 +395,44 @@
           </div>
         </header>
         <div class="panel-body chat-body">
+          <section class="chat-mod-drawer host-only" id="chatModDrawer" hidden aria-label="Chat moderation &amp; AI guard">
+            <div class="cmdw-head">
+              <span class="cmdw-title"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg><b>Moderation &amp; AI Guard</b></span>
+              <span class="cmdw-status" id="aiModStatusPill">AI Mod off</span>
+              <button type="button" class="icon-btn sm" id="chatModClose" aria-label="Close moderation drawer"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+            </div>
+            <div class="cmdw-sec">
+              <label class="toggle-inline cmdw-toggle">
+                <span><b>AI Auto-Moderator</b><small>Warns spammers or heated chatters first, then times them out for your review.</small></span>
+                <input type="checkbox" class="toggle sm" id="aiModSwitch" role="switch">
+              </label>
+              <div class="cmdw-rules" id="aiModRules">
+                <label class="cmdw-rule"><span>Timeout</span>
+                  <select class="input sm" id="aiModTimeout">
+                    <option value="60">1 min</option>
+                    <option value="300" selected>5 min</option>
+                    <option value="900">15 min</option>
+                    <option value="3600">1 hour</option>
+                  </select>
+                </label>
+                <label class="cmdw-chk"><input type="checkbox" id="aiModCalm" checked><span>Calm hostility</span></label>
+                <label class="cmdw-chk"><input type="checkbox" id="aiModLinks"><span>Block links</span></label>
+              </div>
+            </div>
+            <div class="cmdw-sec" id="modPendingSec" hidden>
+              <div class="cmdw-sub"><b>Waiting for owner decision</b><span class="num" id="modPendingCount">0</span></div>
+              <ul class="mod-pending-list" id="modPendingList"></ul>
+            </div>
+            <div class="cmdw-sec">
+              <div class="cmdw-sub"><b>Chat moderators</b><span class="num" id="modListCount">0</span></div>
+              <ul class="mod-user-list" id="modList"></ul>
+              <p class="hint cmdw-empty" id="modListEmpty">No moderators yet. Click any chat message → Make mod, or add a username below.</p>
+              <form class="cmdw-add" id="modAddForm" autocomplete="off">
+                <input class="input sm" id="modAddInput" maxlength="40" placeholder="Add username as moderator…">
+                <button type="submit" class="btn sm primary" id="modAddBtn">Make mod</button>
+              </form>
+            </div>
+          </section>
           <section class="guest-brief" id="guestBriefBar" hidden aria-label="Guest-only brief"></section>
           <div class="feat-bar" id="featBar" hidden>
             <span class="feat-label">On stage</span>
@@ -510,7 +559,7 @@
               </details>
             </div></details>
 
-            <details class="psec" data-sec="showcase" open><summary><b>Watch party hub &amp; notices</b><span class="hint" id="wpNoticeCount"></span></summary><div class="psec-body">
+            <details class="psec" data-sec="showcase" data-aud-group="watch" open><summary><b>Watch party hub &amp; notices</b><span class="hint" id="wpNoticeCount"></span></summary><div class="psec-body">
               <div class="row2">
                 <label class="fld"><span>Stream type</span><select class="input sm" id="wpStreamType"><option value="live">Live Stream</option><option value="shopping">Live Shopping</option><option value="gamer">Gamer Stream</option></select></label>
                 <label class="fld"><span>Hashtags</span><input class="input sm" id="wpHashtags" maxlength="120" placeholder="#live, #qa, #community"></label>
@@ -556,7 +605,7 @@
               </div>
             </div></details>
 
-            <details class="psec" data-sec="inbox" open><summary><b>Waiting for you</b></summary><div class="psec-body">
+            <details class="psec" data-sec="inbox" data-aud-group="viewers" open><summary><b>Waiting for you</b></summary><div class="psec-body">
               <div class="inbox-lists">
                 <p class="hint inbox-empty">Nothing waiting. Voice questions and super chats chime and show up here.</p>
                 <div class="row between"><b>Voice questions</b><span class="hint" id="vmCount"></span></div>
@@ -665,7 +714,14 @@
             <p class="hint" id="layoutsHint" style="margin:0">Drag and resize on the stage, or use toolbar alignment. Hold <kbd>Alt</kbd> to stack layers.</p>
           </div>
 
-          <details class="psec" data-sec="templates" open><summary><b>Scene templates</b></summary><div class="psec-body"><div class="fld"><span class="dup">Scene templates</span><div class="tpls" id="tplList"></div></div>
+          <details class="psec" data-sec="templates" open><summary><b>Scene templates</b></summary><div class="psec-body"><div class="fld"><span class="dup">Scene templates</span>
+            <div class="tpl-tabs" id="tplTabs" role="tablist" aria-label="Template categories">
+              <button type="button" role="tab" class="on" data-tpl-cat="all" aria-selected="true">All</button>
+              <button type="button" role="tab" data-tpl-cat="present" aria-selected="false">Present</button>
+              <button type="button" role="tab" data-tpl-cat="talk" aria-selected="false">Talk</button>
+              <button type="button" role="tab" data-tpl-cat="gaming" aria-selected="false">Gaming</button>
+            </div>
+            <div class="tpls" id="tplList"></div></div>
           </div></details><details class="psec" data-sec="add" open><summary><b>Add layer to stage</b></summary><div class="psec-body"><div class="fld"><span class="dup">Add layer to stage</span>
             <div class="adds">
               <button type="button" class="btn sm" data-add="slot"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-video"/></svg>Camera</button>
@@ -1025,10 +1081,10 @@
           <button class="menu-item" role="menuitem" data-present="screen"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg><b>Share screen</b><span>A window, tab or full screen, with sound</span></button>
           <button class="menu-item" role="menuitem" data-present="game"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg><b>Share a game</b><span>60 fps, tuned for fast motion, with game sound</span></button>
           <button class="menu-item" role="menuitem" data-present="video"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><b>Play a video</b><span>MP4, WebM or MOV from your computer</span></button>
-          <button class="menu-item" role="menuitem" data-present="music"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg><b>Background music</b><span>Play an audio track that ducks when people speak</span></button>
+          <button class="menu-item host-only" role="menuitem" data-present="music"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg><b>Background music</b><span>Play an audio track that ducks when people speak</span></button>
           <button class="menu-item" role="menuitem" data-present="pdf"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-file-text"/></svg><b>Present slides</b><span>A PDF deck, page by page</span></button>
           <button class="menu-item" role="menuitem" data-present="image"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-image"/></svg><b>Show an image</b><span>PNG, JPEG, WebP or GIF</span></button>
-          <button class="menu-item" role="menuitem" data-present="ai"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>AI answer</b><span>Ask your AI and put the answer on stage</span></button>
+          <button class="menu-item host-only" role="menuitem" data-present="ai"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>AI answer</b><span>Ask your AI and put the answer on stage</span></button>
         </div></div>
       </div>
       <span class="dock-sep" aria-hidden="true"></span>
@@ -1043,7 +1099,7 @@
       <button type="button" class="icon-btn sm" id="guideSkip" aria-label="Hide the setup guide" data-tip="Hide the guide"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
     </div>
     <p class="dock-note" id="dockNote" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-activity"/></svg><span id="dockNoteText"></span>
-      <span class="note-invite" id="noteInvite" hidden><button type="button" class="btn sm ghost" id="noteLink" data-tip="Copy the invite link"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Copy link</button><button type="button" class="btn sm ghost note-code" id="noteCode" data-tip="Copy the studio code"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span id="noteCodeText"></span></button></span>
+      <span class="note-invite host-only" id="noteInvite" hidden><button type="button" class="btn sm ghost" id="noteLink" data-tip="Copy the invite link"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Copy link</button><button type="button" class="btn sm ghost note-code" id="noteCode" data-tip="Copy the studio code"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span id="noteCodeText"></span></button></span>
     </p>
     <button class="btn danger" id="leaveBtn" disabled aria-label="Leave studio">Leave<span class="wide-only">&nbsp;studio</span></button>
   </footer>
@@ -1122,8 +1178,8 @@
       <button type="button" class="set-nav-btn" data-set="mic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg>Microphone</button>
       <button type="button" class="set-nav-btn" data-set="camera"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg>Camera</button>
       <button type="button" class="set-nav-btn" data-set="background"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-image"/></svg>Background</button>
-      <button type="button" class="set-nav-btn" data-set="connections"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Connections</button>
-      <button type="button" class="set-nav-btn" data-set="network"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg>Network</button>
+      <button type="button" class="set-nav-btn host-only" data-set="connections"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Connections</button>
+      <button type="button" class="set-nav-btn host-only" data-set="network"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg>Network</button>
     </nav>
     <div class="form settings-body" id="settingsBody">
       <section class="set-sec" id="set-general" data-set="general" aria-labelledby="set-general-h">
@@ -1148,7 +1204,7 @@
           <div class="fld"><span>Input level</span><div class="meter"><i id="meterFill"></i></div></div>
           <label class="fld"><span>Input gain <em id="micGainVal">100%</em></span><input type="range" id="micGain" min="0.3" max="2.5" step="0.05"></label>
           <label class="toggle-row"><span><b>AI noise removal</b><small>Removes fans, keyboards and traffic, keeps your voice</small></span><input type="checkbox" class="toggle" id="aiNoiseChk" role="switch"></label>
-          <div class="toggle-group duck-group" id="duckGroup">
+          <div class="toggle-group duck-group host-only" id="duckGroup">
             <label class="toggle-row"><span><b>Auto-duck background audio</b><small>Lowers background music and media sound while anyone speaks</small></span><input type="checkbox" class="toggle" id="duckChk" role="switch"></label>
             <div class="duck-opts" id="duckOpts">
               <label class="fld"><span>Duck volume to <em id="duckLevelVal">20%</em></span><input type="range" id="duckLevel" min="0.05" max="0.75" step="0.05"></label>
@@ -1234,7 +1290,7 @@
           <label class="fld" id="bgFxEdgeRow" hidden><span>Edge softness</span><input type="range" id="fxEdge" min="0.03" max="0.3" step="0.01"></label>
           <label class="fld" id="bgFxBlurRow" hidden><span>Blur amount</span><input type="range" id="fxBlur" min="0.4" max="2.5" step="0.1"></label>
       </section>
-      <section class="set-sec" id="set-connections" data-set="connections" aria-labelledby="set-connections-h">
+      <section class="set-sec host-only" id="set-connections" data-set="connections" aria-labelledby="set-connections-h">
         <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-link"/></svg></span><div><h3 id="set-connections-h">Connections</h3><p>Bring platform chats in, and save to Google Drive.</p></div></header>
 
           <div class="platforms">
@@ -1261,7 +1317,7 @@
             <div class="row"><span class="hint" id="googleState" style="margin:0">Not connected</span><button type="button" class="btn sm ghost" id="googleOut" hidden>Disconnect Google</button></div>
           </div>
       </section>
-      <section class="set-sec" id="set-network" data-set="network" aria-labelledby="set-network-h">
+      <section class="set-sec host-only" id="set-network" data-set="network" aria-labelledby="set-network-h">
         <header class="set-sec-h"><span class="set-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-shield-check"/></svg></span><div><h3 id="set-network-h">Network</h3><p>Your own relay server, for strict networks.</p></div></header>
 
           <label class="fld"><span>TURN server URL <em>optional</em></span><input id="turnUrl" placeholder="turn:your-server.com:3478" spellcheck="false"></label>
@@ -1287,17 +1343,6 @@
           <ul class="help-list" id="helpResults"></ul>
           <p class="hint" id="helpNone" hidden>Nothing matches. Try another word, like “mic” or “layout”.</p>
           <button type="button" class="btn block" id="tourStart"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Take the studio tour</button>
-          <h3 class="caps">Shortcuts</h3>
-          <label class="toggle-row"><span><b>Single-key shortcuts</b><small>Off if you use voice control or a screen reader</small></span><input type="checkbox" class="toggle" id="keysChk" role="switch"></label>
-          <dl class="keys">
-            <div><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></div>
-            <div><dt><kbd>V</kbd></dt><dd>Camera on or off</dd></div>
-            <div><dt><kbd>S</kbd></dt><dd>Share or stop sharing your screen</dd></div>
-            <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous and next slide</dd></div>
-            <div><dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Switch scenes (host)</dd></div>
-            <div><dt><kbd>R</kbd></dt><dd>Start or stop recording (host)</dd></div>
-            <div><dt><kbd>/</kbd></dt><dd>Ask your AI (host) or jump to chat</dd></div>
-          </dl>
           <div class="help-tx">
             <svg class="tx-emblem" viewBox="0 0 28 28" fill="none" aria-hidden="true">
               <path d="M12.2 3.2h4.2v4.1l3.7 1.3 4.6-.4 1.2 4.3-2.3 3.7-2.6 4.7-.7 3.7-3.4-1.5-4.1-4.8-3.8-.5-3.2-3.4-2.8-1.4.4-2.7 3.4.3V3.2h5.4Z" fill="var(--accent)" fill-opacity="0.24" stroke="var(--accent-text)" stroke-width="1.6" stroke-linejoin="round"/>
@@ -1405,6 +1450,7 @@
         <button type="button" class="btn link ac-forgot" id="acForgot">Forgot your password?</button>
       </form>
       <p class="ac-fine" id="acFine">By continuing you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a>.</p>
+      <button type="button" class="btn link ac-out-keys" id="acOpenShortcutsOut"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-command"/></svg><span>Keyboard shortcuts</span><kbd>?</kbd></button>
     </div>
     <div id="acForgotView" class="form" hidden>
       <p class="sub">We’ll email you a link to choose a new password.</p>
@@ -1417,6 +1463,11 @@
       <label class="fld"><span>New password</span><input id="acRPass" type="password" minlength="8" autocomplete="new-password"></label>
       <p class="err" id="acRErr" hidden></p>
       <button type="button" class="btn primary lg block" id="acRGo">Save new password</button>
+    </div>
+    <div id="acShortcutsView" class="ac-shortcuts-out" hidden>
+      <p class="sub">Press <kbd>?</kbd> anytime in the studio to toggle this list.</p>
+      <div id="acShortcutsOutHost"></div>
+      <div class="row" style="margin-top:12px"><button type="button" class="btn ghost" id="acShortcutsBack">Back to sign in</button></div>
     </div>
     <div id="acIn" class="ac-hub" hidden>
       <nav class="ac-nav" role="tablist" aria-label="Account settings">
@@ -1431,6 +1482,7 @@
         <button type="button" role="tab" class="ac-nav-btn" data-ac-pane="studio" aria-selected="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg><span>Studio defaults</span></button>
         <button type="button" role="tab" class="ac-nav-btn" data-ac-pane="audience" aria-selected="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg><span>Audience &amp; alerts</span></button>
         <button type="button" role="tab" class="ac-nav-btn" data-ac-pane="sync" aria-selected="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-globe"/></svg><span>Sync &amp; data</span></button>
+        <button type="button" role="tab" class="ac-nav-btn" data-ac-pane="shortcuts" aria-selected="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-command"/></svg><span>Shortcuts</span></button>
         <button type="button" role="tab" class="ac-nav-btn" data-ac-pane="security" aria-selected="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-lock"/></svg><span>Security</span></button>
       </nav>
 
@@ -1616,7 +1668,43 @@
           </div>
         </section>
 
-        <!-- Pane 5: Security & Danger Zone -->
+        <!-- Pane 5: Keyboard Shortcuts -->
+        <section class="ac-pane" data-ac-panel="shortcuts" role="tabpanel" hidden>
+          <div class="ac-sec-head">
+            <h3>Keyboard shortcuts</h3>
+            <p>Press <kbd>?</kbd> anytime in the studio to open this list.</p>
+          </div>
+          <div id="acShortcutsHost">
+            <div class="ac-shortcuts-root" id="shortcutsRoot">
+              <div class="ac-toggles">
+                <label class="ac-tog-row">
+                  <div>
+                    <b>Single-key shortcuts</b>
+                    <span id="shortcutsSingleNote">Active outside text inputs · turn off for voice control or screen readers</span>
+                  </div>
+                  <input type="checkbox" class="toggle sm" id="shortcutsKeysChk" role="switch">
+                </label>
+              </div>
+              <div class="sf-controls">
+                <div class="sf-search">
+                  <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-search"/></svg>
+                  <input type="search" id="shortcutsSearch" placeholder="Filter by action or key…" aria-label="Filter keyboard shortcuts" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="sf-cats" id="shortcutsCats" role="tablist" aria-label="Shortcut categories">
+                  <button type="button" role="tab" data-cat="all" class="on" aria-selected="true">All</button>
+                  <button type="button" role="tab" data-cat="controls" aria-selected="false">Controls</button>
+                  <button type="button" role="tab" data-cat="scenes" aria-selected="false">Scenes</button>
+                  <button type="button" role="tab" data-cat="editor" aria-selected="false">Editor</button>
+                  <button type="button" role="tab" data-cat="chat" aria-selected="false">Chat &amp; AI</button>
+                </div>
+              </div>
+              <div class="sf-body" id="shortcutsBody" aria-label="Shortcut bindings list"></div>
+              <p class="sf-empty" id="shortcutsEmpty" hidden>No matching shortcuts. Try “mute”, “scene”, or “arrow”.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pane 6: Security & Danger Zone -->
         <section class="ac-pane" data-ac-panel="security" role="tabpanel" hidden>
           <div class="ac-sec-head">
             <h3>Security &amp; account access</h3>
