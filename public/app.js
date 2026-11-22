@@ -1110,6 +1110,7 @@ async function onServer(m) {
     case 'guest-brief': S.brief = m.brief || null; renderGuestBrief(); break;
     case 'like': setLikes(m.id, m.n, m.from); break;
     case 'feed': for (const it of m.items || []) addExternal(it); break;
+    case 'unfeed': for (const id of m.ids || []) $$(`#msgs li[data-fid="${CSS.escape(id)}"]`).forEach((li) => li.remove()); break;
     case 'viewer-want': viewerWant(m.vid); break;
     case 'vsignal': viewerSignal(m.from, m.data); break;
     case 'viewer-left': closeViewer(m.vid); break;

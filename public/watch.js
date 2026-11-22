@@ -301,7 +301,7 @@ function render(info) {
   $('#wCompose').hidden = !info.found || w.chat === false;
 
   W.recentChat = info.chat || [];
-  renderChat(W.recentChat);
+  renderChat(W.recentChat, info.gone || []);
   renderRoom(info);
   renderGoal(info);
   $('#wChat').classList.toggle('quiet', !$('#wMsgs li.row, #wMsgs li.paid'));
@@ -321,8 +321,9 @@ function render(info) {
   syncHudShell();
 }
 
-function renderChat(items) {
+function renderChat(items, gone = []) {
   const log = $('#wMsgs'), atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  for (const id of gone) log.querySelector(`[data-id="${CSS.escape(id)}"]`)?.remove(); // deleted, hidden or reported away
   for (const m of items) {
     if (W.muted.has(String(m.name).toLowerCase())) continue;
     const old = log.querySelector(`[data-id="${CSS.escape(m.id)}"] .wv-like span`);
@@ -385,7 +386,8 @@ function msgEl(m) {
   const mk = (icon, label, fn) => { const k = document.createElement('button'); k.type = 'button'; k.innerHTML = `<svg class="i" aria-hidden="true"><use href="/icons.svg#i-${icon}"/></svg>`; k.setAttribute('aria-label', label); k.title = label; k.onclick = fn; return k; };
   if (m?.id != null && !String(m.id).startsWith('mine-')) {
     acts.append(mk('reply', 'Reply', () => setReply(m)));
-    if (!mine) acts.append(mk('flag', 'Report spam', () => reportMsg(m.id, li)), mk('volume-x', `Mute ${m.name} for me`, () => muteName(m.name)));
+    if (mine) acts.append(mk('trash-2', 'Delete my message', () => deleteMsg(m.id, li)));
+    else acts.append(mk('flag', 'Report', () => reportMsg(m.id, li)), mk('volume-x', `Mute ${m.name} for me`, () => muteName(m.name)));
   }
   head.append(gap, acts, lk);
   if (m.re?.n) { const q = document.createElement('span'); q.className = 'wv-re'; q.textContent = `${m.re.n}: ${m.re.t || ''}`; body.append(head, q, richText(m.text)); }
@@ -1181,8 +1183,14 @@ async function likeMsg(id, btn) {
   const lk = $(`[data-id="${CSS.escape(id)}"] .wv-like span`); if (lk) lk.textContent = String((Number(lk.textContent) || 0) + 1);
   try { await ensureSession(); await api('wsend', { ...creds(), type: 'like', msg: id }); } catch {}
 }
+async function deleteMsg(id, li) {
+  if (!confirm('Delete this message for everyone?')) return;
+  try { await ensureSession(); await api('wsend', { ...creds(), type: 'delete', msg: id }); li.remove(); W.recentChat = W.recentChat.filter((x) => x.id !== id); toast('Message deleted.'); }
+  catch (e) { toast(e.message || 'Couldn’t delete that message.'); }
+}
 async function reportMsg(id, li) {
-  li.remove(); toast('Reported. Messages reported by several viewers are hidden for everyone.');
+  if (!confirm('Report this message as spam or abuse? It’s hidden for you now; several reports hide it for everyone.')) return;
+  li.remove(); toast('Reported. Thanks for keeping the chat friendly.');
   try { await ensureSession(); await api('wsend', { ...creds(), type: 'report', msg: id }); } catch {}
 }
 function muteName(name) {

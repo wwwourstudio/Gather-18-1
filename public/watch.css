@@ -1341,13 +1341,14 @@ body { background: var(--bg, #080c16); color: var(--ink); }
 .wv-mt img.emote { width: 24px; height: 24px; vertical-align: -6px; object-fit: contain; }
 .wv-mt .at { color: var(--accent-text); font-weight: 600; }
 
-.wv-acts { display: none; gap: 0; }
-.wv-msgs li.row:hover .wv-acts, .wv-acts:focus-within { display: inline-flex; }
+/* Reply / report / mute / delete: always there, quiet until the message is hovered or tapped. */
+.wv-acts { display: inline-flex; gap: 0; opacity: 0.45; transition: opacity 0.15s; }
+.wv-msgs li.row:hover .wv-acts, .wv-acts:focus-within { opacity: 1; }
 .wv-acts button { width: 24px; height: 22px; display: grid; place-items: center; border-radius: 5px; color: var(--ink-3); }
 .wv-acts button:hover { color: var(--ink); background: var(--fill-hover); }
 .wv-acts button[aria-pressed="true"] { color: var(--accent-text); }
 .wv-acts .i { width: 14px; height: 14px; }
-@media (hover: none) { .wv-msgs li.row.tapped .wv-acts { display: inline-flex; } }
+@media (hover: none) { .wv-acts { opacity: 0.7; } .wv-acts button { width: 30px; height: 28px; } }
 
 button.wv-like { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 22px; margin: -2px -4px -2px 0; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--ink-3); font: 600 11px var(--font-ui); font-variant-numeric: tabular-nums; cursor: pointer; }
 button.wv-like .i { width: 14px; height: 14px; }

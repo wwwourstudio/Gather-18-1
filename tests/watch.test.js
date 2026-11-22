@@ -39,6 +39,13 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     check('chat works and is rate limited', !!c1.id && c2.status === 429, `${c2.status}`);
     const forged = await post('wsend', { studio: code, vid: v.vid, vtok: 'nope', type: 'chat', text: 'x' });
     check('a forged viewer token is refused', forged.status === 401);
+    const other = await post('whello', { studio: code, name: 'Sam' });
+    const stealDel = await post('wsend', { studio: code, vid: other.vid, vtok: other.vtok, type: 'delete', msg: c1.id });
+    check('only the writer can delete a chat message', stealDel.status === 403, `${stealDel.status}`);
+    const del = await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'delete', msg: c1.id });
+    await new Promise((r) => setTimeout(r, 2100));
+    const fd = await feed(code);
+    check('a deleted message leaves the feed and is listed as gone', del.ok && !fd.chat.some((x) => x.id === c1.id) && fd.gone.includes(c1.id), JSON.stringify(fd.gone));
     await new Promise((r) => setTimeout(r, 1100));
     const low = await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'super', amount: 2, method: 'venmo', text: 'hi' });
     check('super chats below the host’s minimum are refused', low.status === 400 && /\$5/.test(low.error || ''), low.error);
