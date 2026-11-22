@@ -164,6 +164,16 @@ export async function findLiveChat(videoLink = '') {
   if (!live) throw new Error('No live broadcast on your channel right now. Go live on YouTube, or paste the video link.');
   return { liveChatId: live.snippet.liveChatId, title: live.snippet.title };
 }
+/** Put a thumbnail on your YouTube live broadcast (the upcoming one, else the live one). Returns its title. */
+export async function setYouTubeThumbnail(blob) {
+  await googleToken(['youtube']);
+  let list = await gfetch(`${API}/youtube/v3/liveBroadcasts?part=snippet&broadcastStatus=upcoming&broadcastType=all&maxResults=5`);
+  let b = list.items?.[0];
+  if (!b) { list = await gfetch(`${API}/youtube/v3/liveBroadcasts?part=snippet&broadcastStatus=active&broadcastType=all&maxResults=5`); b = list.items?.[0]; }
+  if (!b) throw new Error('No upcoming or live broadcast on your YouTube channel yet. Go live (or schedule on YouTube), then try again.');
+  await gfetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(b.id)}`, { method: 'POST', headers: { 'Content-Type': blob.type || 'image/jpeg' }, body: blob });
+  return b.snippet?.title || 'your broadcast';
+}
 /** Turn a YouTube chat item into gather's chat-feed shape (super chats, stickers and memberships included). */
 export function toFeedItem(it) {
   const s = it.snippet || {}, a = it.authorDetails || {};

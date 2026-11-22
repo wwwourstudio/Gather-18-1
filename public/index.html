@@ -1477,23 +1477,43 @@
         </div>
 
         <div class="wiz-col-media">
-          <div class="wiz-cover-wrap">
-            <canvas id="wThumb" width="1280" height="720" class="w-thumb" aria-label="Thumbnail preview"></canvas>
-            <input class="input sm" id="wHeadline" maxlength="80" placeholder="Cover headline">
-            <div class="wiz-media-bar">
-              <div class="seg sm" id="wStyle"><button type="button" data-ws="bold">Bold</button><button type="button" data-ws="split">Split</button><button type="button" data-ws="center">Center</button></div>
-              <div class="wiz-asset-acts">
-                <button type="button" class="btn sm" id="wSnap">Cam</button>
-                <button type="button" class="btn sm" id="wPhotoPick">Photo</button>
-                <button type="button" class="btn sm" id="wUploadPick">Upload</button>
-                <button type="button" class="btn sm wiz-ai-open" id="wThumbAiBtn" aria-label="Create a cover with AI"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI</button>
-                <input type="file" id="wPhotoFile" accept="image/*" hidden>
-                <input type="file" id="wUploadFile" accept="image/*" hidden>
+          <div class="wiz-cover-wrap wiz-thumb-card">
+            <div class="wt-head">
+              <div><b>Thumbnail</b><small>1280 × 720 · used everywhere you stream</small></div>
+              <span class="wt-plats" aria-hidden="true"><i style="--c:#ff2a3d">YT</i><i style="--c:#9146ff">TW</i><i style="--c:#53fc18">K</i><i style="--c:var(--accent)">gather</i></span>
+            </div>
+            <div class="wt-canvas">
+              <canvas id="wThumb" width="1280" height="720" class="w-thumb" aria-label="Thumbnail preview"></canvas>
+              <span class="wt-badge" id="wThumbBadge" hidden>Your upload</span>
+            </div>
+            <div class="wt-main">
+              <button type="button" class="btn primary wiz-ai-open" id="wThumbAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Generate with AI</button>
+              <button type="button" class="btn" id="wUploadPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload thumbnail</button>
+              <button type="button" class="btn ghost sm" id="wUploadClear" hidden>Remove upload</button>
+              <input type="file" id="wUploadFile" accept="image/png,image/jpeg,image/webp" hidden>
+            </div>
+            <details class="wt-make" id="wThumbMake">
+              <summary>Or make one here: headline, style, your photo</summary>
+              <div class="wt-make-body">
+                <input class="input sm" id="wHeadline" maxlength="80" placeholder="Headline on the thumbnail">
+                <div class="wiz-media-bar">
+                  <div class="seg sm" id="wStyle"><button type="button" data-ws="bold">Bold</button><button type="button" data-ws="split">Split</button><button type="button" data-ws="center">Center</button></div>
+                  <div class="wiz-asset-acts">
+                    <button type="button" class="btn sm" id="wSnap"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-video"/></svg>From camera</button>
+                    <button type="button" class="btn sm" id="wPhotoPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-user"/></svg>Your photo</button>
+                    <input type="file" id="wPhotoFile" accept="image/*" hidden>
+                  </div>
+                </div>
               </div>
+            </details>
+            <div class="wt-out">
+              <button type="button" class="btn ghost sm" id="wThumbDl"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-download"/></svg>Download</button>
+              <button type="button" class="btn ghost sm" id="wThumbYt"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-monitor-play"/></svg>Set on YouTube</button>
+              <span class="hint" id="wThumbNote">Also used as your watch page’s preview image.</span>
             </div>
           </div>
 
-          <div class="wiz-brand-strip">
+          <div class="wiz-brand-strip" hidden><!-- logo & overlay now live in Look → Brand -->
             <div class="wiz-mini-asset">
               <img id="wLogoPreview" class="wiz-logo-box" alt="Brand logo">
               <div class="wiz-mini-meta">

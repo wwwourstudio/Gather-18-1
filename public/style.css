@@ -2848,7 +2848,7 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 .wiz-media-bar { flex-wrap: wrap; gap: 6px; }
 .wiz-media-bar .wiz-asset-acts { flex-wrap: nowrap; }
 .wiz-media-bar .seg.sm > button { padding: 0 10px; }
-#wThumbAiBtn { font-size: 0; gap: 0; width: 30px; padding: 0; justify-content: center; }
+#wThumbAiBtn { gap: 8px; }
 #wThumbAiBtn .i { width: 14px; height: 14px; }
 .wiz-col-setup .soc-top { position: relative; }
 .wiz-col-setup .soc-top input[type="checkbox"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: auto; cursor: pointer; }
@@ -3120,3 +3120,29 @@ body.pre .land-feats { display: grid; grid-template-columns: repeat(4, minmax(0,
 /* scrollbars in panels: thin and quiet */
 .panel-body { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink-3) 35%, transparent) transparent; }
 #sceneSuggest:not([hidden]) { width: fit-content; max-width: 100%; justify-self: start; align-self: flex-start; margin-right: auto; }
+
+/* ---------------------------------------------------------------- Start a broadcast: the thumbnail card */
+.wiz-thumb-card { display: grid; gap: 10px; padding: 12px; border-radius: 16px; border: 1px solid var(--glass-border); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%), var(--fill); }
+.wt-head { display: flex; align-items: center; gap: 10px; }
+.wt-head > div { display: grid; flex: 1; min-width: 0; }
+.wt-head b { font-size: 14px; }
+.wt-head small { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wt-plats { display: flex; gap: 4px; }
+.wt-plats i { font: 800 9.5px/1 var(--font-ui); font-style: normal; padding: 4px 6px; border-radius: 6px; color: #fff; background: color-mix(in srgb, var(--c) 75%, #000); letter-spacing: 0.02em; }
+.wt-canvas { position: relative; }
+.wt-canvas .w-thumb { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 12px; box-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.8); }
+.wt-badge { position: absolute; left: 10px; top: 10px; padding: 3px 9px; border-radius: 999px; font: 700 11px var(--font-ui); color: #fff; background: rgba(0, 0, 0, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.wt-badge[hidden] { display: none; }
+.wt-main { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wt-main .btn { height: 40px; justify-content: center; font-size: 13px; }
+.wt-main #wUploadClear { grid-column: 1 / -1; height: 28px; }
+.wt-main #wUploadClear[hidden] { display: none; }
+.wt-make { border-radius: 10px; }
+.wt-make > summary { cursor: pointer; list-style: none; font-size: 12px; font-weight: 600; color: var(--ink-2); padding: 4px 2px; }
+.wt-make > summary::-webkit-details-marker { display: none; }
+.wt-make > summary::before { content: "+ "; color: var(--accent); font-weight: 800; }
+.wt-make[open] > summary::before { content: "− "; }
+.wt-make.dim > summary { opacity: 0.6; }
+.wt-make-body { display: grid; gap: 8px; padding-top: 6px; }
+.wt-out { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 2px; border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.wt-out .hint { margin: 0 0 0 auto; font-size: 11px; }

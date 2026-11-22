@@ -1,7 +1,7 @@
 import { createAudioChain, createVideoFx, needsProcessing } from './fx.js';
 import { initPanels } from './panels.js';
 import { icon, busy, togglePopover } from './ui.js';
-import { configureGoogle, googleConfigured, googleSignedIn, googleToken, googleSignOut, saveToDrive, findLiveChat, pollLiveChat, ytModerate, googleSignInToken } from './google.js';
+import { configureGoogle, googleConfigured, googleSignedIn, googleToken, googleSignOut, saveToDrive, findLiveChat, pollLiveChat, ytModerate, googleSignInToken, setYouTubeThumbnail } from './google.js';
 import { TIERS, tierOf, drawOrder, isSystem, ensureSystem, blockerFor, overlaps, snapMove, snapResize, resolve, SAFE, GRID, PRESETS, materialize } from './layout.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
@@ -4404,7 +4404,7 @@ $('#aidUse').addEventListener('click', async () => {
 
 // The broadcast dialog's targets and how it uses a result.
 async function wizApply(t, data) {
-  if (t === 'cover') { wiz.upload = null; wiz.aiBg = await loadImg(data); drawThumb(); return; }
+  if (t === 'cover') { wiz.upload = null; wiz.aiBg = await loadImg(data); drawThumb(); thumbState(); return; }
   const imgs = savedBrandImgs();
   if (t === 'logo') { wiz.logoData = data; imgs.logo = data; } else { wiz.overlayData = data; imgs.overlay = data; }
   try { rawSet('brandImgs', imgs); } catch {}
@@ -4479,12 +4479,33 @@ $('#wSnap').onclick = async () => {
   const v = $(`#card-${cssId(myId())} video`) || $('#previewVideo');
   if (!v?.videoWidth) return toast('Turn your camera on in the green room first, or upload a photo.', { err: true });
   const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
-  c.getContext('2d').drawImage(v, 0, 0); wiz.photo = await loadImg(c.toDataURL('image/jpeg', .9)); wiz.upload = null; drawThumb();
+  c.getContext('2d').drawImage(v, 0, 0); wiz.photo = await loadImg(c.toDataURL('image/jpeg', .9)); wiz.upload = null; drawThumb(); thumbState();
 };
 $('#wPhotoPick').onclick = () => $('#wPhotoFile').click();
-$('#wPhotoFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.photo = await loadImg(await compressImage(f)); wiz.upload = null; drawThumb(); } };
+$('#wPhotoFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.photo = await loadImg(await compressImage(f)); wiz.upload = null; drawThumb(); thumbState(); } };
 $('#wUploadPick').onclick = () => $('#wUploadFile').click();
-$('#wUploadFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.upload = await loadImg(await compressImage(f)); drawThumb(); } };
+$('#wUploadFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { wiz.upload = await loadImg(await compressImage(f)); drawThumb(); thumbState(); } };
+$('#wUploadClear').onclick = () => { wiz.upload = null; drawThumb(); thumbState(); };
+/** The thumbnail card shows whether it's your own upload (used exactly as is) or one made here. */
+function thumbState() {
+  const up = !!wiz.upload;
+  $('#wThumbBadge').hidden = !up; $('#wUploadClear').hidden = !up;
+  $('#wThumbMake').classList.toggle('dim', up);
+}
+const thumbBlob = () => new Promise((res) => tc.toBlob((b) => res(b), 'image/jpeg', 0.9));
+$('#wThumbDl').onclick = async () => {
+  const b = await thumbBlob(); const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+  a.download = (($('#wTitle')?.value || 'thumbnail').trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'thumbnail') + '.jpg'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Thumbnail saved. Upload it on Twitch, Kick or anywhere else.');
+};
+$('#wThumbYt').onclick = async () => {
+  if (!googleConfigured()) return toast('YouTube isn’t set up on this site yet. Download the thumbnail and add it in YouTube Studio.', { err: true });
+  const btn = $('#wThumbYt'); busy(btn);
+  try { const t = await setYouTubeThumbnail(await thumbBlob()); toast(`Thumbnail set on YouTube for “${t}”.`); }
+  catch (e) { toast(e.message || 'YouTube didn’t take the thumbnail.', { err: true, ms: 7000 }); }
+  finally { busy(btn, false); }
+};
 function cover(gx, img, x, y, w, h) {
   const k = Math.max(w / img.naturalWidth, h / img.naturalHeight), dw = img.naturalWidth * k, dh = img.naturalHeight * k;
   gx.save(); gx.beginPath(); gx.rect(x, y, w, h); gx.clip(); gx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); gx.restore();
