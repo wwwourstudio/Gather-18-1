@@ -22,7 +22,7 @@ const gatherServer = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (u.pathname === '/api/ai' && req.method === 'POST') {
     let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 512 * 1024) req.destroy(); });
+    req.on('data', (c) => { raw += c; if (raw.length > 3 * 1024 * 1024) req.destroy(); }); // room for up to 3 reference images
     req.on('end', () => { let body = {}; try { body = JSON.parse(raw || '{}'); } catch {} handleAI(req, res, body); });
     return;
   }

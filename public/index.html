@@ -638,6 +638,15 @@
       <section class="panel" data-panel="brand" hidden>
         <header class="panel-head"><h2>Look</h2><div class="seg block sm look-seg" role="tablist" aria-label="Look"><button type="button" role="tab" data-look="layouts">Layout</button><button type="button" role="tab" data-look="brand" class="on" aria-selected="true">Brand</button><button type="button" role="tab" data-look="overlays">Overlays</button></div></header>
         <div class="panel-body form">
+          <div class="brand-kit" id="brandKit" aria-label="Your brand kit">
+            <div class="bk-head"><b>Brand kit</b><button type="button" class="btn sm primary bk-ai" id="brandKitAi"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI designer</button></div>
+            <div class="bk-row">
+              <button type="button" class="bk-item" data-kit="colour"><span class="bk-thumb"></span><small>Colour</small></button>
+              <button type="button" class="bk-item" data-kit="backdrop"><span class="bk-thumb empty"></span><small>Backdrop</small></button>
+              <button type="button" class="bk-item" data-kit="logo"><span class="bk-thumb empty"></span><small>Logo</small></button>
+              <button type="button" class="bk-item" data-kit="overlay"><span class="bk-thumb empty"></span><small>Overlay</small></button>
+            </div>
+          </div>
           <details class="psec" data-sec="colour" open><summary><b>Stage palette &amp; colour</b></summary><div class="psec-body">
           <div class="fld"><span>Brand accent colour <em>syncs studio, buttons &amp; Watch Party</em></span>
             <div class="swatches" id="swatches">
@@ -663,9 +672,8 @@
           <div class="look-asset-card">
             <img id="bgImgPreview" class="look-bg-thumb" alt="Stage background preview" hidden>
             <div class="look-ai-row">
-              <input class="input sm" id="bgImgPrompt" maxlength="140" placeholder="Describe AI backdrop, e.g. neon Austin skyline…" aria-label="AI background prompt">
               <div class="row">
-                <button type="button" class="btn sm primary" id="bgImgAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI backdrop</button>
+                <button type="button" class="btn sm primary" id="bgImgAiBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Design with AI</button>
                 <button type="button" class="btn sm" id="bgImgPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload</button>
                 <button type="button" class="btn ghost sm" id="bgImgClear" hidden>Remove</button>
               </div>
@@ -680,9 +688,8 @@
               <img id="logoPreviewLook" class="look-logo-thumb" alt="Logo preview">
               <div class="grow form" style="gap:4px">
                 <div class="look-ai-row">
-                  <input class="input sm" id="logoPrompt" maxlength="80" placeholder="Badge text or icon vibe…" aria-label="Logo prompt">
                   <div class="row">
-                    <button type="button" class="btn sm primary" id="logoAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI logo</button>
+                    <button type="button" class="btn sm primary" id="logoAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Design with AI</button>
                     <button type="button" class="btn sm" id="logoPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload</button>
                     <button type="button" class="btn ghost sm" id="logoClear" hidden>Remove</button>
                   </div>
@@ -741,9 +748,8 @@
             <div class="look-asset-card">
               <img id="overlayPreviewLook" class="look-overlay-thumb" alt="Full-stage overlay preview">
               <div class="look-ai-row">
-                <input class="input sm" id="overlayPrompt" maxlength="140" placeholder="Overlay theme, e.g. minimalist HUD &amp; live badge…" aria-label="AI overlay prompt">
                 <div class="row">
-                  <button type="button" class="btn sm primary" id="overlayAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI overlay</button>
+                  <button type="button" class="btn sm primary" id="overlayAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Design with AI</button>
                   <button type="button" class="btn sm" id="overlayPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload PNG</button>
                   <button type="button" class="btn ghost sm" id="overlayClear" hidden>Remove</button>
                 </div>
@@ -1360,6 +1366,49 @@
 </dialog>
 
 <!-- ================= UNIFIED GO LIVE & SCHEDULE LAUNCHPAD ================= -->
+<dialog class="modal" id="aidDlg" aria-labelledby="aidH">
+  <div class="modal-card glass raised aid-card">
+    <header class="aid-head">
+      <span class="aid-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-sparkles"/></svg></span>
+      <div class="aid-hd"><h2 id="aidH">AI designer</h2><span class="wiz-ai-who" id="aidWho">Gemini</span></div>
+      <button type="button" class="wiz-link" id="aidKeyBtn" aria-expanded="false" aria-controls="aidKeyBar">Key</button>
+      <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    </header>
+    <div class="aid-body">
+      <section class="aid-stage" aria-label="Preview">
+        <div class="aid-preview" id="aidPreview">
+          <img id="aidImg" alt="Generated design" hidden>
+          <div class="aid-empty" id="aidEmpty"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>Describe it, add references, generate.</b><span>Drop screenshots or mock-ups of what you like and the AI follows them.</span></div>
+          <div class="aid-busy" id="aidBusy" hidden><i></i><span>Designing…</span></div>
+        </div>
+        <div class="aid-history" id="aidHistory" aria-label="Earlier results" hidden></div>
+      </section>
+      <section class="aid-ctrl" aria-label="Design controls">
+        <div class="seg sm block aid-target" id="aidTarget" role="tablist" aria-label="What to make"></div>
+        <label class="fld"><span>Describe it</span><textarea class="input" id="aidPrompt" rows="3" maxlength="600"></textarea></label>
+        <div class="wiz-ai-chips" id="aidChips" role="group" aria-label="Style"></div>
+        <div class="aid-refs-wrap">
+          <div class="aid-refs-h"><b>Reference images</b><small>screenshots, mock-ups or photos · up to 3</small><button type="button" class="wiz-link" id="aidUseLogo" hidden>+ my logo</button></div>
+          <div class="aid-refs" id="aidRefs"></div>
+          <input type="file" id="aidFile" accept="image/*" multiple hidden>
+        </div>
+        <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="aidBrand" checked><span>Use my brand colour</span></label>
+        <div class="aid-keybar" id="aidKeyBar" hidden>
+          <div class="wiz-ai-keyrow">
+            <select class="input sm" id="aidProv" aria-label="Image AI"><option value="gemini">Gemini</option><option value="openai">ChatGPT</option><option value="grok">Grok</option></select>
+            <input class="input sm" id="aidKey" type="password" autocomplete="off" spellcheck="false" placeholder="Your API key">
+            <button type="button" class="btn sm" id="aidKeySave">Save</button>
+          </div>
+          <p class="hint" id="aidKeyNote"></p>
+        </div>
+        <button type="button" class="btn primary aid-go" id="aidGo"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><span>Generate</span></button>
+        <button type="button" class="btn sm ghost" id="aidTemplate" hidden>No key? Use a quick template</button>
+      </section>
+    </div>
+    <footer class="aid-foot"><span class="hint">Tip: ⌘/Ctrl + Enter generates. Paste an image anywhere here to add it.</span><span class="grow"></span><button type="button" class="btn primary" id="aidUse" disabled>Use this</button></footer>
+  </div>
+</dialog>
+
 <dialog class="modal" id="wizDlg" aria-labelledby="wH">
   <div class="modal-card glass raised wide wiz-card">
     <div class="inv-glow" aria-hidden="true"></div>
@@ -1413,42 +1462,6 @@
             <div class="social-matrix" id="wizSocialMatrix"></div>
           </div>
 
-          <!-- Create with AI: one place for covers, logos and overlays (Gemini by default) -->
-          <section class="wiz-ai closed" id="wAi" aria-labelledby="wAiH">
-            <header class="wiz-ai-h">
-              <span class="wiz-ai-ic" aria-hidden="true"><svg class="i sm"><use href="/icons.svg#i-sparkles"/></svg></span>
-              <button type="button" class="wiz-ai-toggle" id="wAiToggle" aria-expanded="false" aria-controls="wAiTarget"><b id="wAiH">Create with AI</b><span class="wiz-ai-tease">cover, logo or overlay</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg></button>
-              <span class="wiz-ai-who" id="wAiWho">Gemini</span>
-              <button type="button" class="wiz-link" id="wAiSetup" aria-expanded="false" aria-controls="wAiKeyBar">Key</button>
-            </header>
-            <div class="seg sm block wiz-ai-target" id="wAiTarget" role="tablist" aria-label="What to make">
-              <button type="button" role="tab" data-ai="cover" aria-selected="true" class="on">Cover</button>
-              <button type="button" role="tab" data-ai="logo" aria-selected="false">Logo</button>
-              <button type="button" role="tab" data-ai="overlay" aria-selected="false">Overlay</button>
-            </div>
-            <textarea class="input wiz-ai-prompt" id="wAiPrompt" rows="2" maxlength="600" aria-label="Describe what you want"></textarea>
-            <div class="wiz-ai-chips" id="wAiChips" role="group" aria-label="Style"></div>
-            <div class="wiz-ai-row">
-              <label class="wiz-ai-ref" id="wAiRefWrap" hidden><input type="checkbox" id="wAiRef"> <span id="wAiRefTxt">Use my photo as a reference</span></label>
-              <span class="grow"></span>
-              <button type="button" class="btn primary sm" id="wAiGo"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><span>Generate</span></button>
-            </div>
-            <div class="wiz-ai-results" id="wAiResults" aria-label="Recent results" hidden></div>
-            <div class="wiz-ai-keybar" id="wAiKeyBar" hidden>
-              <div class="wiz-ai-keyrow">
-                <select class="input sm" id="wAiProv" aria-label="AI provider">
-                  <option value="gemini">Gemini</option>
-                  <option value="openai">ChatGPT</option>
-                  <option value="grok">Grok</option>
-                  <option value="claude">Claude (text only)</option>
-                </select>
-                <input class="input sm" id="wAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Your API key">
-                <button type="button" class="btn sm" id="wAiKeySave">Save</button>
-              </div>
-              <p class="hint" id="wAiNote"></p>
-              <button type="button" class="btn sm ghost wiz-ai-kit" id="wAiKitBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg>Make the whole kit: title, tags, cover, logo &amp; overlay</button>
-            </div>
-          </section>
         </div>
 
         <div class="wiz-col-media">
@@ -1500,6 +1513,8 @@
 
       <p class="err" id="wErr" hidden></p>
       <div class="w-nav">
+        <button type="button" class="btn sm wiz-kit-btn" id="wAiKitBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Make my whole kit</button>
+        <span class="wiz-ai-who" id="wAiStatus">Gemini</span>
         <button type="button" class="btn sm ghost" id="wSaveDefaults"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-check"/></svg>Save defaults</button>
         <span class="grow"></span>
         <button type="button" class="btn primary lg" id="wGo">Go Live Now</button>
