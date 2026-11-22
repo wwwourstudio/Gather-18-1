@@ -219,7 +219,7 @@
         <!-- 1/3 Creator Profile & Subscribe Card -->
         <article class="wv-creator-card glass" id="wCreatorCard" aria-label="Streamer profile">
           <div class="wv-creator-top">
-            <span class="wv-creator-logo" id="wCreatorLogo" aria-hidden="true"></span>
+            <span class="wv-creator-ring" aria-hidden="true"><span class="wv-creator-logo" id="wCreatorLogo"></span><i class="wv-creator-live">LIVE</i></span>
             <div class="wv-creator-id">
               <div class="wv-creator-row">
                 <b id="wCreatorName">Broadcast Host</b>
@@ -227,10 +227,12 @@
               </div>
               <span class="wv-creator-handle num" id="wCreatorHandle"></span>
             </div>
+            <button type="button" class="icon-btn sm wv-creator-share" id="wCardShare" aria-label="Share this show" data-tip="Share"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-share-2"/></svg></button>
           </div>
           <h2 class="wv-creator-title" id="wCreatorTitle">Live show</h2>
           <div class="wv-creator-tags" id="wCreatorTags" hidden></div>
           <p class="wv-creator-about" id="wCreatorAbout"></p>
+          <div class="wv-creator-here" id="wCreatorHere" hidden><span class="wv-creator-avs" id="wCreatorAvs" aria-hidden="true"></span><span class="wv-creator-heren" id="wCreatorHereN"></span></div>
           <div class="wv-creator-foot">
             <button type="button" class="btn primary sm wv-subscribe-card" id="wSubCard" hidden>
               <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg>
@@ -245,7 +247,11 @@
         <section class="wv-showcase-card glass" id="wShowcaseCard" aria-label="Stream notices and showcase">
           <header class="wv-sc-head">
             <div class="wv-sc-tabs" role="tablist" aria-label="Showcase views">
-              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="notices" aria-selected="true">
+              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="party" aria-selected="true">
+                <span>Party</span>
+                <b class="wv-sc-cnt num" id="wCntParty" hidden></b>
+              </button>
+              <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="notices" aria-selected="false">
                 <span>Notices &amp; Ads</span>
                 <b class="wv-sc-cnt num" id="wCntNotices" hidden>0</b>
               </button>
@@ -257,11 +263,28 @@
                 <span>AI Spotlight</span>
                 <b class="wv-sc-cnt" id="wCntSpot" hidden>AI</b>
               </button>
+              <i class="wv-sc-ind" id="wScInd" aria-hidden="true"></i>
             </div>
           </header>
 
           <div class="wv-sc-body">
-            <div class="wv-sc-pane" id="wPaneNotices" role="tabpanel">
+            <div class="wv-sc-pane wv-party" id="wPaneParty" role="tabpanel">
+              <section class="wv-pt wv-pt-hype" aria-label="Hype meter">
+                <div class="wv-pt-h"><b>Hype meter</b><em class="num" id="wPtHypeLvl">Chill</em></div>
+                <div class="wv-pt-meter" role="meter" aria-label="Room hype" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="wPtHypeMeter"><i id="wPtHypeBar"></i></div>
+                <button type="button" class="wv-pt-hypeit" id="wPtHypeIt"><span aria-hidden="true">🔥</span> Hype it</button>
+              </section>
+              <section class="wv-pt wv-pt-fans" aria-label="Top fans">
+                <div class="wv-pt-h"><b>Top fans</b><em id="wPtFansSub">this show</em></div>
+                <ol class="wv-pt-board" id="wPtBoard"></ol>
+              </section>
+              <section class="wv-pt wv-pt-me" aria-label="Your watch party">
+                <div class="wv-pt-h"><b>You</b><em class="num" id="wPtXp">0 XP</em></div>
+                <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">5 min to “Tuned in”</small></div></div>
+                <div class="wv-pt-prog"><i id="wPtProg"></i></div>
+              </section>
+            </div>
+            <div class="wv-sc-pane" id="wPaneNotices" role="tabpanel" hidden>
               <div class="wv-notices-list" id="wNoticesList"></div>
             </div>
             <div class="wv-sc-pane" id="wPaneNext" role="tabpanel" hidden>

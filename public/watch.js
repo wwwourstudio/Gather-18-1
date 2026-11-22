@@ -310,6 +310,7 @@ function render(info) {
   renderShopUI(info);
   renderMode(info);
   renderInteractive(info);
+  renderParty(info);
   updateStageStatus(info);
   renderHype(info);
   renderMoodMeter(info);
@@ -809,6 +810,11 @@ function renderHype(info) {
   $('#wHypeBar').style.width = lv + '%';
   $('#wHypeLvl').textContent = lv >= 100 ? 'MAX' : lv >= 60 ? 'Hot' : lv >= 25 ? 'Warm' : 'Chill';
   $('#wHype').classList.toggle('max', lv >= 100);
+  if ($('#wPtHypeBar')) {
+    $('#wPtHypeBar').style.width = lv + '%'; $('#wPtHypeMeter').setAttribute('aria-valuenow', String(lv));
+    $('#wPtHypeLvl').textContent = lv >= 100 ? 'MAX 🔥' : lv >= 60 ? 'On fire' : lv >= 25 ? 'Warming up' : 'Chill';
+    $('.wv-pt-hype').classList.toggle('max', lv >= 100); $('.wv-pt-hype').classList.toggle('hot', lv >= 60);
+  }
 }
 
 // ---------------------------------------------------------------- chat
@@ -1520,6 +1526,8 @@ W.wagers = store.get('wagers:' + code, {});
 function awardXp(n) {
   W.xp = Math.max(0, W.xp + n); store.set(xpKey(), W.xp);
   const b = $('#wXpBadge'); if (b) { b.textContent = `${W.xp.toLocaleString()} XP`; b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+  renderPartyMe();
+  const px = $('#wPtXp'); if (px) { px.classList.remove('bump'); void px.offsetWidth; px.classList.add('bump'); }
 }
 function placeWager(p, opt) {
   if (p.kind !== 'predict') { awardXp(10); return; }
@@ -1580,6 +1588,58 @@ function renderArena(info) {
     }));
   }
 }
+// ---------------------------------------------------------------- the watch party: top fans, your XP, watch-time badges
+const BADGES = [[0, '👀', 'Just arrived'], [5, '📺', 'Tuned in'], [15, '⭐', 'Regular'], [30, '💎', 'Superfan'], [60, '👑', 'Legend']];
+W.watched = Number(store.get('watched:' + code, 0)) || 0;
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !W.info?.found) return;
+  W.watched += 1; store.set('watched:' + code, W.watched);
+  const now = BADGES.filter(([m]) => W.watched >= m).pop();
+  if (now[0] === W.watched && W.watched > 0) toast(`${now[1]} New badge: ${now[2]}`);
+  awardXp(1);
+}, 60_000);
+function renderPartyMe() {
+  if (!$('#wPtXp')) return;
+  $('#wPtXp').textContent = `${W.xp.toLocaleString()} XP`;
+  const i = BADGES.filter(([m]) => W.watched >= m).length - 1, [m0, ic, name] = BADGES[i], nxt = BADGES[i + 1];
+  $('#wPtBadgeIc').textContent = ic; $('#wPtBadgeName').textContent = name;
+  $('#wPtBadgeNext').textContent = nxt ? `${nxt[0] - W.watched} min to “${nxt[2]}”` : `${W.watched} min watched · top badge`;
+  $('#wPtProg').style.width = (nxt ? Math.round((W.watched - m0) / (nxt[0] - m0) * 100) : 100) + '%';
+}
+function renderParty(info) {
+  // Top fans: super chats count most, then chat; from what this show's chat holds right now.
+  const by = new Map();
+  for (const m of W.recentChat || []) {
+    if (!m.name || m.src === 'studio' || m.host) continue;
+    const r = by.get(m.name) || { name: m.name, paid: 0, msgs: 0 };
+    if (m.paid && m.status !== 'pending') r.paid += Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0; else r.msgs += 1;
+    by.set(m.name, r);
+  }
+  const rows = [...by.values()].map((r) => ({ ...r, score: r.paid * 10 + r.msgs })).sort((a, b) => b.score - a.score);
+  const me = sess?.named ? sess.name : ACCT?.user?.name || '';
+  const myRank = me ? rows.findIndex((r) => r.name === me) : -1;
+  const key = JSON.stringify([rows.slice(0, 3), myRank]);
+  if ($('#wPtBoard').dataset.k !== key) {
+    $('#wPtBoard').dataset.k = key;
+    const medal = ['🥇', '🥈', '🥉'];
+    const items = rows.slice(0, 3).map((r, i) => {
+      const li = document.createElement('li'); if (r.name === me) li.className = 'me';
+      li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal', textContent: medal[i] }), Object.assign(document.createElement('b'), { textContent: r.name }),
+        Object.assign(document.createElement('em'), { className: 'num', textContent: r.paid ? `$${Number.isInteger(r.paid) ? r.paid : r.paid.toFixed(2)}` : `${r.msgs} msg${r.msgs === 1 ? '' : 's'}` }));
+      return li;
+    });
+    if (myRank >= 3) { const li = document.createElement('li'); li.className = 'me'; li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal num', textContent: `#${myRank + 1}` }), Object.assign(document.createElement('b'), { textContent: 'You' }), Object.assign(document.createElement('em'), { className: 'num', textContent: `${rows[myRank].msgs} msgs` })); items.push(li); }
+    if (!items.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Say hi or send a super chat to top the board.'; items.push(li); }
+    $('#wPtBoard').replaceChildren(...items);
+  }
+  $('#wCntParty').hidden = !(info.viewers > 1); $('#wCntParty').textContent = info.viewers > 1 ? String(info.viewers) : '';
+  renderPartyMe();
+}
+$('#wPtHypeIt')?.addEventListener('click', (e) => {
+  const fire = [...$$('#wReactDock button')].find((b) => b.textContent.includes('🔥')) || $('#wHeart');
+  fire?.click();
+  const b = e.currentTarget; b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+});
 function renderPlayExtras(info) {
   const qi = info.queue || {}, up = qi.up || [];
   $('#wModeSub').textContent = qi.open ? (qi.size ? `${qi.size} in the play-with-me line` : 'The play-with-me line is open') + (info.poll && info.poll.until > Date.now() ? ' · prediction open' : '') : info.poll && info.poll.until > Date.now() ? 'Prediction open: make your call' : 'Polls, predictions and the play-with-me line land here';
@@ -2122,6 +2182,15 @@ function renderCreatorCard(info) {
   $('#wCreatorHandle').textContent = h.handle ? `@${h.handle}` : (info.found ? 'Live broadcast room' : 'Watch party');
   $('#wCreatorTitle').textContent = info.title || 'Live show';
   $('#wCreatorAbout').textContent = w.about || 'Tune in, drop live reactions in chat, and catch real-time show notices.';
+  const here = info.found ? (info.here || []) : [], nView = info.found ? info.viewers || 0 : 0;
+  $('#wCreatorHere').hidden = nView < 1;
+  const hk = here.join('|') + nView;
+  if ($('#wCreatorHere').dataset.k !== hk) {
+    $('#wCreatorHere').dataset.k = hk;
+    $('#wCreatorAvs').replaceChildren(...here.slice(0, 5).map((nm) => { const a = document.createElement('i'); a.textContent = initialsOf(nm); a.title = nm; a.style.background = nameColor(nm); return a; }));
+    const others = Math.max(0, nView - Math.min(5, here.length));
+    $('#wCreatorHereN').textContent = nView <= 1 ? 'You’re first here · share the link to start the party' : here.length ? `${here.slice(0, 2).join(', ')}${others ? ` +${others.toLocaleString()}` : ''} watching with you` : `${(nView - 1).toLocaleString()} watching with you`;
+  }
 
   const tags = Array.isArray(info.hashtags) ? info.hashtags.filter(Boolean).slice(0, 8) : [];
   const tagsBox = $('#wCreatorTags');
@@ -2155,6 +2224,7 @@ function renderCreatorCard(info) {
   }
 }
 $('#wCardMoreBtn')?.addEventListener('click', () => openHostDrawer(true));
+$('#wCardShare')?.addEventListener('click', () => $('#wShareTop').click());
 
 function setShowcaseTab(tab) {
   W.scTab = tab;
@@ -2162,10 +2232,19 @@ function setShowcaseTab(tab) {
     const on = b.dataset.scTab === tab;
     b.setAttribute('aria-selected', String(on));
   });
+  if ($('#wPaneParty')) $('#wPaneParty').hidden = tab !== 'party';
   if ($('#wPaneNotices')) $('#wPaneNotices').hidden = tab !== 'notices';
   if ($('#wPaneNext')) $('#wPaneNext').hidden = tab !== 'next';
   if ($('#wPaneSpotlight')) $('#wPaneSpotlight').hidden = tab !== 'spotlight';
+  moveScInd();
 }
+// The gradient underline glides to the selected tab.
+function moveScInd() {
+  const ind = $('#wScInd'), on = $('[data-sc-tab][aria-selected="true"]'); if (!ind || !on) return;
+  ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`;
+}
+addEventListener('resize', () => moveScInd());
+requestAnimationFrame(() => moveScInd());
 $$('[data-sc-tab]').forEach((b) => b.addEventListener('click', () => setShowcaseTab(b.dataset.scTab)));
 
 function renderShowcase(info) {

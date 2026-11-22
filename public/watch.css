@@ -2141,3 +2141,76 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-qa-m { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--ink-3); }
 .wv-qa-up { height: 22px; padding: 0 8px; border-radius: 6px; font: 700 11px var(--font-ui); color: var(--ink-2); background: rgba(255, 255, 255, 0.06); }
 .wv-qa-up[aria-pressed="true"] { color: #1a0b12; background: linear-gradient(120deg, var(--m1), var(--m2)); }
+
+/* ================================================================ under the video: host card & party, design pass */
+.wv-creator-card, .wv-showcase-card { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%), linear-gradient(160deg, rgba(16, 24, 48, 0.8), rgba(8, 12, 26, 0.86)); transition: border-color 0.3s, box-shadow 0.3s; }
+.wv-creator-card:hover, .wv-showcase-card:hover { border-color: rgba(148, 175, 255, 0.26); }
+.wv-creator-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.wv-creator-ring { position: relative; flex: none; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; padding: 2px; background: rgba(148, 175, 255, 0.18); }
+.wv-creator-ring .wv-creator-logo { width: 52px; height: 52px; border-radius: 14px; }
+.wv.on-air .wv-creator-ring { background: conic-gradient(from var(--wv-ring, 0deg), #f43f5e, #f59e0b, #a855f7, #3b82f6, #f43f5e); animation: wv-ring 4s linear infinite; }
+@property --wv-ring { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes wv-ring { to { --wv-ring: 360deg; } }
+.wv-creator-live { position: absolute; left: 50%; bottom: -7px; translate: -50% 0; padding: 1px 6px; border-radius: 5px; font: 800 9px/1.4 var(--font-ui); letter-spacing: 0.08em; font-style: normal; color: #fff; background: #e11d48; box-shadow: 0 0 0 2px #0b1020, 0 4px 10px -2px rgba(225, 29, 72, 0.7); opacity: 0; transform: scale(0.8); transition: opacity 0.3s, transform 0.3s; }
+.wv.on-air .wv-creator-live { opacity: 1; transform: none; }
+.wv-creator-id { flex: 1; min-width: 0; }
+.wv-creator-share { flex: none; }
+.wv-creator-title { font-size: clamp(16px, 1.5vw, 19px); letter-spacing: -0.015em; }
+.wv-creator-here { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--ink-2); }
+.wv-creator-here[hidden] { display: none; }
+.wv-creator-avs { display: inline-flex; flex: none; }
+.wv-creator-avs i { width: 22px; height: 22px; margin-left: -6px; display: grid; place-items: center; border-radius: 50%; font: 700 9.5px var(--font-ui); font-style: normal; color: #fff; box-shadow: 0 0 0 2px #0b1020; }
+.wv-creator-avs i:first-child { margin-left: 0; }
+.wv-creator-heren { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-creator-here::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); animation: wv-here-ping 2s infinite; order: -1; }
+@keyframes wv-here-ping { 70% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+.wv-subscribe-card { background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #a855f7)); border-color: transparent; box-shadow: 0 10px 24px -12px var(--accent); }
+
+/* tabs: pill row with a gliding gradient underline */
+.wv-sc-tabs { position: relative; }
+.wv-sc-tab[aria-selected="true"]::after { opacity: 0 !important; }
+.wv-sc-ind { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--accent), #a855f7, #f43f5e); box-shadow: 0 0 12px -1px color-mix(in srgb, var(--accent) 70%, transparent); transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.25, 1), width 0.35s cubic-bezier(0.2, 0.9, 0.25, 1); pointer-events: none; }
+.wv-sc-pane:not([hidden]) { animation: wv-pane-in 0.32s var(--ease-out); }
+@keyframes wv-pane-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* party tiles */
+.wv-party { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 2px; }
+.wv-party[hidden] { display: none; }
+.wv-pt { position: relative; display: grid; align-content: start; gap: 8px; min-width: 0; padding: 11px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.035); box-shadow: inset 0 0 0 1px rgba(148, 175, 255, 0.12); overflow: hidden; transition: transform 0.25s var(--ease-out), box-shadow 0.25s; }
+.wv-pt:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px rgba(148, 175, 255, 0.22), 0 14px 30px -18px rgba(0, 0, 0, 0.9); }
+.wv-pt-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.wv-pt-h b { font: 700 12.5px var(--font-ui); color: var(--ink); }
+.wv-pt-h em { font: 700 11px var(--font-ui); font-style: normal; color: var(--ink-3); white-space: nowrap; }
+.wv-pt-meter { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.wv-pt-meter i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #3b82f6, #a855f7, #f43f5e, #f59e0b); background-size: 300% 100%; transition: width 0.6s var(--ease-out); animation: wv-hype-flow 3s linear infinite; }
+@keyframes wv-hype-flow { to { background-position: 300% 0; } }
+.wv-pt-hype.hot { box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.4), 0 0 30px -14px #f43f5e; }
+.wv-pt-hype.max { animation: wv-hype-shake 0.6s ease-in-out infinite; }
+@keyframes wv-hype-shake { 25% { transform: rotate(-0.6deg); } 75% { transform: rotate(0.6deg); } }
+.wv-pt-hype.hot .wv-pt-h em { color: #fb7185; }
+.wv-pt-hypeit { justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 9px; font: 800 12px var(--font-ui); color: #fff; background: linear-gradient(120deg, #f43f5e, #f59e0b); box-shadow: 0 8px 18px -10px #f43f5e; transition: transform 0.15s; }
+.wv-pt-hypeit:hover { transform: translateY(-1px) scale(1.03); }
+.wv-pt-hypeit.pop { animation: wv-pop 0.4s var(--ease-out); }
+@keyframes wv-pop { 40% { transform: scale(1.12); } }
+.wv-pt-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wv-pt-board li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: 12px; }
+.wv-pt-board li b { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-pt-board li em { font-style: normal; font-size: 11px; color: var(--ink-3); }
+.wv-pt-board li.me b { color: #fff; }
+.wv-pt-board li.me { padding: 2px 4px; margin: 0 -4px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.wv-pt-board li.empty { display: block; font-size: 11.5px; line-height: 1.4; color: var(--ink-3); }
+.wv-pt-medal { text-align: center; font-size: 14px; }
+.wv-pt-badge { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.wv-pt-badge > span { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 10px; font-size: 18px; background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 30%, transparent), rgba(168, 85, 247, 0.22)); }
+.wv-pt-badge div { display: grid; min-width: 0; }
+.wv-pt-badge b { font-size: 12.5px; color: var(--ink); }
+.wv-pt-badge small { font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-pt-prog { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.wv-pt-prog i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #a855f7); transition: width 0.6s var(--ease-out); }
+#wPtXp.bump { animation: wv-xp-bump 0.5s var(--ease-out); color: #fbbf24; }
+@media (max-width: 900px) { .wv-party { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) {
+  .wv.on-air .wv-creator-ring, .wv-creator-here::before, .wv-pt-meter i, .wv-pt-hype.max, .wv-sc-pane:not([hidden]) { animation: none; }
+  .wv-pt:hover { transform: none; }
+}
+@media (min-width: 901px) { .wv-below { align-items: stretch; } .wv-showcase-card { display: flex; flex-direction: column; } .wv-showcase-card .wv-sc-body { flex: 1; } }
