@@ -365,8 +365,10 @@
           <button type="button" class="btn sm primary" id="wStageAlertGo">Open Stage</button>
           <button type="button" class="icon-btn sm" id="wStageAlertX" aria-label="Dismiss alert"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
         </div>
+        <div class="wv-sctick" id="wScTick" hidden aria-label="Recent super chats"></div>
       </div>
 
+      <div class="wv-scpop" id="wScPop" hidden aria-live="assertive"></div>
       <ol class="wv-msgs" id="wMsgs" aria-live="polite">
         <li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:38%"></span><span class="sk sk-line sm" style="--w:82%"></span></li>
         <li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:30%"></span><span class="sk sk-line sm" style="--w:64%"></span></li>
@@ -460,7 +462,17 @@
               <button type="button" class="icon-btn sm" id="wTipX" aria-label="Close super chat"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
             </div>
             <div class="wv-tipamts" id="wTipAmts" role="radiogroup" aria-label="Amount"></div>
+            <div class="wv-tipmsg">
+              <textarea class="input" id="wTipMsg" rows="2" maxlength="200" placeholder="Your message (goes on screen with your super chat)" aria-label="Super chat message"></textarea>
+              <span class="wv-tipcount num" id="wTipCount">0/200</span>
+            </div>
+            <div class="wv-tipvoice" id="wTipVoice">
+              <button type="button" class="wv-tiprec" id="wTipRec" aria-label="Record a voice message"><span class="dot" aria-hidden="true"></span><span id="wTipRecLabel">Add a voice message</span><small id="wTipRecTime">up to 20 s</small></button>
+              <audio id="wTipRecPlay" controls hidden></audio>
+              <button type="button" class="icon-btn sm" id="wTipRecX" aria-label="Remove the voice message" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-trash-2"/></svg></button>
+            </div>
             <div class="wv-tipmethods" id="wTipMethods" role="radiogroup" aria-label="Pay with"></div>
+            <div class="wv-checkout" id="wCheckout" hidden></div>
             <label class="wv-bountysw" id="wBountyWrap"><input type="checkbox" id="wBounty"> <span><b>🎯 Make it a bounty</b><small>Your message becomes a challenge on stream until it’s done</small></span></label>
             <div class="wv-tipacts">
               <button type="button" class="btn primary wv-tippay" id="wTipPay">Pay</button>

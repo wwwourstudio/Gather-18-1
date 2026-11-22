@@ -91,8 +91,8 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     await signUp(w, 'Jordan'); // the message waiting in the box goes out once they're signed in
     const inStudio = await a.waitForFunction(() => [...document.querySelectorAll('#msgs .msg.ext')].some((li) => /Hello from the watch page/.test(li.textContent)), null, { timeout: 10000 }).then(() => true).catch(() => false);
     check('viewer chat reaches the studio chat', inStudio);
-    // Super chat right in the chat input: $ opens the tip tray, the typed message rides along.
-    await w.click('#wTipBtn'); await w.click('#wTipAmts button:has-text("$10")'); await w.fill('#wText', 'Shout-out!');
+    // Super chat right in the chat input: $ opens the tip tray with its own message box.
+    await w.click('#wTipBtn'); await w.click('#wTipAmts button:has-text("$10")'); await w.fill('#wTipMsg', 'Shout-out!');
     await w.evaluate(() => { window.open = () => null; }); // the payment app opens in a new tab; not reachable from the test sandbox
     check('super chat: send stays locked until the payment app was opened', await w.isDisabled('#wTipSend'));
     await w.click('#wTipPay'); await w.click('#wTipSend');
@@ -102,6 +102,10 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const onStage = await a.waitForFunction(() => window.__gather.state.featured?.paid === '$10', null, { timeout: 5000 }).then(() => true).catch(() => false);
     const public_ = await w.waitForFunction(() => [...document.querySelectorAll('#wMsgs li.paid')].some((li) => !li.classList.contains('pending') && /Shout-out/.test(li.textContent)), null, { timeout: 10000 }).then(() => true).catch(() => false);
     check('confirming puts it on stage with its amount and in everyone’s chat', onStage && public_);
+    check('confirming plays the super chat alert on the stream', await a.evaluate(() => { const x = window.__gather.state.scAlert; return x?.amount === 10 && x.name === 'Jordan' && /Shout-out/.test(x.text); }));
+    await a.waitForTimeout(700); await a.screenshot({ path: process.argv[2] + '/watch-sc-alert-studio.png' });
+    check('…and pops up in the viewer’s chat', await w.waitForSelector('#wScPop:not([hidden])', { timeout: 6000 }).then(() => true).catch(() => false));
+    await w.screenshot({ path: process.argv[2] + '/watch-sc-alert-viewer.png' });
     check('the page fits one screen (no page scroll)', await w.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
     const p = await mk({ width: 390, height: 844 }); await p.goto(B + '/w/' + sc2); await p.waitForTimeout(2500);
     check('on a phone the page fits one screen and the chat box is visible', await p.evaluate(() => { const r = document.querySelector('#wText').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && r.bottom <= innerHeight; }));

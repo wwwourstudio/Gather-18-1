@@ -1564,6 +1564,7 @@ function draw() {
   }
   if (!framed) drawFrame();
   drawChrome();
+  drawScAlert(t);
   if (sceneFade.active) {
     const raw = (t - sceneFade.from) / sceneFade.dur;
     if (raw >= 1 || fadeSnap.width !== W || fadeSnap.height !== H) sceneFade.active = false;
@@ -2505,6 +2506,93 @@ function drawTipEl(e) {
   g.fillText(wrapLines(handle, tw, 1)[0] || '', tx, r.y + r.h - pad - 4);
   g.restore();
 }
+// ---- super chat alert on the stream: a burst of the amount, who sent it and their message, ~6 s
+const SC_TIER = (a) => (a >= 50 ? ['#f43f5e', '#fb7185'] : a >= 20 ? ['#f59e0b', '#fbbf24'] : a >= 10 ? ['#22c55e', '#4ade80'] : ['#3b82f6', '#60a5fa']);
+const scAnim = { id: '', t0: 0, parts: [] };
+function drawScAlert(t) {
+  const a = S.state.scAlert;
+  if (!a?.id) return;
+  const life = 5200 + Math.min(3000, (a.text || '').length * 25);
+  if (Date.now() - (a.ts || 0) > life + 1500) return; // a stale alert from before this page loaded
+  if (scAnim.id !== a.id) {
+    scAnim.id = a.id; scAnim.t0 = t;
+    const n = Math.min(70, 24 + a.amount);
+    scAnim.parts = Array.from({ length: n }, () => ({ a: Math.random() * Math.PI * 2, v: 0.35 + Math.random() * 0.75, r: 4 + Math.random() * 7, spin: Math.random() * 6 - 3, hue: Math.random() }));
+  }
+  const el = t - scAnim.t0;
+  if (el > life) return;
+  const [c1, c2] = SC_TIER(a.amount);
+  const inK = Math.min(1, el / 520), outK = Math.max(0, (el - (life - 450)) / 450);
+  const ease = 1 - Math.pow(1 - inK, 3), pop = inK < 1 ? 0.6 + 0.4 * ease + Math.sin(inK * Math.PI) * 0.08 : 1;
+  const alpha = 1 - outK;
+  const cx = W / 2, cy = H * 0.3, k = Math.min(W / 1280, H / 720);
+  g.save();
+  // confetti burst from behind the card
+  for (const p of scAnim.parts) {
+    const d = Math.min(1, el / 1600), dist = (1 - Math.pow(1 - d, 2.4)) * p.v * 520 * k;
+    const x = cx + Math.cos(p.a) * dist, y = cy + Math.sin(p.a) * dist * 0.6 + d * d * 240 * k;
+    g.globalAlpha = Math.max(0, 1 - el / 2200) * alpha;
+    g.fillStyle = p.hue > 0.66 ? '#fff' : p.hue > 0.33 ? c2 : c1;
+    g.save(); g.translate(x, y); g.rotate(p.spin * d * 3); g.fillRect(-p.r * k, -p.r * 0.45 * k, p.r * 2 * k, p.r * 0.9 * k); g.restore();
+  }
+  g.globalAlpha = alpha;
+  g.translate(cx, cy - outK * 30 * k); g.scale(pop * k, pop * k);
+  const amount = money(a.amount);
+  const who = `${a.name} ${a.bounty ? 'set a bounty' : a.voice ? 'sent a voice super chat' : 'sent a super chat'}`;
+  g.font = '500 24px Inter, sans-serif';
+  const lines = a.text ? wrapLines(a.text, 640, 2) : [];
+  const cw = 720, ch = 168 + lines.length * 32, x0 = -cw / 2, y0 = -78;
+  g.shadowColor = c1; g.shadowBlur = 50;
+  const grd = g.createLinearGradient(x0, y0, x0 + cw, y0 + ch); grd.addColorStop(0, 'rgba(11,16,32,.94)'); grd.addColorStop(1, 'rgba(17,24,39,.88)');
+  g.fillStyle = grd; rr(x0, y0, cw, ch, 28); g.fill();
+  g.shadowBlur = 0; g.lineWidth = 3; g.strokeStyle = c2; rr(x0, y0, cw, ch, 28); g.stroke();
+  // the amount, with a shine sweeping across it
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = '900 84px Inter, sans-serif';
+  const ag = g.createLinearGradient(-200, 0, 200, 0); ag.addColorStop(0, '#ffffff'); ag.addColorStop(0.5, c2); ag.addColorStop(1, c1);
+  g.fillStyle = ag; g.fillText(amount, 0, 12);
+  const sweep = ((el % 2400) / 2400) * 600 - 300;
+  g.save(); g.globalCompositeOperation = 'source-atop'; const sh = g.createLinearGradient(sweep - 40, 0, sweep + 40, 0); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.5, 'rgba(255,255,255,.55)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillText(amount, 0, 12); g.restore();
+  g.fillStyle = '#fff'; g.font = '700 26px Inter, sans-serif'; g.fillText((a.voice ? '🎙 ' : a.bounty ? '🎯 ' : '') + who, 0, 54);
+  g.fillStyle = 'rgba(255,255,255,.88)'; g.font = '500 24px Inter, sans-serif';
+  lines.forEach((l, i) => g.fillText(l, 0, 96 + i * 32));
+  g.restore();
+}
+/** Show a super chat on the stream with its sound (into the program mix, so every platform hears it). */
+function superAlert(x) {
+  setStage({ scAlert: { id: x.id + ':' + Date.now().toString(36), name: x.name, amount: x.amount, text: x.text || '', voice: !!x.voice, bounty: !!x.bounty, ts: Date.now() } });
+  cashChime(x.amount);
+}
+function cashChime(amt) {
+  try {
+    const ctx = audioCtx(), out = ctx.createGain(); out.gain.value = 0.9;
+    const notes = amt >= 50 ? [784, 988, 1175, 1568, 1976] : amt >= 20 ? [784, 988, 1319, 1568] : [880, 1319, 1760];
+    const t0 = ctx.currentTime + 0.02;
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(), gn = ctx.createGain(), t = t0 + i * 0.075;
+      o.type = i % 2 ? 'triangle' : 'sine'; o.frequency.setValueAtTime(f, t);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.12, t + 0.015); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(gn).connect(out); o.start(t); o.stop(t + 0.55);
+    });
+    const mix = mixInMedia(out, { duck: false, monitor: true });
+    setTimeout(() => mix.dispose(), 1200);
+  } catch {}
+}
+/** A super chat's voice message: preview it (only you) or play it on air. */
+const scVoiceCache = new Map();
+let scVoicePlaying = null;
+async function playScVoice(x, onAir) {
+  try {
+    scVoicePlaying?.stop();
+    if (!scVoiceCache.has(x.id)) scVoiceCache.set(x.id, (await api('scVoice', { ...creds(), sc: x.id })).data);
+    const a = new Audio(scVoiceCache.get(x.id));
+    const mix = onAir ? mixInMedia(audioCtx().createMediaElementSource(a), { duck: false, monitor: true }) : null;
+    const stop = () => { try { a.pause(); } catch {} mix?.dispose(); if (scVoicePlaying?.a === a) scVoicePlaying = null; };
+    a.onended = stop; scVoicePlaying = { a, stop };
+    await a.play();
+    if (onAir) toast(`Playing ${x.name}’s voice message on air.`);
+  } catch (e) { toast(e.message || 'Couldn’t play that voice message.', { err: true }); }
+}
+
 const featAnim = { key: '', t0: 0 };
 function drawFeatured(t, r) {
   const f = S.state.featured;
@@ -7314,12 +7402,19 @@ function closeAllViewers() { for (const vid of [...VIEW.keys()]) closeViewer(vid
 
 // Super chats: a claim until the host sees the money arrive in their own PayPal/Venmo/Cash App/Stripe.
 S.supers = new Map();
-const PAY_NAME = { paypal: 'PayPal', venmo: 'Venmo', cashapp: 'Cash App', stripe: 'Stripe' };
+const PAY_NAME = { paypal: 'PayPal', venmo: 'Venmo', cashapp: 'Cash App', stripe: 'Stripe', card: 'Card' };
 const money = (a) => '$' + (Number.isInteger(a) ? a : Number(a).toFixed(2));
 function gotSuperchat(item, fresh) {
-  if (!item?.id) return;
+  if (!item?.id || item.status === 'paying') return;
   const had = S.supers.has(item.id);
+  const was = S.supers.get(item.id)?.status;
   S.supers.set(item.id, item);
+  if (fresh && item.auto && item.status === 'confirmed' && was !== 'confirmed') { // paid by card on the watch page: on screen right away
+    toast(`💳 ${money(item.amount)} super chat from ${item.name}, paid by card.`, { ms: 8000 });
+    if (item.bounty) acceptBounty(item);
+    else setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || (item.voice ? 'Voice super chat' : 'Sent a super chat'), paid: money(item.amount) } });
+    superAlert(item);
+  }
   if (fresh && !had && item.status === 'pending') {
     chime();
     toast(`${money(item.amount)} super chat from ${item.name} on ${PAY_NAME[item.method]}. Check it arrived, then confirm.`, { ms: 12000, action: ['Review', () => { setTab('show'); $('#watchSec')?.scrollIntoView({ block: 'start', behavior: smooth() }); }] });
@@ -7345,12 +7440,14 @@ function superInChat(x) {
   const row = document.createElement('div'); row.className = 'row';
   const btn = (t, cls, act) => { const k = document.createElement('button'); k.type = 'button'; k.className = 'btn sm ' + cls; k.textContent = t; k.onclick = () => superAct(x, act); return k; };
   row.append(btn(x.bounty ? 'Payment arrived · accept bounty' : 'Payment arrived · show it', 'primary', 'confirm'), btn('Not received', 'ghost', 'dismiss'));
+  if (x.voice) { const v = document.createElement('button'); v.type = 'button'; v.className = 'btn sm ghost'; v.textContent = `▶ Voice ${x.voice}s (only you)`; v.onclick = () => playScVoice(x, false); row.append(v); }
   li.append(who, txt, note, row);
   appendLog(li);
 }
 function superAct(item, act) {
   wsSend({ type: 'superchat', id: item.id, do: act });
   item.status = { confirm: 'confirmed', dismiss: 'dismissed', answered: 'answered' }[act];
+  if (act === 'confirm') superAlert(item);
   if (act === 'confirm' && item.bounty) acceptBounty(item);
   else if (act === 'confirm') setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || 'Sent a super chat', paid: money(item.amount) } });
   if ((act === 'answered' || act === 'dismiss') && S.state.featured?.id === 'w-' + item.id) setStage({ featured: null });
@@ -7427,13 +7524,16 @@ function renderSupers() {
     const top = document.createElement('div'); top.className = 'sc-top';
     const amt = document.createElement('span'); amt.className = 'paid-amt'; amt.textContent = money(x.amount);
     const who = document.createElement('b'); who.textContent = x.name;
-    const via = document.createElement('small'); via.textContent = `${PAY_NAME[x.method]} · ${x.status === 'pending' ? 'not confirmed yet' : x.status}`;
+    const via = document.createElement('small'); via.textContent = `${PAY_NAME[x.method]} · ${x.auto ? 'paid by card' : x.status === 'pending' ? 'not confirmed yet' : x.status}`;
     top.append(amt, who, via);
     const txt = document.createElement('p'); txt.textContent = x.text || '(no message)';
     const row = document.createElement('div'); row.className = 'row';
     const btn = (t, cls, act) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => superAct(x, act); return b; };
     if (x.status === 'pending') row.append(btn('Payment arrived · show it', 'primary', 'confirm'), btn('Not received', 'ghost', 'dismiss'));
     else if (x.status === 'confirmed') row.append(btn('Answered', '', 'answered'));
+    const vb = (t, cls, onAir) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => playScVoice(x, onAir); return b; };
+    if (x.voice) row.append(vb(`▶ Voice ${x.voice}s`, 'ghost', false), ...(x.status !== 'pending' ? [vb('Play on air', '', true)] : []));
+    if (x.status !== 'pending') { const r = document.createElement('button'); r.type = 'button'; r.className = 'btn sm ghost'; r.textContent = 'Replay alert'; r.onclick = () => superAlert(x); row.append(r); }
     li.append(top, txt, row);
     return li;
   }));
@@ -7461,7 +7561,7 @@ function renderWatchSec() {
   for (const id of ['#wpCopy', '#wpCard', '#wpOpen']) $(id).disabled = !on;
   $('#wpCount').textContent = on && cfg.direct ? `${VIEW.size} of ${cfg.cap} watching directly` : '';
   for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpJoin', 'join'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id) && document.activeElement !== $(id)) $(id).checked = cfg[k] !== false && !!(cfg[k] ?? true);
-  for (const k of Object.keys(PAY_NAME)) { const el = $('#wpPay-' + k); if (document.activeElement !== el) el.value = cfg.pay[k] || ''; }
+  for (const k of Object.keys(PAY_NAME).filter((m) => m !== 'card')) { const el = $('#wpPay-' + k); if (document.activeElement !== el) el.value = cfg.pay[k] || ''; }
   if (document.activeElement !== $('#wpCap')) $('#wpCap').value = String(cfg.cap);
   if (document.activeElement !== $('#wpAbout')) $('#wpAbout').value = cfg.about || '';
   if ($('#wpLobby') && document.activeElement !== $('#wpLobby')) $('#wpLobby').value = cfg.lobby || '';
@@ -7473,7 +7573,8 @@ function renderWatchSec() {
   if (document.activeElement !== $('#wpLinks')) $('#wpLinks').value = (cfg.links || []).map((l) => `${l.label} | ${l.url}`).join('\n');
   if (document.activeElement !== $('#wpMin')) $('#wpMin').value = String(cfg.min);
   // Super chats: the payment fields are always shown, with one line saying what's left to do.
-  const payOn = Object.values(cfg.pay).some(Boolean);
+  const payOn = Object.values(cfg.pay).some(Boolean) || CARD.ready;
+  if (S.studio && isHost() && !CARD.checked) cardStatus();
   $('#wpSupersState').textContent = cfg.supers && payOn ? 'On' : cfg.supers ? 'Needs a way to pay' : 'Off';
   $('#wpPayStatus').textContent = !payOn ? 'Add at least one way to get paid. Viewers pay you directly; gather never touches the money.'
     : cfg.supers ? 'Viewers see a Tip button in the chat on your watch page.' : 'Payments are set. Turn on super chats above to show the Tip button.';
@@ -7483,6 +7584,31 @@ function renderWatchSec() {
   renderShowcaseSec();
   renderHandle();
 }
+// ---- on-site card payments (Stripe Connect): the host connects their own Stripe account once
+const CARD = { checked: false, available: false, connected: false, ready: false };
+async function cardStatus() {
+  CARD.checked = true;
+  try { Object.assign(CARD, await api('payCard', { ...creds(), op: 'status' })); } catch {}
+  renderCard();
+}
+function renderCard() {
+  const box = $('#wpCard'); if (!box) return;
+  const go = $('#wpCardGo'), st = $('#wpCardState');
+  box.classList.toggle('on', CARD.ready);
+  if (!CARD.available) { go.disabled = true; go.textContent = 'Not set up'; st.textContent = 'Card payments need this site’s Stripe keys (STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY). Once they’re added, connect your Stripe here.'; return; }
+  go.disabled = false;
+  if (CARD.ready) { go.textContent = 'Disconnect'; go.className = 'btn sm ghost'; st.textContent = 'On: viewers can pay by card, Apple Pay or Google Pay in your chat. Super chats go on stream as soon as they’re paid.'; }
+  else if (CARD.connected) { go.textContent = 'Finish Stripe setup'; go.className = 'btn sm primary'; st.textContent = 'Almost there: finish your Stripe details, then come back to this tab.'; }
+  else { go.textContent = 'Connect Stripe'; go.className = 'btn sm primary'; }
+}
+$('#wpCardGo')?.addEventListener('click', async () => {
+  if (CARD.ready) { if (!confirm('Stop taking cards on your watch page?')) return; await api('payCard', { ...creds(), op: 'disconnect' }).catch(() => {}); Object.assign(CARD, { connected: false, ready: false }); return renderCard(); }
+  const tab = window.open('', '_blank');
+  try { const { url } = await api('payCard', { ...creds(), op: 'connect', origin: location.origin }); if (tab) tab.location = url; else location.assign(url); CARD.connected = true; renderCard(); }
+  catch (e) { tab?.close(); toast(e.message, { err: true }); }
+});
+window.addEventListener('focus', () => { if (CARD.connected && !CARD.ready && isHost()) cardStatus(); });
+
 let pendingNoticeImg = '';
 function renderShowcaseSec() {
   if (!$('#wpStreamType')) return;
@@ -7631,7 +7757,7 @@ $('#wpLinks').onchange = (e) => {
   setWatch({ links });
 };
 $('#wpMin').onchange = (e) => setWatch({ min: Math.max(1, Number(e.target.value) || 2) });
-for (const k of Object.keys(PAY_NAME)) $('#wpPay-' + k).addEventListener('change', (e) => setWatch({ pay: { [k]: e.target.value.trim().replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '') } }));
+for (const k of Object.keys(PAY_NAME).filter((m) => m !== 'card')) $('#wpPay-' + k).addEventListener('change', (e) => setWatch({ pay: { [k]: e.target.value.trim().replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '') } }));
 setInterval(() => { if ($('#watchSec') && !$('#watchSec').closest('[hidden]')) renderWatchSec(); }, 3000);
 window.__watchReady = true;
 renderWatchSec();

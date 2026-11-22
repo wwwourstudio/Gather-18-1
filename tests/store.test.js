@@ -75,7 +75,7 @@ const signUp = async (page, name) => {
     check('viewer: an @mention of them is highlighted', await wait(v, () => document.querySelector('#wMsgs li.mention')));
     check('likes reach everyone', await wait(v, () => document.querySelector('#wMsgs li.row .wv-like span')?.textContent === '1'));
     check('host: live poll counts', await wait(a, () => (window.__gather.pollCounts || []).reduce((s, n) => s + n, 0) >= 1));
-    await v2.hover('#wMsgs li.row'); await v2.click('#wMsgs li.row .wv-acts button[aria-label="Report spam"]');
+    await v2.hover('#wMsgs li.row'); await v2.click('#wMsgs li.row .wv-acts button[aria-label="Report"]');
     await v.screenshot({ path: SP + '/store-viewer-chat.png' });
 
     // Phones held upright show the whole 16:9 picture; Fill turns it into the vertical 9:16 view.

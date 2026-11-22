@@ -511,6 +511,12 @@
               <label class="toggle-row"><span><b>Take super chats</b><small>Viewers tip from the chat. Money goes straight to you; you confirm each one before it shows.</small></span><input type="checkbox" class="toggle" id="wpSupers" role="switch"></label>
               <div class="form pay-box" id="wpPayBox">
                 <p class="hint pay-status" id="wpPayStatus"></p>
+                <div class="pay-card" id="wpCard">
+                  <span class="pay-card-ic" aria-hidden="true">💳</span>
+                  <div><b>Cards, Apple Pay &amp; Google Pay, right in your chat</b><small id="wpCardState">Viewers pay without leaving your watch page. The money goes to your own Stripe account and their super chat pops up on stream instantly, no confirming.</small></div>
+                  <button type="button" class="btn sm primary" id="wpCardGo">Connect Stripe</button>
+                </div>
+                <p class="hint" style="margin:2px 0 0">Or take tips through your own apps (you confirm each one):</p>
                 <div class="row2"><label class="fld"><span>PayPal.me name</span><input id="wpPay-paypal" maxlength="40" placeholder="yourname" spellcheck="false"></label><label class="fld"><span>Venmo username</span><input id="wpPay-venmo" maxlength="31" placeholder="your-name" spellcheck="false"></label></div>
                 <div class="row2"><label class="fld"><span>Cash App $cashtag</span><input id="wpPay-cashapp" maxlength="21" placeholder="$yourname" spellcheck="false"></label><label class="fld"><span>Minimum ($)</span><input id="wpMin" type="number" min="1" max="500" step="1"></label></div>
                 <label class="fld"><span>Stripe payment link <em>adds card, Apple Pay and Google Pay</em></span><input id="wpPay-stripe" maxlength="120" placeholder="https://buy.stripe.com/…" spellcheck="false"></label>

@@ -12,7 +12,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(__dirname, 'out');
-const ALL = ['seat', 'handle', 'v5', 'journey', 'watch', 'store', 'voice', 'ai', 'acct', 'turn', 'live', 'livebuiltin', 'e2e', 'feat', 'mod', 'twitch', 'round', 'round4', 'round5', 'round6', 'google', 'subs'];
+const ALL = ['seat', 'handle', 'v5', 'journey', 'watch', 'pay', 'store', 'voice', 'ai', 'acct', 'turn', 'live', 'livebuiltin', 'e2e', 'feat', 'mod', 'twitch', 'round', 'round4', 'round5', 'round6', 'google', 'subs'];
 const NOISE = /irc-ws\.chat\.twitch\.tv|tunnel via proxy|ERR_TUNNEL|ERR_PROXY|gis is not defined|status of 403|\[GSI_LOGGER\]/; // Google rejects the stand-in client ID, or the sandbox blocks its frame
 const pick = process.argv.slice(2).filter((a) => ALL.includes(a));
 const suites = pick.length ? pick : ALL;
@@ -53,7 +53,9 @@ async function main() {
     const port = process.env.TEST_PORT || '8090';
     process.env.GATHER_URL = `http://localhost:${port}`;
     // a stand-in OAuth client ID so the Google features are switched on (google.test.js mocks Google itself)
-    const env = { ...process.env, PORT: port, ALLOW_ANON_STUDIOS: '1', SIGNUP_LIMIT: '200', GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || 'test-client.apps.googleusercontent.com' };
+    const env = { ...process.env, PORT: port, ALLOW_ANON_STUDIOS: '1', SIGNUP_LIMIT: '200', GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || 'test-client.apps.googleusercontent.com',
+      // card payments against pay.test.js's stand-in for Stripe
+      STRIPE_SECRET_KEY: 'sk_test_mock', STRIPE_PUBLISHABLE_KEY: 'pk_test_mock', STRIPE_API_BASE: `http://localhost:${process.env.STRIPE_MOCK_PORT || 8099}` };
     for (const k of ['REDIS_URL', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) delete env[k];
     server = spawn(process.execPath, ['server.js'], { cwd: ROOT, env, stdio: 'ignore' });
     await waitFor(process.env.GATHER_URL + '/', 15_000);

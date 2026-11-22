@@ -12,6 +12,7 @@ const code = safeDecode(location.pathname.split('/')[2] || '').toLowerCase().rep
 const NAMES = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick', facebook: 'Facebook', x: 'X', rumble: 'Rumble', custom: 'Watch' };
 const HOSTS = { 'youtube.com': 'YouTube', 'youtu.be': 'YouTube', 'twitch.tv': 'Twitch', 'kick.com': 'Kick', 'facebook.com': 'Facebook', 'x.com': 'X', 'twitter.com': 'X', 'rumble.com': 'Rumble' };
 const PAY = {
+  card: { label: 'Card · Apple Pay · Google Pay', onsite: true },
   paypal: { label: 'PayPal', link: (h, a) => `https://paypal.me/${encodeURIComponent(h)}/${a}USD` },
   venmo: { label: 'Venmo', link: (h, a, note) => `https://venmo.com/?txn=pay&audience=private&recipients=${encodeURIComponent(h)}&amount=${a}&note=${encodeURIComponent(note)}` },
   cashapp: { label: 'Cash App', link: (h, a) => `https://cash.app/$${encodeURIComponent(h)}/${a}` },
@@ -302,6 +303,7 @@ function render(info) {
 
   W.recentChat = info.chat || [];
   renderChat(W.recentChat, info.gone || []);
+  renderScTick(W.recentChat);
   renderRoom(info);
   renderGoal(info);
   $('#wChat').classList.toggle('quiet', !$('#wMsgs li.row, #wMsgs li.paid'));
@@ -332,6 +334,8 @@ function renderChat(items, gone = []) {
     if (W.shown.has(key)) continue;
     if (W.booted && sess?.named && m.name !== sess.name && new RegExp('@' + sess.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(m.text)) toast(`${m.name} mentioned you.`);
     W.shown.add(key);
+    if (m.paid && m.sc && m.status === 'confirmed' && W.booted && Date.now() - (m.ts || 0) < 120_000) scCelebrate(m);
+    else if (m.paid && m.sc) SCPOP.seen.add(m.sc); // already on screen before this page opened: no replay
     if (W.booted && $('#wv').classList.contains('no-chat')) {
       const u = $('#wUnread'); u.textContent = Math.min(99, (+u.textContent || 0) + 1); u.hidden = false;
     }
@@ -357,7 +361,7 @@ function msgEl(m) {
   const mine = sess?.named && m.name === sess.name;
   if (mine) li.classList.add('me');
   if (!mine && sess?.named && new RegExp('@' + sess.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(m.text)) li.classList.add('mention');
-  if (m.paid) { const a = document.createElement('span'); a.className = 'amt'; a.textContent = m.paid; li.append(a); const b = document.createElement('b'); b.textContent = m.name; li.append(b, richText(m.text)); return li; }
+  if (m.paid) return paidEl(li, m);
 
   const av = document.createElement('span'); av.className = 'wv-av'; av.style.background = nameColor(m.name);
   if (m.av && /^data:image\/(jpeg|png|webp);base64,/.test(m.av)) {
@@ -394,6 +398,106 @@ function msgEl(m) {
   else body.append(head, richText(m.text));
   li.append(av, body);
   return li;
+}
+
+/** A super chat in the chat list: coloured by amount, with the viewer's voice message if they recorded one. */
+function paidEl(li, m) {
+  const amt = Number(m.amount) || Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0;
+  li.dataset.tier = tierOf(amt);
+  const head = document.createElement('div'); head.className = 'wv-pd-h';
+  const av = document.createElement('span'); av.className = 'wv-av'; av.style.background = nameColor(m.name); av.setAttribute('aria-hidden', 'true');
+  if (m.av && /^data:image\/(jpeg|png|webp);base64,/.test(m.av)) { const im = document.createElement('img'); im.src = m.av; im.alt = ''; av.style.background = 'none'; av.append(im); }
+  else av.textContent = (m.name || '?').trim().slice(0, 1).toUpperCase();
+  const b = document.createElement('b'); b.textContent = m.name;
+  const a = document.createElement('span'); a.className = 'amt'; a.textContent = m.paid;
+  head.append(av, b);
+  if (m.bounty) { const k = document.createElement('span'); k.className = 'wv-pd-bounty'; k.textContent = '🎯 Bounty'; head.append(k); }
+  if (m.status === 'pending') { const k = document.createElement('span'); k.className = 'wv-pd-wait'; k.textContent = 'waiting for the streamer'; head.append(k); }
+  head.append(a);
+  li.append(head);
+  const txt = richText(m.text); txt.classList.add('wv-pd-t'); li.append(txt);
+  if (m.voice && m.sc && !String(m.id).startsWith('mine-')) {
+    const v = document.createElement('button'); v.type = 'button'; v.className = 'wv-pd-voice';
+    v.innerHTML = '<svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg><span></span>';
+    v.querySelector('span').textContent = `Voice message · 0:${String(m.voice).padStart(2, '0')}`;
+    v.onclick = () => playScVoice(m.sc, v);
+    li.append(v);
+  }
+  return li;
+}
+let scAudio = null;
+async function playScVoice(id, btn) {
+  if (scAudio?.id === id) { scAudio.a.pause(); scAudio = null; btn.classList.remove('on'); return; }
+  scAudio?.a.pause(); $$('.wv-pd-voice.on').forEach((x) => x.classList.remove('on'));
+  try {
+    const { data } = await api('wscvoice', { studio: code, sc: id });
+    const a = new Audio(data); scAudio = { a, id }; btn.classList.add('on');
+    a.onended = () => { btn.classList.remove('on'); if (scAudio?.a === a) scAudio = null; };
+    await a.play();
+  } catch (e) { btn.classList.remove('on'); toast(e.message || 'Couldn’t play that voice message.', true); }
+}
+
+// ---- super chat pop-up: amount, name and message burst over the video with a cash-register sound
+const SCPOP = { queue: [], busy: false, seen: new Set(store.get('scSeen:' + code, [])) };
+function scCelebrate(m) {
+  if (SCPOP.seen.has(m.sc)) return;
+  SCPOP.seen.add(m.sc); store.set('scSeen:' + code, [...SCPOP.seen].slice(-100));
+  SCPOP.queue.push(m); if (!SCPOP.busy) scNext();
+}
+function scNext() {
+  const m = SCPOP.queue.shift(); const box = $('#wScPop');
+  if (!m) { SCPOP.busy = false; box.hidden = true; return; }
+  SCPOP.busy = true;
+  const amt = Number(m.amount) || Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0, tier = tierOf(amt);
+  box.dataset.tier = tier; box.replaceChildren();
+  const card = document.createElement('div'); card.className = 'wv-scpop-card';
+  const amtEl = document.createElement('div'); amtEl.className = 'wv-scpop-amt num'; amtEl.textContent = m.paid;
+  const who = document.createElement('div'); who.className = 'wv-scpop-who'; who.textContent = `${m.name} ${m.bounty ? 'set a bounty' : m.voice ? 'sent a voice super chat' : 'sent a super chat'}`;
+  const txt = document.createElement('div'); txt.className = 'wv-scpop-txt'; txt.textContent = m.text || '';
+  card.append(amtEl, who); if (m.text) card.append(txt);
+  const burst = document.createElement('div'); burst.className = 'wv-scpop-burst'; burst.setAttribute('aria-hidden', 'true');
+  const glyphs = amt >= 50 ? ['💎', '💸', '✨', '🔥'] : amt >= 20 ? ['💸', '✨', '🎉'] : ['✨', '💵', '🎉'];
+  for (let i = 0; i < Math.min(28, 10 + amt / 3); i++) {
+    const p = document.createElement('i'); p.textContent = glyphs[i % glyphs.length];
+    p.style.setProperty('--dx', (Math.random() * 2 - 1) * 46 + 'vmin'); p.style.setProperty('--dy', -(12 + Math.random() * 34) + 'vmin');
+    p.style.setProperty('--r', (Math.random() * 540 - 270) + 'deg'); p.style.animationDelay = Math.random() * 0.25 + 's';
+    burst.append(p);
+  }
+  box.append(burst, card); box.hidden = false;
+  box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
+  cashSound(amt);
+  setTimeout(scNext, Math.min(9000, 4600 + (m.text || '').length * 30));
+}
+let scCtx = null;
+/** A short synthesized "ka-ching" chime; bigger super chats get a longer, brighter run. Respects the player's mute. */
+function cashSound(amt) {
+  // Watching gather's own stream? The stream already carries the studio's sound. Otherwise (YouTube/Twitch embed) play it here.
+  const v = W.direct?.video; if (store.get('scSound', true) === false || (v && !v.paused && v.srcObject)) return;
+  try {
+    scCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = scCtx, t0 = ctx.currentTime, notes = amt >= 50 ? [784, 988, 1175, 1568, 1976] : amt >= 20 ? [784, 988, 1319, 1568] : [880, 1319, 1760];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + i * 0.075;
+      o.type = i % 2 ? 'triangle' : 'sine'; o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.55);
+    });
+  } catch {}
+}
+/** The strip of recent super chats along the top of the chat; tap one to jump to it. */
+function renderScTick(items) {
+  const paid = items.filter((m) => m.paid && m.status !== 'pending' && m.status !== 'dismissed').slice(-8).reverse();
+  const box = $('#wScTick'); box.hidden = !paid.length;
+  box.replaceChildren(...paid.map((m) => {
+    const amt = Number(m.amount) || Number(String(m.paid).replace(/[^0-9.]/g, '')) || 0;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'wv-sctick-chip'; b.dataset.tier = tierOf(amt);
+    const a = document.createElement('b'); a.className = 'num'; a.textContent = m.paid;
+    const n = document.createElement('span'); n.textContent = m.name;
+    b.append(a, n); if (m.voice) { const ic = document.createElement('span'); ic.textContent = '🎙'; b.append(ic); }
+    b.title = m.text || '';
+    b.onclick = () => { const li = $(`#wMsgs [data-id="${CSS.escape(m.id)}"]`); li?.scrollIntoView({ block: 'center', behavior: 'smooth' }); li?.classList.add('flash'); setTimeout(() => li?.classList.remove('flash'), 1600); };
+    return b;
+  }));
 }
 
 function richText(text) {
@@ -886,7 +990,7 @@ $('#wCompose').addEventListener('submit', async (e) => {
 const SC = { amount: 5, method: '', opened: false };
 function openSuper() {
   const w = W.info?.watch || {};
-  const methods = Object.keys(PAY).filter((m) => w.pay?.[m]);
+  const methods = Object.keys(PAY).filter((m) => (m === 'card' ? w.card : w.pay?.[m]));
   SC.method = methods.includes(SC.method) ? SC.method : methods[0] || '';
   SC.amount = Math.max(SC.amount, w.min || 2); SC.opened = false;
   const amounts = [...new Set([w.min || 2, 5, 10, 20, 50].filter((a) => a >= (w.min || 2)))].slice(0, 5);
@@ -922,7 +1026,7 @@ $('#wSuperBtn').onclick = () => openTipDock();
 const tierOf = (a) => (a >= 50 ? 'rose' : a >= 20 ? 'amber' : a >= 10 ? 'emerald' : 'blue');
 function tipRender() {
   const w = W.info?.watch || {};
-  const methods = Object.keys(PAY).filter((m) => w.pay?.[m]);
+  const methods = Object.keys(PAY).filter((m) => (m === 'card' ? w.card : w.pay?.[m]));
   if (!methods.includes(SC.method)) SC.method = methods[0] || '';
   const min = w.min || 2;
   SC.amount = Math.max(SC.amount, min);
@@ -939,64 +1043,141 @@ function tipRender() {
     return c;
   })());
   $('#wTipMethods').replaceChildren(...methods.map((m) => {
-    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.m = m; b.textContent = m === 'stripe' ? 'Card / Apple Pay' : PAY[m].label;
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.m = m; b.textContent = m === 'card' ? '💳 Card · Apple Pay' : m === 'stripe' ? 'Stripe link' : PAY[m].label;
     b.onclick = () => { SC.method = m; SC.opened = false; tipSync(); };
     return b;
   }));
-  $('#wTipSub').textContent = `100% goes straight to ${W.info?.host?.name || 'the streamer'}`;
+  $('#wTipSub').textContent = `Paid straight to ${W.info?.host?.name || 'the streamer'}`;
+  $('#wTipRec').hidden = !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || w.voice === false;
   tipSync();
 }
 function tipSync() {
   $$('#wTipAmts button').forEach((b) => b.setAttribute('aria-checked', String(b.textContent === '$' + SC.amount)));
   $$('#wTipMethods button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.m === SC.method)));
   $('#wTipDock').dataset.tier = tierOf(SC.amount);
-  const label = SC.method === 'stripe' ? 'card' : PAY[SC.method]?.label || '';
-  $('#wTipPay').textContent = SC.opened ? `Open ${label} again` : `Pay $${SC.amount}${label ? ' with ' + label : ''}`;
+  const onsite = !!PAY[SC.method]?.onsite;
+  const label = SC.method === 'stripe' ? 'card' : onsite ? '' : PAY[SC.method]?.label || '';
+  $('#wTipPay').textContent = SC.opened ? `Open ${label} again` : `${onsite ? 'Pay' : 'Pay'} $${SC.amount}${label ? ' with ' + label : ''}`;
+  $('#wTipSend').hidden = onsite;
+  $('#wTipDock').classList.toggle('onsite', onsite);
   $('#wTipSend').disabled = !SC.opened;
   $('#wTipSend').textContent = `I’ve paid · send $${SC.amount}`;
-  const msg = $('#wText').value.trim();
-  $('#wTipNote').textContent = SC.opened
+  const msg = $('#wTipMsg').value.trim();
+  $('#wTipCount').textContent = `${$('#wTipMsg').value.length}/${$('#wTipMsg').maxLength}`;
+  $('#wTipNote').textContent = onsite ? `Pay here without leaving. ${TV.blob ? 'Your voice message and ' : ''}${msg ? 'message' : 'super chat'} pops up on screen the moment it’s paid.`
+    : SC.opened
     ? `Paid? Send it and it goes on screen as soon as the streamer sees your $${SC.amount}.`
-    : $('#wBounty')?.checked ? (msg ? `Bounty: “${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}”, on stream once the streamer accepts it.` : 'Type the challenge below, e.g. “win a round with pistols only”.')
-    : msg ? `“${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}” goes on screen, highlighted.` : 'Type a message below to go with it (optional).';
+    : $('#wBounty')?.checked ? (msg ? `Bounty: “${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}”, on stream once the streamer accepts it.` : 'Type the challenge above, e.g. “win a round with pistols only”.')
+    : 'Pay in the app that opens, then come back and tap “I’ve paid”. It goes on screen once the streamer sees it.';
 }
 function openTipDock() {
   const w = W.info?.watch || {};
   if (!w.supers) return;
   SC.opened = false; showErr('#wTipErr', '');
   $('#wTipDock').hidden = false; $('#wTipBtn').setAttribute('aria-expanded', 'true'); $('#wTipBtn').classList.add('on');
+  $('#wTipMsg').value ||= $('#wText').value.trim(); // anything typed in the chat box comes along
   tipRender();
-  $('#wText').placeholder = 'Add a message to your super chat…';
+  setTimeout(() => $('#wTipMsg').focus(), 30);
 }
 function closeTipDock() {
   $('#wTipDock').hidden = true; $('#wTipBtn').setAttribute('aria-expanded', 'false'); $('#wTipBtn').classList.remove('on');
-  $('#wText').placeholder = 'Say something…';
+  checkoutClose(); if (TV.rec?.state === 'recording') TV.rec.stop();
 }
 $('#wTipBtn').onclick = () => ($('#wTipDock').hidden ? openTipDock() : closeTipDock());
 $('#wTipX').onclick = closeTipDock;
 $('#wBounty').addEventListener('change', () => { $('#wTipDock').classList.toggle('bounty', $('#wBounty').checked); tipSync(); });
-$('#wText').addEventListener('input', () => { if (!$('#wTipDock').hidden) tipSync(); });
+$('#wTipMsg').addEventListener('input', () => tipSync());
+
+// ---- voice message attached to a super chat (up to 20 s)
+const TV = { rec: null, chunks: [], stream: null, t0: 0, timer: null, blob: null, data: '', dur: 0 };
+async function tipRecStart() {
+  try { TV.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch { return showErr('#wTipErr', 'Allow the microphone to record a voice message (the lock icon in the address bar).'); }
+  const mime = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
+  TV.chunks = []; TV.rec = new MediaRecorder(TV.stream, { mimeType: mime, audioBitsPerSecond: 32000 });
+  TV.rec.ondataavailable = (e) => { if (e.data.size) TV.chunks.push(e.data); };
+  TV.rec.onstop = tipRecStopped;
+  TV.rec.start(250); TV.t0 = Date.now();
+  $('#wTipRec').classList.add('on'); $('#wTipRecLabel').textContent = 'Recording… tap to stop';
+  TV.timer = setInterval(() => { const s = Math.floor((Date.now() - TV.t0) / 1000); $('#wTipRecTime').textContent = `0:${String(s).padStart(2, '0')} / 0:20`; if (s >= 20) TV.rec?.stop(); }, 200);
+}
+async function tipRecStopped() {
+  clearInterval(TV.timer); TV.stream?.getTracks().forEach((t) => t.stop()); TV.stream = null;
+  $('#wTipRec').classList.remove('on');
+  TV.dur = Math.min(20, Math.round((Date.now() - TV.t0) / 1000));
+  if (TV.dur < 1) return tipRecClear();
+  TV.blob = new Blob(TV.chunks, { type: (TV.rec.mimeType || 'audio/webm').split(';')[0] });
+  TV.data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(TV.blob); });
+  $('#wTipRecPlay').src = URL.createObjectURL(TV.blob); $('#wTipRecPlay').hidden = false; $('#wTipRecX').hidden = false; $('#wTipRec').hidden = true;
+  tipSync();
+}
+function tipRecClear() {
+  TV.blob = null; TV.data = ''; TV.dur = 0;
+  $('#wTipRecPlay').hidden = true; $('#wTipRecPlay').removeAttribute('src'); $('#wTipRecX').hidden = true; $('#wTipRec').hidden = false;
+  $('#wTipRecLabel').textContent = 'Add a voice message'; $('#wTipRecTime').textContent = 'up to 20 s';
+  tipSync();
+}
+$('#wTipRec').onclick = () => (TV.rec?.state === 'recording' ? TV.rec.stop() : tipRecStart());
+$('#wTipRecX').onclick = tipRecClear;
+const tipBody = () => ({ amount: SC.amount, text: $('#wTipMsg').value.trim(), ...($('#wBounty').checked ? { bounty: true } : {}), ...(TV.data ? { voice: TV.data, dur: TV.dur } : {}) });
+function tipSent(id, pending) {
+  const text = $('#wTipMsg').value.trim();
+  $('#wBounty').checked = false; $('#wTipDock').classList.remove('bounty'); $('#wTipMsg').value = ''; tipRecClear(); closeTipDock();
+  if (pending) {
+    $('#wMsgs').append(msgEl({ id: 'mine-' + id, sc: id, name: sess.name, text: text || 'Waiting for the streamer to confirm your super chat…', paid: '$' + SC.amount, amount: SC.amount, status: 'pending' }));
+    $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
+  }
+  awardXp(Math.min(50, 5 + Math.round(SC.amount)));
+}
+
+// ---- on-site card checkout (Stripe's embedded checkout, on the streamer's own Stripe account)
+let stripeJs = null, checkout = null;
+function loadStripe() {
+  stripeJs ||= new Promise((res, rej) => { if (window.Stripe) return res(window.Stripe); const s = document.createElement('script'); s.src = 'https://js.stripe.com/v3/'; s.onload = () => res(window.Stripe); s.onerror = () => { stripeJs = null; rej(new Error('Couldn’t load the card form. Check your connection.')); }; document.head.append(s); });
+  return stripeJs;
+}
+function checkoutClose() { try { checkout?.destroy(); } catch {} checkout = null; $('#wCheckout').hidden = true; $('#wCheckout').replaceChildren(); $('#wTipDock').classList.remove('paying'); }
+async function payOnSite() {
+  showErr('#wTipErr', '');
+  if ($('#wBounty').checked && !$('#wTipMsg').value.trim()) { $('#wTipMsg').focus(); return showErr('#wTipErr', 'Type the challenge first.'); }
+  const btn = $('#wTipPay'); btn.disabled = true; btn.textContent = 'Opening secure checkout…';
+  try {
+    await ensureSession();
+    if (!sess?.named) { if (ACCT.user) await joinSigned(); else { ACCT.then = () => payOnSite(); return openSignIn(); } }
+    const [Stripe, r] = await Promise.all([loadStripe(), api('wcheckout', { ...creds(), ...tipBody() })]);
+    checkoutClose();
+    const box = $('#wCheckout'); box.hidden = false; $('#wTipDock').classList.add('paying');
+    const stripe = Stripe(r.pk, { stripeAccount: r.account });
+    checkout = await stripe.initEmbeddedCheckout({ fetchClientSecret: async () => r.clientSecret, onComplete: () => checkoutDone(r.id) });
+    checkout.mount(box);
+  } catch (e) { showErr('#wTipErr', e.message); }
+  finally { btn.disabled = false; tipSync(); }
+}
+async function checkoutDone(id) {
+  for (let i = 0; i < 8; i++) {
+    try { const r = await api('wcheckdone', { ...creds(), sc: id }); if (r.status === 'confirmed') { toast(`Paid! Your $${SC.amount} super chat is on screen.`); tipSent(id, false); poll?.(); return; } } catch {}
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  toast('Payment received. Your super chat will appear in a moment.');
+  tipSent(id, false);
+}
 $('#wTipPay').onclick = async () => {
+  if (PAY[SC.method]?.onsite) return payOnSite();
   const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
   if (!handle) return showErr('#wTipErr', 'The streamer hasn’t set up a payment method yet.');
   try { await ensureSession(); } catch {}
-  window.open(PAY[SC.method].link(handle, SC.amount, `Super chat on gather: ${($('#wText').value || '').slice(0, 60)}`), '_blank', 'noopener');
+  window.open(PAY[SC.method].link(handle, SC.amount, `Super chat on gather: ${($('#wTipMsg').value || '').slice(0, 60)}`), '_blank', 'noopener');
   SC.opened = true; tipSync();
 };
 $('#wTipSend').onclick = async () => {
   showErr('#wTipErr', '');
   try {
     await ensureSession();
-    if (!sess?.named) { closeTipDock(); return openSuper(); } // no chat name yet: the full dialog asks for one
-    const text = $('#wText').value.trim();
-    const bounty = $('#wBounty').checked;
-    if (bounty && !text) { $('#wText').focus(); return showErr('#wTipErr', 'Type the challenge in the message box first.'); }
-    const r = await api('wsend', { ...creds(), type: 'super', amount: SC.amount, method: SC.method, text, ...(bounty ? { bounty: true } : {}) });
-    $('#wBounty').checked = false;
-    $('#wText').value = ''; closeTipDock();
-    $('#wMsgs').append(msgEl({ id: 'mine-' + r.id, sc: r.id, name: sess.name, text: text || 'Waiting for the streamer to confirm your super chat…', paid: '$' + SC.amount, status: 'pending' }));
-    $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
-    toast(`Sent. Your $${SC.amount} super chat shows up once the streamer sees the payment.`);
+    if (!sess?.named) { if (ACCT.user) await joinSigned(); else { ACCT.then = () => $('#wTipSend').click(); return openSignIn(); } }
+    if ($('#wBounty').checked && !$('#wTipMsg').value.trim()) { $('#wTipMsg').focus(); return showErr('#wTipErr', 'Type the challenge first.'); }
+    const r = await api('wsend', { ...creds(), type: 'super', method: SC.method, ...tipBody() });
+    tipSent(r.id, true);
+    toast(`Sent. Your $${SC.amount} super chat pops up on screen once the streamer sees the payment.`);
   } catch (err) { showErr('#wTipErr', err.message); }
 };
 $('#wPayGo').onclick = async () => {

@@ -2103,7 +2103,7 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 /* the $ sits inside the input, just left of Send */
 .wv-inputwrap .wv-tipbtn { position: absolute; right: 40px; top: 4px; margin: 0; z-index: 1; }
 .wv-inputwrap:has(.wv-tipbtn:not([hidden])) .input { padding-right: 82px; }
-.wv-tipamts input.input { height: 30px !important; min-height: 30px; width: 76px; flex: none; border-radius: 8px; }
+.wv-tipamts input.input { height: 30px !important; min-height: 30px; width: 76px; flex: none; border-radius: 8px; padding: 0 8px !important; }
 
 /* ================================================================ gamer arena */
 .wv-xp { flex: none; height: 26px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 999px; font: 800 11.5px var(--font-ui); color: #0b1a05; background: linear-gradient(120deg, var(--m1), var(--m2)); box-shadow: 0 6px 16px -8px var(--m1); }
@@ -2243,3 +2243,80 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-bounty em { font-style: normal; font-size: 11px; color: var(--ink-3); }
 .wv-bounty.done strong { color: #4ade80; } .wv-bounty.done span { color: var(--ink-3); text-decoration: line-through; }
 .wv-bounty.failed strong { color: #f87171; } .wv-bounty.failed span { color: var(--ink-3); }
+
+/* ---------------------------------------------------------------- super chats, rebuilt */
+/* the message box and voice message inside the super chat tray */
+.wv-tipmsg { position: relative; }
+.wv-tipmsg textarea { width: 100%; min-height: 54px; resize: none; padding: 8px 10px 18px; font-size: 13px; line-height: 1.4; border-radius: 10px; }
+.wv-tipcount { position: absolute; right: 9px; bottom: 5px; font-size: 10.5px; color: var(--ink-3); pointer-events: none; }
+.wv-tipvoice { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.wv-tipvoice audio { flex: 1; min-width: 0; height: 32px; }
+.wv-tiprec { flex: 1; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 9px; border: 1px dashed color-mix(in srgb, var(--t2) 55%, transparent); background: transparent; color: var(--ink-2); font: 600 12px var(--font-ui); cursor: pointer; }
+.wv-tiprec[hidden] { display: none; }
+.wv-tiprec:hover { color: var(--ink); background: color-mix(in srgb, var(--t1) 10%, transparent); }
+.wv-tiprec small { margin-left: auto; font-weight: 500; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.wv-tiprec .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18); }
+.wv-tiprec.on { border-style: solid; border-color: #ef4444; color: #fff; background: rgba(239, 68, 68, 0.14); }
+.wv-tiprec.on .dot { animation: wv-recpulse 1s ease-in-out infinite; }
+@keyframes wv-recpulse { 50% { transform: scale(0.6); opacity: 0.5; } }
+.wv-tipdock.onsite .wv-tipacts { grid-template-columns: 1fr; }
+.wv-checkout { max-height: min(62vh, 560px); overflow: auto; border-radius: 12px; background: #fff; padding: 4px; }
+.wv-checkout[hidden] { display: none; }
+.wv-tipdock.paying .wv-tipamts, .wv-tipdock.paying .wv-tipmsg, .wv-tipdock.paying .wv-tipvoice, .wv-tipdock.paying .wv-bountysw, .wv-tipdock.paying .wv-tipmethods, .wv-tipdock.paying .wv-tipacts { display: none; }
+.wv-tipdock { max-height: calc(100dvh - 160px); overflow-y: auto; }
+
+/* super chats in the chat list: coloured by amount */
+.wv-msgs li.paid { --t1: #3b82f6; --t2: #60a5fa; display: grid; gap: 4px; margin: 6px 0; padding: 9px 11px; border-radius: 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--t1) 30%, transparent), color-mix(in srgb, var(--t1) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--t1) 45%, transparent); }
+.wv-msgs li.paid[data-tier="emerald"] { --t1: #22c55e; --t2: #4ade80; }
+.wv-msgs li.paid[data-tier="amber"] { --t1: #f59e0b; --t2: #fbbf24; }
+.wv-msgs li.paid[data-tier="rose"] { --t1: #f43f5e; --t2: #fb7185; }
+.wv-msgs li.paid .amt { margin: 0 0 0 auto; padding: 2px 9px; border-radius: 999px; background: linear-gradient(120deg, var(--t1), var(--t2)); color: #0b1020; font: 800 12.5px var(--font-ui); font-variant-numeric: tabular-nums; }
+.wv-pd-h { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.wv-pd-h b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wv-pd-h .wv-av { width: 22px; height: 22px; font-size: 10px; }
+.wv-pd-bounty, .wv-pd-wait { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); color: var(--ink-2); white-space: nowrap; }
+.wv-pd-t { font-size: 13.5px; line-height: 1.45; color: var(--ink); }
+.wv-pd-voice { justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 8px; border-radius: 999px; border: 0; cursor: pointer;
+  background: color-mix(in srgb, var(--t1) 26%, transparent); color: var(--ink); font: 600 11.5px var(--font-ui); }
+.wv-pd-voice .i { width: 12px; height: 12px; fill: currentColor; }
+.wv-pd-voice.on { background: linear-gradient(120deg, var(--t1), var(--t2)); color: #0b1020; }
+.wv-msgs li.paid.flash { animation: wv-flash 1.4s ease; }
+@keyframes wv-flash { 30% { box-shadow: 0 0 0 3px var(--t2); } }
+
+/* the strip of recent super chats on top of the chat */
+.wv-sctick { display: flex; gap: 6px; padding: 6px 10px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.08)); }
+.wv-sctick[hidden] { display: none; }
+.wv-sctick::-webkit-scrollbar { display: none; }
+.wv-sctick-chip { --t1: #3b82f6; --t2: #60a5fa; flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 4px; border-radius: 999px; border: 0; cursor: pointer;
+  background: color-mix(in srgb, var(--t1) 22%, transparent); color: var(--ink); font: 600 11.5px var(--font-ui); max-width: 170px; animation: wv-tip-in 0.3s ease; }
+.wv-sctick-chip[data-tier="emerald"] { --t1: #22c55e; --t2: #4ade80; }
+.wv-sctick-chip[data-tier="amber"] { --t1: #f59e0b; --t2: #fbbf24; }
+.wv-sctick-chip[data-tier="rose"] { --t1: #f43f5e; --t2: #fb7185; }
+.wv-sctick-chip b { padding: 2px 7px; border-radius: 999px; background: linear-gradient(120deg, var(--t1), var(--t2)); color: #0b1020; font-weight: 800; }
+.wv-sctick-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the pop-up at the top of the chat when a super chat lands (the big one plays on the stream itself) */
+.wv-scpop { --t1: #3b82f6; --t2: #60a5fa; position: absolute; left: 0; right: 0; top: 44px; height: 220px; z-index: 6; display: grid; place-items: start center; padding-top: 6px; pointer-events: none; overflow: hidden; }
+.wv-scpop[hidden] { display: none; }
+.wv-scpop[data-tier="emerald"] { --t1: #22c55e; --t2: #4ade80; }
+.wv-scpop[data-tier="amber"] { --t1: #f59e0b; --t2: #fbbf24; }
+.wv-scpop[data-tier="rose"] { --t1: #f43f5e; --t2: #fb7185; }
+.wv-scpop-card { display: grid; justify-items: center; gap: 3px; max-width: calc(100% - 24px); padding: 12px 20px 14px; border-radius: 22px; text-align: center;
+  background: linear-gradient(160deg, rgba(11, 16, 32, 0.88), rgba(11, 16, 32, 0.72)); border: 1.5px solid color-mix(in srgb, var(--t2) 70%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--t1) 18%, transparent), 0 24px 60px -12px color-mix(in srgb, var(--t1) 70%, transparent); backdrop-filter: blur(8px); }
+.wv-scpop-amt { font: 900 40px/1 var(--font-display, var(--font-ui)); letter-spacing: -0.02em; background: linear-gradient(120deg, #fff, var(--t2) 40%, var(--t1)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.wv-scpop-who { font: 700 14px var(--font-ui); color: #fff; }
+.wv-scpop-txt { font: 500 13px/1.4 var(--font-ui); color: rgba(255, 255, 255, 0.86); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.wv-scpop.go .wv-scpop-card { animation: wv-scpop-in 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both, wv-scpop-out 0.5s ease 4.1s forwards; }
+.wv-scpop.go .wv-scpop-amt { animation: wv-scpop-amt 0.9s ease 0.15s both; }
+@keyframes wv-scpop-in { from { opacity: 0; transform: translateY(30px) scale(0.6); } }
+@keyframes wv-scpop-out { to { opacity: 0; transform: translateY(-18px) scale(0.92); } }
+@keyframes wv-scpop-amt { from { transform: scale(2.2); filter: blur(6px); opacity: 0; } 60% { transform: scale(0.94); filter: none; opacity: 1; } }
+.wv-scpop-burst { position: absolute; left: 50%; top: 60px; }
+.wv-scpop-burst i { position: absolute; font-style: normal; font-size: 20px; opacity: 0; }
+.wv-scpop.go .wv-scpop-burst i { animation: wv-burst 1.8s cubic-bezier(0.15, 0.7, 0.3, 1) forwards; }
+@keyframes wv-burst { 0% { opacity: 1; transform: translate(0, 0) scale(0.4); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 18vmin)) rotate(var(--r)) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .wv-scpop.go .wv-scpop-card, .wv-scpop.go .wv-scpop-amt, .wv-scpop.go .wv-scpop-burst i { animation-duration: 0.01s; } .wv-scpop-burst { display: none; } }
+:root[data-theme="light"] .wv-sctick-chip, :root[data-theme="light"] .wv-pd-voice { color: #0b1020; }
