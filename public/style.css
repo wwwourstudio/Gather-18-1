@@ -4967,3 +4967,123 @@ body:not(.pre) .rail-btn:hover { color: var(--ink); background: color-mix(in srg
 .le-big small { font-size: 12px; color: var(--ink-3); }
 .le-bids { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; color: var(--ink-3); }
 .le-bids li:first-child { color: var(--ink-2); font-weight: 600; }
+
+/* ================================================================ Account & Creator Settings: refreshed (V9)
+   Glass surface over a slowly drifting blurred gradient, an animated gradient edge, a full-size close button
+   centred on the title row, and panes whose content never gets clipped behind the footer. */
+@property --ac-ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+#acctDlg::backdrop {
+  background:
+    radial-gradient(40% 50% at 18% 22%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%),
+    radial-gradient(38% 46% at 82% 78%, rgba(168, 85, 247, 0.26), transparent 70%),
+    radial-gradient(30% 40% at 70% 15%, rgba(34, 211, 238, 0.18), transparent 70%),
+    rgba(3, 6, 14, 0.66);
+  background-size: 160% 160%;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  animation: ac-drift 18s ease-in-out infinite alternate;
+}
+@keyframes ac-drift { 0% { background-position: 0% 0%; } 50% { background-position: 100% 40%; } 100% { background-position: 30% 100%; } }
+#acctDlg .ac-card.signed {
+  position: relative;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(160deg, rgba(20, 30, 58, 0.82), rgba(10, 15, 30, 0.9)) padding-box,
+    conic-gradient(from var(--ac-ang), color-mix(in srgb, var(--accent) 80%, #fff 0%), rgba(168, 85, 247, 0.7), rgba(34, 211, 238, 0.6), rgba(255, 255, 255, 0.08) 55%, color-mix(in srgb, var(--accent) 80%, #fff 0%)) border-box;
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  backdrop-filter: blur(26px) saturate(1.4);
+  box-shadow: 0 40px 100px -24px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.04) inset, 0 0 60px -20px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: ac-spin 9s linear infinite;
+}
+@keyframes ac-spin { to { --ac-ang: 360deg; } }
+/* Title row: the close button is a real 36 px target, centred on the title (header is 60 px tall). */
+#acctDlg .ac-card.signed .ac-main > h2 {
+  display: flex; align-items: center; min-height: 60px; padding: 0 68px 0 24px;
+  font-size: 18.5px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.035), transparent);
+}
+#acctDlg .ac-card.signed > form[method="dialog"] { position: absolute; inset: 12px 14px auto auto; z-index: 3; }
+#acctDlg .ac-card.signed .modal-close {
+  position: static; width: 36px; height: 36px; border-radius: 10px;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--ink-2);
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+#acctDlg .ac-card.signed .modal-close .i { width: 18px; height: 18px; }
+#acctDlg .ac-card.signed .modal-close:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); transform: rotate(90deg); }
+/* Nothing in a pane may shrink: groups with overflow: hidden were squeezed and clipped their last rows. */
+#acctDlg .ac-pane > * { flex-shrink: 0; }
+#acctDlg .ac-pane { padding-bottom: 28px; scroll-padding-bottom: 28px; }
+/* Glass panels inside, with a soft sheen on hover. */
+#acctDlg .ac-nav { background: rgba(255, 255, 255, 0.025); }
+#acctDlg .ac-profile-hero, #acctDlg .ac-toggles, #acctDlg .ac-setting-row, #acctDlg .ac-info-card, #acctDlg .ac-sec-box {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015));
+  border-color: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+#acctDlg .ac-nav-btn.on {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+  box-shadow: inset 2px 0 0 var(--accent), 0 6px 18px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+#acctDlg .ac-hub-foot { background: linear-gradient(180deg, rgba(10, 15, 30, 0.55), rgba(10, 15, 30, 0.9)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+#acctDlg #acSaveProfile {
+  background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #a855f7), var(--accent));
+  background-size: 200% 100%; animation: ac-sheen 6s ease-in-out infinite;
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent) 85%, transparent);
+}
+@keyframes ac-sheen { 50% { background-position: 100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  #acctDlg::backdrop, #acctDlg .ac-card.signed, #acctDlg #acSaveProfile { animation: none; }
+}
+:root[data-theme="light"] #acctDlg .ac-card.signed {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.92), rgba(244, 247, 252, 0.94)) padding-box,
+    conic-gradient(from var(--ac-ang), var(--accent), #a855f7, #22d3ee, rgba(15, 23, 42, 0.08) 55%, var(--accent)) border-box;
+}
+:root[data-theme="light"] #acctDlg .ac-profile-hero, :root[data-theme="light"] #acctDlg .ac-toggles, :root[data-theme="light"] #acctDlg .ac-info-card { background: rgba(248, 250, 252, 0.9); }
+:root[data-theme="light"] #acctDlg .ac-hub-foot { background: rgba(248, 250, 252, 0.92); }
+:root[data-theme="light"] #acctDlg .ac-card.signed .modal-close { background: rgba(15, 23, 42, 0.05); border-color: rgba(15, 23, 42, 0.1); }
+@media (max-width: 720px) {
+  #acctDlg .ac-card.signed .ac-main > h2 { min-height: 56px; font-size: 17px; }
+  #acctDlg .ac-card.signed > form[method="dialog"] { inset: 10px 10px auto auto; }
+  #acctDlg .ac-card.signed .modal-close { width: 40px; height: 40px; }
+}
+
+/* Ambient surround (#stageAmbient): the space around the stage glows with a blurred copy of the program. */
+.stage-wrap { position: relative; isolation: isolate; }
+.stage-ambient {
+  position: absolute; inset: -8%; width: 116% !important; height: 116% !important; z-index: 0; pointer-events: none;
+  filter: blur(46px) saturate(1.35) brightness(.7); opacity: 0; transition: opacity .6s ease;
+}
+.stage-ambient.on { opacity: .9; }
+.stage-wrap > .stage { z-index: 1; }
+body.pre .stage-ambient { display: none; }
+@media (prefers-reduced-motion: reduce) { .stage-ambient { display: none; } }
+
+/* The same living glass for the green room, the show wizard and invites: drifting blurred gradients behind,
+   a slowly turning gradient edge on the card. (Account dialog above.) */
+#enterDlg::backdrop, #wizDlg::backdrop, #inviteDlg::backdrop {
+  background:
+    radial-gradient(40% 50% at 18% 22%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
+    radial-gradient(38% 46% at 82% 78%, rgba(168, 85, 247, 0.22), transparent 70%),
+    radial-gradient(30% 40% at 70% 15%, rgba(34, 211, 238, 0.16), transparent 70%),
+    rgba(4, 7, 15, 0.66);
+  background-size: 160% 160%;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+  animation: ac-drift 18s ease-in-out infinite alternate;
+}
+#enterDlg .modal-card.enter-card, #wizDlg .modal-card.wiz-card {
+  border: 1px solid transparent;
+  background:
+    radial-gradient(88% 58% at 6% -6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 64%) padding-box,
+    linear-gradient(160deg, rgba(20, 30, 58, 0.84), rgba(10, 15, 30, 0.92)) padding-box,
+    conic-gradient(from var(--ac-ang), var(--accent), rgba(168, 85, 247, 0.7), rgba(34, 211, 238, 0.6), rgba(255, 255, 255, 0.08) 55%, var(--accent)) border-box;
+  animation: ac-spin 9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  #enterDlg::backdrop, #wizDlg::backdrop, #inviteDlg::backdrop, #enterDlg .modal-card.enter-card, #wizDlg .modal-card.wiz-card { animation: none; }
+}
+:root[data-theme="light"] #enterDlg .modal-card.enter-card, :root[data-theme="light"] #wizDlg .modal-card.wiz-card {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 252, 0.95)) padding-box,
+    conic-gradient(from var(--ac-ang), var(--accent), #a855f7, #22d3ee, rgba(15, 23, 42, 0.08) 55%, var(--accent)) border-box;
+}

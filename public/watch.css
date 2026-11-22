@@ -476,8 +476,8 @@ body { background: var(--bg, #080c16); color: var(--ink); }
   margin: 0;
   padding: 0;
   border: 0;
-  object-fit: cover;
-  background: #000;
+  object-fit: contain; /* the whole program, overlays and name tags included; "Fill" crops on request */
+  background: transparent;
 }
 .wv-player.fill video { object-fit: cover; }
 .wv-player:fullscreen { width: 100vw; height: 100vh; max-height: none; border-radius: 0; aspect-ratio: auto; }
@@ -2522,3 +2522,12 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-tx-foot { grid-row: 7; }
 }
 .wv-msgs li.sys { list-style: none; margin: 6px 8px; padding: 6px 10px; border-radius: 8px; text-align: center; font: 600 12.5px/1.4 var(--font-ui); color: var(--ink-2); background: color-mix(in srgb, var(--accent, #2f6bf0) 12%, transparent); }
+
+/* Ambient surround: the letterbox around the video glows with a blurred copy of it (watch.js tickAmbient). */
+.wv-player { isolation: isolate; }
+#wAmbient.wv-ambient { z-index: 0; }
+#wPlayer { z-index: 1; }
+.wv-ambient { position: absolute; inset: -8%; width: 116%; height: 116%; pointer-events: none; filter: blur(42px) saturate(1.35) brightness(.72); opacity: 0; transition: opacity .6s ease; }
+.wv-ambient.on { opacity: .9; }
+.wv-player.fill .wv-ambient { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .wv-ambient { display: none; } }

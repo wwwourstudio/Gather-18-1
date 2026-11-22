@@ -1469,11 +1469,8 @@ function drawTile(p, rect, t) {
   const R = rect.r ?? 0;
   if (R > 0) { rr(x, y, w, h, R); g.clip(); }
   const hasVid = p.cam && el && el.readyState >= 2 && el.videoWidth > 0;
-  if (hasVid) {
-    const vw = el.videoWidth, vh = el.videoHeight;
-    const s = Math.max(w / vw, h / vh), sw = w / s, sh = h / s;
-    g.drawImage(el, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
-  } else drawAudioTile(p, x, y, w, h, t);
+  if (hasVid) drawFitVideo(el, x, y, w, h, p.id);
+  else drawAudioTile(p, x, y, w, h, t);
   g.restore();
 
   // Track speaking timestamps for crew cards & AI director (no flashing border drawn over the video).
@@ -1506,6 +1503,30 @@ function drawTile(p, rect, t) {
     g.fillStyle = 'rgba(17,24,39,.78)'; rr(tx, ty, s, s, 6); g.fill();
     drawMicOff(tx + s / 2, ty + s / 2, s * .32);
   }
+}
+// A camera fills its tile only when that crops little. Otherwise (a 4:3 webcam in a 16:9 tile, a tall tile in
+// side-by-side) the whole picture is shown, heads and hands included, and the spare space gets a blurred copy of
+// the same video. The blur is a 48 px downscale stretched back up: cheap enough for every frame.
+const fillBlur = new Map(); // tile id → small canvas
+function drawFitVideo(el, x, y, w, h, id) {
+  const vw = el.videoWidth, vh = el.videoHeight, ratio = (w / h) / (vw / vh);
+  if (ratio > 0.9 && ratio < 1.11) { // close enough: fill, losing at most ~5% per side
+    const s = Math.max(w / vw, h / vh), sw = w / s, sh = h / s;
+    g.drawImage(el, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
+    return;
+  }
+  let c = fillBlur.get(id);
+  if (!c) { c = document.createElement('canvas'); c.width = 48; c.height = 27; fillBlur.set(id, c); }
+  const cg = c.getContext('2d');
+  cg.drawImage(el, 0, 0, c.width, c.height);
+  g.save();
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  const bs = Math.max(w / c.width, h / c.height) * 1.15; // a little overscan hides the soft edges
+  g.drawImage(c, x + (w - c.width * bs) / 2, y + (h - c.height * bs) / 2, c.width * bs, c.height * bs);
+  g.fillStyle = 'rgba(4,8,18,.35)'; g.fillRect(x, y, w, h); // keep the person the brightest thing in the tile
+  g.restore();
+  const s = Math.min(w / vw, h / vh), dw = vw * s, dh = vh * s;
+  g.drawImage(el, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 function drawMicOff(cx, cy, r) {
   g.save(); g.strokeStyle = '#ff6b6b'; g.lineWidth = Math.max(1.6, r * .2); g.lineCap = 'round';
@@ -1689,6 +1710,15 @@ function draw(now = performance.now()) {
       g.save(); g.globalAlpha = Math.max(0, Math.min(1, 1 - ease)); g.drawImage(fadeSnap, 0, 0, W, H); g.restore();
     }
   }
+}
+// Ambient surround: the letterbox around the stage shows a blurred copy of the program (never recorded).
+{
+  const amb = $('#stageAmbient'), ag = amb?.getContext('2d');
+  const quiet = matchMedia('(prefers-reduced-motion: reduce)');
+  if (ag) setInterval(() => {
+    if (document.hidden || !S.studio || quiet.matches) return;
+    try { ag.drawImage(canvas, 0, 0, amb.width, amb.height); amb.classList.add('on'); } catch {}
+  }, 125);
 }
 const overlayErrs = new Set();
 function overlay(name, fn) {
@@ -4056,7 +4086,8 @@ $('#acSaveProfile').onclick = async () => {
     const r = await acctApi('update', { name: nextName || acct.user?.name || '', settings: collectSettings() });
     setUser(r.user);
     renderSyncNote('All changes saved to your account');
-    toast('Account & studio settings saved.');
+    toast('Saved. Your settings are on every device you sign in on.');
+    $('#acctDlg').close(); // Save is the dialog's primary action: done means done
   } catch (err) { toast(err.message, { err: true }); }
   finally { busy(btn, false); }
 };
@@ -5447,6 +5478,7 @@ async function goLive() {
       L.phase = 'live'; L.t0 = Date.now(); L.timer = setInterval(renderLive, 1000); renderDock();
       setTimeout(() => { if (S.live !== L) return; const ok = L.names.filter((n) => !(L.failed || []).includes(n)); toast(ok.length ? `You’re live on ${ok.join(' and ')}.${L.failed?.length ? ` ${L.failed.join(' and ')} failed.` : ''}` : 'The relay is running, but no destination accepted the stream.', { err: !ok.length || !!L.failed?.length }); }, 1500);
       setStage({ live: { on: true, since: L.t0, links: dests.map((d) => ({ kind: d.kind, url: watchUrl(d) })).filter((x) => x.url) } });
+      autoRecordStart();
     }
     else if (m.t === 'stats') { L.stats = m; renderLive(); }
     else if (m.t === 'warn' && !L.warned.has(m.message)) { L.warned.add(m.message); toast('Streaming problem: ' + m.message, { err: true }); }
@@ -5484,7 +5516,14 @@ function stopLive() {
   setTimeout(() => { try { L.ws?.close(1000); } catch {} }, 600);
   setTimeout(() => { if (S.live === L) endLive(L); }, 4000);
 }
+/** Settings → Auto-record every live show: a local recording starts with the stream and stops when it ends. */
+function autoRecordStart() {
+  if (!store.get('streamPrefs', {}).autoRec || S.rec) return;
+  toggleRecord();
+  if (S.rec) { S.rec.auto = true; toast('Recording this show automatically. Turn it off in Account → Studio defaults.', { ms: 5000 }); }
+}
 function endLive(L) {
+  if (S.rec?.auto) { try { S.rec.recorder.stop(); } catch {} }
   clearInterval(L.timer); clearTimeout(L.giveUp); clearInterval(L.wakeTimer); L_STATUS = {};
   if (L.phase === 'live' || L.t0) setStage({ live: null });
   try { L.rec?.state !== 'inactive' && L.rec?.stop(); } catch {}

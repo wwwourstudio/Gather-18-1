@@ -277,6 +277,7 @@
         </div>
 
         <div class="stage-wrap">
+          <canvas class="stage-ambient" id="stageAmbient" width="64" height="36" aria-hidden="true"></canvas>
           <div class="stage" id="stage">
             <canvas id="stageCanvas" width="1280" height="720" aria-label="Studio stage"></canvas>
             <canvas id="editorCanvas" width="1280" height="720" aria-hidden="true"></canvas>
@@ -1594,7 +1595,7 @@
             <label class="ac-tog-row"><div><b>Studio noise suppression</b><span>Filter keyboard clicks and fan hum automatically.</span></div><input type="checkbox" class="toggle sm" id="acPrefNoise"></label>
             <label class="ac-tog-row"><div><b>Auto-mute idle guests</b><span>Mute guests automatically after 30s of silence.</span></div><input type="checkbox" class="toggle sm" id="acPrefAutoMute"></label>
             <label class="ac-tog-row"><div><b>Enable live captions by default</b><span>Start speech captions &amp; catch-up indexing automatically.</span></div><input type="checkbox" class="toggle sm" id="acPrefCaps"></label>
-            <label class="ac-tog-row"><div><b>Auto-record every live show</b><span>Save local recording for instant 9:16 Auto Shorts clips.</span></div><input type="checkbox" class="toggle sm" id="acPrefAutoRec"></label>
+            <label class="ac-tog-row"><div><b>Auto-record every live show</b><span>Starts a recording on this computer when you go live, and stops when the show ends.</span></div><input type="checkbox" class="toggle sm" id="acPrefAutoRec"></label>
           </div>
         </section>
 

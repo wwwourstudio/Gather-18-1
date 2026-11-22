@@ -53,12 +53,15 @@ precision highp float;
 in vec2 uv; in vec2 st; out vec4 o;
 `;
 const MASK_FS = HEAD + `
-uniform sampler2D uRaw, uPrev; uniform int uCh; uniform float uFirst;
+uniform sampler2D uRaw, uPrev; uniform int uCh; uniform float uFirst, uMotion;
 void main() {
   vec4 r = texture(uRaw, uv);
   float raw = uCh == 3 ? r.a : r.r;
   float prev = texture(uPrev, st).r;
-  float k = uFirst > 0.5 ? 1.0 : clamp(0.22 + abs(raw - prev) * 2.6, 0.22, 1.0);
+  // uMotion (0..1) is how much the camera picture itself changed: still → heavy smoothing (no shimmer), moving →
+  // the mask follows at once (no trailing halo). Model noise alone never speeds it up.
+  float lo = mix(0.22, 0.8, uMotion);
+  float k = uFirst > 0.5 ? 1.0 : clamp(lo + abs(raw - prev) * 2.6, lo, 1.0);
   float m = mix(prev, raw, k);
   o = vec4(m, m, m, 1.0);
 }`;
@@ -344,7 +347,7 @@ export function createFxRenderer(W, H, opts = {}) {
     cg.putImageData(im, 0, 0);
     return cc;
   }
-  function setMask(rawSrc, rawChannel) {
+  function setMask(rawSrc, rawChannel, motion = 0) {
     const src = cleanMask(rawSrc, rawChannel), channel = 0;
     const w = src.width || src.videoWidth, h = src.height || src.videoHeight;
     if (!w || !h) return;
@@ -353,7 +356,7 @@ export function createFxRenderer(W, H, opts = {}) {
     upload(tMaskRaw, src);
     pass(P.mask, maskB, maskW, maskH);
     bind(0, tMaskRaw); bind(1, maskA.tex);
-    gl.uniform1i(P.mask.u('uRaw'), 0); gl.uniform1i(P.mask.u('uPrev'), 1); gl.uniform1i(P.mask.u('uCh'), channel); gl.uniform1f(P.mask.u('uFirst'), maskFirst ? 1 : 0);
+    gl.uniform1i(P.mask.u('uRaw'), 0); gl.uniform1i(P.mask.u('uPrev'), 1); gl.uniform1i(P.mask.u('uCh'), channel); gl.uniform1f(P.mask.u('uFirst'), maskFirst ? 1 : 0); gl.uniform1f(P.mask.u('uMotion'), Math.max(0, Math.min(1, motion)));
     draw();
     [maskA, maskB] = [maskB, maskA];
     maskFirst = false; haveMask = true;
@@ -454,7 +457,7 @@ export async function createVideoFx(srcTrack, opts) {
   const cropG = cropC.getContext('2d', { willReadFrequently: true });
   const segC = document.createElement('canvas'); segC.width = segC.height = SEG;
   const segG = segC.getContext('2d'); const segImg = segG.createImageData(SEG, SEG);
-  const FW = 384, FH = Math.round(384 * H / W), fullC = document.createElement('canvas'); fullC.width = FW; fullC.height = FH;
+  const FW = Math.min(W, 640), FH = Math.round(FW * H / W), fullC = document.createElement('canvas'); fullC.width = FW; fullC.height = FH;
   const fullG = fullC.getContext('2d');
   function nextRoi(full, bb) {
     if (full || !bb) return { x: 0, y: 0, w: W, h: H };
@@ -489,12 +492,26 @@ export async function createVideoFx(srcTrack, opts) {
     segG.putImageData(segImg, 0, 0);
     fullG.clearRect(0, 0, FW, FH);
     fullG.drawImage(segC, r0.x * FW / W, r0.y * FH / H, r0.w * FW / W, r0.h * FH / H);
-    r.setMask(fullC, 0);
+    r.setMask(fullC, 0, cameraMotion());
     const bb = maxX < 0 ? null : { x: r0.x + minX / SEG * r0.w, y: r0.y + minY / SEG * r0.h, w: (maxX - minX + 1) / SEG * r0.w, h: (maxY - minY + 1) / SEG * r0.h };
     if (full && bb) { // grow to include anyone the crop missed
       const ux = Math.min(bb.x, roi.x), uy = Math.min(bb.y, roi.y);
       roi = nextRoi(false, { x: ux, y: uy, w: Math.max(bb.x + bb.w, roi.x + roi.w) - ux, h: Math.max(bb.y + bb.h, roi.y + roi.h) - uy });
     } else roi = nextRoi(!bb, bb);
+  }
+  // How much the camera picture moved since the last mask (mean luma change of a 32×18 thumbnail), as 0..1.
+  const motC = document.createElement('canvas'); motC.width = 32; motC.height = 18;
+  const motG = motC.getContext('2d', { willReadFrequently: true });
+  let motPrev = null;
+  function cameraMotion() {
+    try {
+      motG.drawImage(video, 0, 0, 32, 18);
+      const d = motG.getImageData(0, 0, 32, 18).data, cur = new Float32Array(32 * 18);
+      let sum = 0;
+      for (let i = 0; i < cur.length; i++) { cur[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114; if (motPrev) sum += Math.abs(cur[i] - motPrev[i]); }
+      const had = !!motPrev; motPrev = cur;
+      return had ? Math.max(0, Math.min(1, (sum / cur.length - 1.5) / 10)) : 0; // ~1.5 is sensor noise; ~11.5 is a quick move
+    } catch { return 0; }
   }
   const probe = document.createElement('canvas'); probe.width = 32; probe.height = 18;
   const probeG = probe.getContext('2d', { willReadFrequently: true });
@@ -511,15 +528,18 @@ export async function createVideoFx(srcTrack, opts) {
           for (let i = 3; i < d.length; i += 4) minA = Math.min(minA, d[i]);
           maskChannel = minA < 250 ? 3 : 0;
         }
-        r.setMask(m, maskChannel);
+        r.setMask(m, maskChannel, cameraMotion());
       });
     } catch (e) { note = e.message; }
   }
   function apply(next) { o = { ...o, ...next }; r.set(next); ensureSeg(); }
   apply({});
+  // Segment first, then composite: the frame on screen is cut out with its own mask, not the previous frame's
+  // (which made moving shoulders and heads trail behind).
+  let lastFrameAt = 0;
   function frame() {
     if (stopped || video.readyState < 2) return;
-    r.render(video);
+    lastFrameAt = performance.now();
     if (tseg && !segBusy && (o.effect === 'blur' || o.effect === 'image') && performance.now() >= segNext) {
       // The model runs on the main thread: pace it by its own cost (every frame on a GPU; fewer on a slow CPU,
       // where the time-smoothed mask carries the frames in between) so the studio never stalls.
@@ -530,9 +550,15 @@ export async function createVideoFx(srcTrack, opts) {
       segBusy = true;
       seg.send({ image: video }).catch(() => {}).finally(() => { segBusy = false; });
     }
+    r.render(video);
   }
-  // Keep processing when the tab is in the background (rAF pauses there).
-  const timer = setInterval(frame, 1000 / 30);
+  // Run once per camera frame (requestVideoFrameCallback), so nothing is shown twice or skipped. The interval keeps
+  // things going in a background tab, where frame callbacks pause.
+  if (video.requestVideoFrameCallback) {
+    const onFrame = () => { if (stopped) return; frame(); video.requestVideoFrameCallback(onFrame); };
+    video.requestVideoFrameCallback(onFrame);
+  }
+  const timer = setInterval(() => { if (performance.now() - lastFrameAt > 60) frame(); }, 1000 / 30);
   const track = r.canvas.captureStream(30).getVideoTracks()[0];
   track.contentHint = 'motion';
   return {

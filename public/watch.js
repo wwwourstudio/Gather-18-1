@@ -2472,6 +2472,16 @@ function tickActs() {
   }
 }
 setInterval(tickActs, 500);
+// Ambient surround behind the player: a 64×36 copy of the direct video, blurred by CSS, ~8 times a second.
+{
+  const amb = $('#wAmbient'), ag = amb?.getContext('2d');
+  if (ag) setInterval(() => {
+    const v = W.direct?.video;
+    const on = !document.hidden && W.source === 'direct' && W.direct?.state === 'live' && v && v.readyState >= 2;
+    amb.classList.toggle('on', !!on);
+    if (on) { try { ag.drawImage(v, 0, 0, amb.width, amb.height); } catch {} }
+  }, 125);
+}
 // Arriving from a raid: say hello.
 { const from = new URLSearchParams(location.search).get('raid'); if (from) setTimeout(() => toast(`👋 You arrived with the raid from ${from.slice(0, 60)}`), 1200); }
 
