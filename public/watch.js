@@ -1399,13 +1399,14 @@ function renderShopDrop(info, force) {
   if (!W.shopTab) W.shopTab = 'drop';
   if (!items.some((p) => p.id === W.dropId)) W.dropId = null;
   const drop = items.find((p) => p.id === (W.dropId || sh.pinned)) || items.find((p) => p.id === sale?.id) || items[0];
-  const key = JSON.stringify([W.shopTab, drop?.id, sh.pinned, sale, items, bag, W.addedId]);
+  const qs = (W.recentChat || []).filter((m) => m.q && m.text).sort((a, b) => (b.likes || 0) - (a.likes || 0) || b.ts - a.ts).slice(0, 20);
+  const key = JSON.stringify([W.shopTab, drop?.id, sh.pinned, sale, items, bag, W.addedId, W.shopTab === 'qa' ? qs.map((q) => [q.id, q.likes, W.liked.has(q.id)]) : qs.length]);
   const body = $('#wModeBody');
   if (!force && body.dataset.k === key) return;
   body.dataset.k = key;
   const tabs = $('#wModeTabs');
   tabs.hidden = !items.length || W.shopTab === 'bag';
-  tabs.replaceChildren(...[['drop', 'Featured'], ['all', `Lookbook (${items.length})`]].map(([id, label]) => {
+  tabs.replaceChildren(...[['drop', 'Featured'], ['all', `Lookbook (${items.length})`], ['qa', `Q&A (${qs.length})`]].map(([id, label]) => {
     const b = document.createElement('button'); b.type = 'button'; b.role = 'tab'; b.textContent = label;
     b.setAttribute('aria-selected', String(W.shopTab === id)); b.onclick = () => { W.shopTab = id; renderShopDrop(W.info, true); };
     return b;
@@ -1440,6 +1441,31 @@ function renderShopDrop(info, force) {
       }));
       if (items.length > 4) { const more = document.createElement('button'); more.type = 'button'; more.className = 'wv-drop-more'; more.textContent = `See all ${items.length} in the Lookbook`; more.onclick = () => { W.shopTab = 'all'; renderShopDrop(W.info, true); }; sw.append(more); }
       out.push(sw);
+    }
+  } else if (W.shopTab === 'qa') {
+    // Questions from the chat (the ✋ ask), most upvoted first. Asking here sends a chat question the host sees highlighted.
+    const f = document.createElement('form'); f.className = 'wv-qa-ask';
+    const inp = Object.assign(document.createElement('input'), { className: 'input', maxLength: 300, placeholder: 'Ask about sizing, materials, shipping…' });
+    inp.setAttribute('aria-label', 'Ask the host a question');
+    const go = Object.assign(document.createElement('button'), { type: 'submit', className: 'btn sm primary', textContent: 'Ask' });
+    f.append(inp, go);
+    f.onsubmit = (e) => { e.preventDefault(); const t = inp.value.trim(); if (!t) return inp.focus(); $('#wText').value = t; setAsk(true); $('#wCompose').requestSubmit(); inp.value = ''; };
+    out.push(f);
+    if (!qs.length) out.push(Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'No questions yet. Ask one and the host sees it highlighted.' }));
+    else {
+      const ul = document.createElement('ul'); ul.className = 'wv-qa';
+      ul.replaceChildren(...qs.map((q) => {
+        const li = document.createElement('li');
+        li.append(Object.assign(document.createElement('p'), { textContent: q.text }));
+        const meta = document.createElement('div'); meta.className = 'wv-qa-m';
+        meta.append(Object.assign(document.createElement('span'), { textContent: q.name || 'Viewer' }));
+        const up = document.createElement('button'); up.type = 'button'; up.className = 'wv-qa-up num'; up.setAttribute('aria-pressed', String(W.liked.has(q.id)));
+        up.setAttribute('aria-label', `Upvote this question (${q.likes || 0})`); up.textContent = `▲ ${q.likes || 0}`;
+        up.onclick = async () => { if (W.liked.has(q.id)) return; await likeMsg(q.id, up); q.likes = (q.likes || 0) + 1; renderShopDrop(W.info, true); };
+        meta.append(up); li.append(meta);
+        return li;
+      }));
+      out.push(ul);
     }
   } else if (W.shopTab === 'all') {
     const ul = document.createElement('ul'); ul.className = 'wv-look';
