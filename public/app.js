@@ -1,4 +1,5 @@
 import { createAudioChain, createVideoFx, needsProcessing } from './fx.js';
+import { initPanels } from './panels.js';
 import { icon, busy, togglePopover } from './ui.js';
 import { configureGoogle, googleConfigured, googleSignedIn, googleToken, googleSignOut, saveToDrive, findLiveChat, pollLiveChat, ytModerate, googleSignInToken } from './google.js';
 import { TIERS, tierOf, drawOrder, isSystem, ensureSystem, blockerFor, overlaps, snapMove, snapResize, resolve, SAFE, GRID, PRESETS, materialize } from './layout.js';
@@ -8354,4 +8355,18 @@ $('#brandKit')?.addEventListener('click', (e) => {
   const k = e.target.closest('[data-kit]')?.dataset.kit; if (!k) return;
   if (k === 'overlay') { $('.look-seg:not([hidden]) [data-look="overlays"]')?.click() || $$('[data-look="overlays"]').find((x) => x.offsetParent)?.click(); setTimeout(() => $('[data-sec="stage-overlay"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); return; }
   $({ colour: '[data-sec="colour"]', backdrop: '[data-sec="bg"]', logo: '[data-sec="logo"]' }[k])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// ---------------------------------------------------------------- side panels: shared headers, finder, smooth sections, new tools
+initPanels({
+  isHost: () => isHost(), toast, setStage, brandImage, playMusicFile: (f) => playBgMusicFile(f),
+  designer: (t) => {
+    if (!isHost()) return toast('Only the host can use the AI designer.', { err: true });
+    const target = t === 'thumb' ? 'cover' : t;
+    openDesigner({ target, targets: ['cover', 'backdrop', 'logo', 'overlay'], onUse: (k, data) => {
+      if (k === 'cover') { const a = document.createElement('a'); a.href = data; a.download = (S.state.title || 'thumbnail').replace(/[^a-z0-9]+/gi, '-') + '.png'; a.click(); return toast('Thumbnail saved to your downloads.'); }
+      return brandDataUrl(LOOK_KIND[k], data);
+    } });
+  },
+  ask: (prompt) => { setTab('chat'); setChatTo('ai'); const i = $('#chatInput'); i.value = prompt; i.dispatchEvent(new Event('input')); i.focus(); toast('Edit it if you like, then press Enter to send it to ' + (store.get('aiName', '') || 'Sam') + '.'); },
 });
