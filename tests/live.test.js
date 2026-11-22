@@ -12,7 +12,9 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const SECRET = crypto.randomBytes(24).toString('hex');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'gather-live-'));
-const GATHER = 8099, RELAY = 8098, RTMP = [19351, 19352];
+// LIVE_BUILTIN=1: no separate relay and no RELAY_URL; gather's own server relays on /relay (the Google AI Studio setup).
+const BUILTIN = /^(1|true|yes)$/i.test(String(process.env.LIVE_BUILTIN || ''));
+const GATHER = BUILTIN ? 8097 : 8099, RELAY = 8098, RTMP = BUILTIN ? [19353, 19354] : [19351, 19352];
 const procs = [];
 const start = (cmd, args, env = {}) => { const p = spawn(cmd, args, { cwd: ROOT, env: { ...process.env, ...env }, stdio: ['ignore', 'ignore', 'pipe'] }); p.log = ''; p.stderr.on('data', (d) => { p.log += d; }); procs.push(p); return p; };
 const up = (url) => new Promise((res, rej) => { const until = Date.now() + 15000; const t = () => fetch(url).then(res).catch(() => (Date.now() > until ? rej(new Error('not up: ' + url)) : setTimeout(t, 200))); t(); });
@@ -23,14 +25,17 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
 (async () => {
   const sinks = RTMP.map((port, i) => ({ port, key: `key-${i ? 'twitch' : 'youtube'}-${crypto.randomBytes(4).toString('hex')}`, file: path.join(TMP, `out${i}.flv`) }));
   for (const s of sinks) s.proc = start('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-listen', '1', '-i', `rtmp://127.0.0.1:${s.port}/live/${s.key}`, '-c', 'copy', s.file]);
-  const relay = start(process.execPath, ['relay/server.js'], { PORT: String(RELAY), RELAY_SECRET: SECRET });
-  const env = { PORT: String(GATHER), ALLOW_ANON_STUDIOS: '1', RELAY_URL: `http://127.0.0.1:${RELAY}`, RELAY_SECRET: SECRET };
+  const relay = BUILTIN ? { log: '' } : start(process.execPath, ['relay/server.js'], { PORT: String(RELAY), RELAY_SECRET: SECRET });
+  const env = BUILTIN ? { PORT: String(GATHER), ALLOW_ANON_STUDIOS: '1', RELAY_URL: '', RELAY_SECRET: '' } : { PORT: String(GATHER), ALLOW_ANON_STUDIOS: '1', RELAY_URL: `http://127.0.0.1:${RELAY}`, RELAY_SECRET: SECRET };
   for (const k of ['REDIS_URL', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) env[k] = '';
   const gather = start(process.execPath, ['server.js'], env);
-  await up(`http://127.0.0.1:${RELAY}/health`); await up(`http://127.0.0.1:${GATHER}/`);
+  if (BUILTIN) Object.defineProperty(relay, 'log', { get: () => gather.log }); // the built-in relay logs with gather
+  if (!BUILTIN) await up(`http://127.0.0.1:${RELAY}/health`);
+  await up(`http://127.0.0.1:${GATHER}/`);
+  if (BUILTIN) { for (let i = 0; i < 40 && !(await fetch(`http://127.0.0.1:${GATHER}/api/studio?action=config`).then((r) => r.json()).then((c) => c.relay).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 250)); }
 
   // the relay only opens for gather-signed tokens
-  const tryWs = (q) => new Promise((res) => { const ws = new WebSocket(`ws://127.0.0.1:${RELAY}/live${q}`); ws.onopen = () => { ws.close(); res('open'); }; ws.onerror = () => res('refused'); });
+  const tryWs = (q) => new Promise((res) => { const ws = new WebSocket(BUILTIN ? `ws://127.0.0.1:${GATHER}/relay/live${q}` : `ws://127.0.0.1:${RELAY}/live${q}`); ws.onopen = () => { ws.close(); res('open'); }; ws.onerror = () => res('refused'); });
   const forged = Buffer.from(JSON.stringify({ s: 'x', e: Date.now() + 60000 })).toString('base64url') + '.' + crypto.createHmac('sha256', 'not-the-secret-xxxxxxxxxxxx').update('x').digest('base64url');
   check('relay refuses no token and a forged token', (await tryWs('')) === 'refused' && (await tryWs('?t=' + forged)) === 'refused');
 

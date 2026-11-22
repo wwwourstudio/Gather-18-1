@@ -4726,7 +4726,8 @@ async function goLive() {
   catch (e) { S.live = null; renderLive(); return toast(e.message, { err: true }); }
   audioCtx();
   const L = S.live;
-  const ws = new WebSocket(url); ws.binaryType = 'arraybuffer'; L.ws = ws;
+  // A built-in relay answers on this same site (/relay/live): turn the path into a wss:// address.
+  const ws = new WebSocket(url.startsWith('/') ? (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + url : url); ws.binaryType = 'arraybuffer'; L.ws = ws;
   ws.onopen = () => ws.send(JSON.stringify({ type: 'start', video: mime.video, dests: dests.map((d) => ({ url: d.url, key: d.key })) }));
   ws.onmessage = (ev) => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }

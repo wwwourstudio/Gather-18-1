@@ -12,6 +12,8 @@ is passed through untouched, so the smallest machine is enough. Other browsers s
 
 ## Deploy on Render (free, one click)
 
+gather’s own server (`server.js`) runs this relay built in when `RELAY_URL` isn’t set, using FFmpeg from the `ffmpeg-static` package, so on a long-running host (Google AI Studio, Render, a VPS) Go live needs no setup. This separate service is for hosts that can’t run FFmpeg, such as Vercel.
+
 `render.yaml` at the repo root describes the relay. In Render: **New → Blueprint**, pick this repository and paste the
 `RELAY_SECRET` it asks for (the same value as `RELAY_SECRET` in Vercel), then **Apply**. When it's live, set
 `RELAY_URL` in Vercel to the service's `https://….onrender.com` address and redeploy gather.

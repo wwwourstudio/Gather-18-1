@@ -3,7 +3,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { handle } = require('./lib/studio');
+const { handle, useBuiltInRelay } = require('./lib/studio');
 const { handleAI } = require('./lib/ai');
 const accountHandler = require('./api/account');
 const { enforceUsGeo } = require('./lib/geo');
@@ -17,7 +17,7 @@ function json(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-http.createServer((req, res) => {
+const gatherServer = http.createServer((req, res) => {
   if (!enforceUsGeo(req, res)) return;
   const u = new URL(req.url, 'http://x');
   if (u.pathname === '/api/ai' && req.method === 'POST') {
@@ -60,3 +60,28 @@ http.createServer((req, res) => {
 // One bad request must never drop every studio on a self-hosted server: log and keep serving.
 process.on('uncaughtException', (e) => console.error('Uncaught error (server kept running):', e));
 process.on('unhandledRejection', (e) => console.error('Unhandled rejection (server kept running):', e));
+
+// ---------------------------------------------------------------- built-in go-live relay
+// With no RELAY_URL, this server is the relay too: the studio's browser streams to wss://<this site>/relay/live and
+// FFmpeg (the ffmpeg-static package, else the system's) sends it on to YouTube, Twitch, Kick… Set RELAY_URL to use a
+// separate relay instead (Vercel can't run FFmpeg); GATHER_RELAY=off turns the built-in one off.
+if (!process.env.RELAY_URL && !/^(0|off|false|no)$/i.test(String(process.env.GATHER_RELAY || ''))) {
+  let ffmpegPath = process.env.FFMPEG_PATH || '';
+  if (!ffmpegPath) { try { ffmpegPath = require('ffmpeg-static') || ''; } catch {} }
+  if (!ffmpegPath) ffmpegPath = 'ffmpeg';
+  const probe = require('child_process').spawn(ffmpegPath, ['-version'], { stdio: 'ignore' });
+  probe.on('error', () => console.warn('[relay] FFmpeg not found: Go live stays off. Install ffmpeg-static or set RELAY_URL.'));
+  probe.on('exit', (code) => {
+    if (code !== 0) return console.warn('[relay] FFmpeg did not run: Go live stays off.');
+    try {
+      const { createRelay } = require('./relay/core');
+      const relay = createRelay({ secret: useBuiltInRelay(), max: Number(process.env.RELAY_MAX_STREAMS) || 3, transcode: process.env.RELAY_TRANSCODE || 'auto', ffmpeg: ffmpegPath });
+      gatherServer.on('upgrade', (req, socket, head) => {
+        const p = new URL(req.url, 'http://x').pathname;
+        if (p.startsWith('/relay/')) relay.handleUpgrade(req, socket, head, p.slice('/relay'.length));
+        else socket.destroy();
+      });
+      console.log('[relay] built in: Go live streams through this server (' + ffmpegPath + ')');
+    } catch (e) { console.warn('[relay] could not start the built-in relay:', e.message); }
+  });
+}
