@@ -955,6 +955,7 @@ function tipSync() {
   const msg = $('#wText').value.trim();
   $('#wTipNote').textContent = SC.opened
     ? `Paid? Send it and it goes on screen as soon as the streamer sees your $${SC.amount}.`
+    : $('#wBounty')?.checked ? (msg ? `Bounty: “${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}”, on stream once the streamer accepts it.` : 'Type the challenge below, e.g. “win a round with pistols only”.')
     : msg ? `“${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}” goes on screen, highlighted.` : 'Type a message below to go with it (optional).';
 }
 function openTipDock() {
@@ -971,6 +972,7 @@ function closeTipDock() {
 }
 $('#wTipBtn').onclick = () => ($('#wTipDock').hidden ? openTipDock() : closeTipDock());
 $('#wTipX').onclick = closeTipDock;
+$('#wBounty').addEventListener('change', () => { $('#wTipDock').classList.toggle('bounty', $('#wBounty').checked); tipSync(); });
 $('#wText').addEventListener('input', () => { if (!$('#wTipDock').hidden) tipSync(); });
 $('#wTipPay').onclick = async () => {
   const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
@@ -985,7 +987,10 @@ $('#wTipSend').onclick = async () => {
     await ensureSession();
     if (!sess?.named) { closeTipDock(); return openSuper(); } // no chat name yet: the full dialog asks for one
     const text = $('#wText').value.trim();
-    const r = await api('wsend', { ...creds(), type: 'super', amount: SC.amount, method: SC.method, text });
+    const bounty = $('#wBounty').checked;
+    if (bounty && !text) { $('#wText').focus(); return showErr('#wTipErr', 'Type the challenge in the message box first.'); }
+    const r = await api('wsend', { ...creds(), type: 'super', amount: SC.amount, method: SC.method, text, ...(bounty ? { bounty: true } : {}) });
+    $('#wBounty').checked = false;
     $('#wText').value = ''; closeTipDock();
     $('#wMsgs').append(msgEl({ id: 'mine-' + r.id, sc: r.id, name: sess.name, text: text || 'Waiting for the streamer to confirm your super chat…', paid: '$' + SC.amount, status: 'pending' }));
     $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
@@ -1559,8 +1564,8 @@ function settleWagers(info) {
 }
 function renderArena(info) {
   const w = info.watch || {}, top = $('#wArenaTop'); if (!top) return;
-  const sc = info.score;
-  const key = JSON.stringify([w.lobby, !$('#wClip')?.hidden, sc]);
+  const sc = info.score, bts = info.bounties || [];
+  const key = JSON.stringify([w.lobby, !$('#wClip')?.hidden, sc, bts]);
   if (top.dataset.k !== key) {
     const prevSc = top.dataset.sc ? JSON.parse(top.dataset.sc) : null;
     top.dataset.k = key; top.dataset.sc = JSON.stringify(sc || null);
@@ -1572,6 +1577,15 @@ function renderArena(info) {
       mid.append(Object.assign(document.createElement('span'), { textContent: sc.round || 'Live' }), ...(sc.map ? [Object.assign(document.createElement('em'), { textContent: sc.map })] : []));
       m.append(side(sc.a, sc.sa, sc.ca, prevSc && prevSc.sa !== sc.sa), mid, side(sc.b, sc.sb, sc.cb, prevSc && prevSc.sb !== sc.sb, true));
       parts.push(m);
+    }
+    if (bts.length) {
+      const bb = document.createElement('div'); bb.className = 'wv-bounties';
+      bb.append(Object.assign(document.createElement('b'), { className: 'wv-bounties-h', textContent: '🎯 Bounties' }), ...bts.slice().reverse().map((x) => {
+        const r = document.createElement('div'); r.className = 'wv-bounty ' + x.status;
+        r.append(Object.assign(document.createElement('strong'), { className: 'num', textContent: x.status === 'done' ? '✓' : x.status === 'failed' ? '✗' : x.amount }), Object.assign(document.createElement('span'), { textContent: x.text }), Object.assign(document.createElement('em'), { textContent: x.name }));
+        return r;
+      }));
+      parts.push(bb);
     }
     if (w.lobby) {
       const l = document.createElement('div'); l.className = 'wv-lobby';

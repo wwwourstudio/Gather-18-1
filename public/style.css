@@ -2856,3 +2856,11 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 .score-step .icon-btn { font: 800 15px/1 var(--font-ui); }
 .score-side { display: grid; grid-template-columns: minmax(0, 1fr) 34px auto; align-items: end; gap: 8px; }
 .score-side input[type="color"] { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px; background: none; }
+
+/* bounties in the Play panel */
+.bounty-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bounty-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 8px 8px 8px 10px; border-radius: 10px; background: linear-gradient(90deg, rgba(251, 191, 36, 0.14), transparent 70%); box-shadow: inset 3px 0 0 #fbbf24; }
+.bounty-item div { display: grid; min-width: 0; }
+.bounty-item b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bounty-item small { font-size: 11px; color: var(--ink-3); }
+.pill.bounty { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }

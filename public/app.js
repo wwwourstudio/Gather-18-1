@@ -1603,6 +1603,7 @@ function drawElement(e, t, onStage, custom) {
     case 'image': drawImageEl(e); return;
     case 'timer': drawTimerEl(e); return;
     case 'score': drawScoreEl(e); return;
+    case 'bounty': drawBountyEl(e); return;
     case 'banner': drawBanner(t, clearOfCams(px(e))); return;
     case 'ticker': drawTicker(t, px(e)); return;
     case 'logo': drawLogo(px(e)); return;
@@ -2065,6 +2066,7 @@ const ELEMENT_DEFAULTS = {
   text: () => ({ type: 'text', x: .05, y: .82, w: .5, h: .1, text: 'Your headline here', size: 40, color: '#ffffff', bold: true, align: 'left', bg: '' }),
   image: () => ({ type: 'image', x: .82, y: .06, w: .14, h: .14, asset: '', fit: 'contain', opacity: 1, radius: 0 }),
   timer: () => ({ type: 'timer', x: .42, y: .025, w: .16, h: .08, mode: 'clock', target: 0, size: 40, color: '#ffffff', bg: '' }),
+  bounty: () => ({ type: 'bounty', x: .68, y: .16, w: .3, h: .22 }),
   score: () => ({ type: 'score', x: .27, y: .025, w: .46, h: .1, a: 'Home', b: 'Away', sa: 0, sb: 0, round: '', map: '', ca: '#3b82f6', cb: '#f43f5e' }),
   media: () => ({ type: 'media', x: .025, y: .07, w: .7, h: .86, radius: 12 }),
   ai: () => ({ type: 'ai', x: .62, y: .07, w: .355, h: .62, size: 22 }),
@@ -2583,12 +2585,13 @@ function setEditing(on) {
   renderEditor();
   evaluateSceneSuggestion();
 }
-const ELABEL = { score: 'Scoreboard', slot: 'Camera', chat: 'Chat box', text: 'Text', image: 'Image', timer: 'Timer', media: 'Presentation', ai: 'AI window', tip: 'Support card', callin: 'Watch link card', shape: 'Colour block', banner: 'Lower third', ticker: 'Ticker', logo: 'Logo', ads: 'Sponsor ads', featured: 'Featured chat', captions: 'Captions' };
+const ELABEL = { bounty: 'Bounty board', score: 'Scoreboard', slot: 'Camera', chat: 'Chat box', text: 'Text', image: 'Image', timer: 'Timer', media: 'Presentation', ai: 'AI window', tip: 'Support card', callin: 'Watch link card', shape: 'Colour block', banner: 'Lower third', ticker: 'Ticker', logo: 'Logo', ads: 'Sponsor ads', featured: 'Featured chat', captions: 'Captions' };
 function elName(e) {
   if (e.type === 'slot') return `Camera ${e.index + 1}`;
   if (e.type === 'text') return e.text ? `“${e.text.slice(0, 22)}”` : 'Text';
   if (e.type === 'timer') return e.mode === 'countdown' ? 'Countdown' : 'Clock';
   if (e.type === 'score') return 'Scoreboard';
+  if (e.type === 'bounty') return 'Bounty board';
   if (e.type === 'tip') return `${(TIP_INFO[e.provider] || TIP_INFO.link).name} card`;
   if (e.type === 'shape' && e.label) return e.label;
   if (e.type === 'slot' && e.pip) return `Camera ${e.index + 1} (PiP)`;
@@ -5291,7 +5294,7 @@ function setPhase(p) {
   renderAll();
 }
 function renderAll() {
-  renderScorePanel(); renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
+  renderScorePanel(); renderBountyPanel(); renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
 function renderHeader() {
   // The studio name belongs to the studio you're in; outside one the header is just the wordmark.
   const inside = !!S.studio || S.phase === 'reconnecting';
@@ -7309,7 +7312,7 @@ function superInChat(x) {
   if (li) return;
   li = document.createElement('li'); li.className = 'msg ext paid sc-pending'; li.dataset.sc = x.id;
   const who = document.createElement('div'); who.className = 'who';
-  const badge = document.createElement('span'); badge.className = 'pill caps src-watch'; badge.textContent = 'Super chat';
+  const badge = document.createElement('span'); badge.className = 'pill caps src-watch' + (x.bounty ? ' bounty' : ''); badge.textContent = x.bounty ? '🎯 Bounty' : 'Super chat';
   const b = document.createElement('b'); b.textContent = x.name;
   const amt = document.createElement('span'); amt.className = 'paid-amt'; amt.textContent = money(x.amount);
   who.append(badge, b, amt);
@@ -7317,16 +7320,77 @@ function superInChat(x) {
   const note = document.createElement('div'); note.className = 'sc-note'; note.textContent = `Check your ${PAY_NAME[x.method]} for ${money(x.amount)} from ${x.name}, then:`;
   const row = document.createElement('div'); row.className = 'row';
   const btn = (t, cls, act) => { const k = document.createElement('button'); k.type = 'button'; k.className = 'btn sm ' + cls; k.textContent = t; k.onclick = () => superAct(x, act); return k; };
-  row.append(btn('Payment arrived · show it', 'primary', 'confirm'), btn('Not received', 'ghost', 'dismiss'));
+  row.append(btn(x.bounty ? 'Payment arrived · accept bounty' : 'Payment arrived · show it', 'primary', 'confirm'), btn('Not received', 'ghost', 'dismiss'));
   li.append(who, txt, note, row);
   appendLog(li);
 }
 function superAct(item, act) {
   wsSend({ type: 'superchat', id: item.id, do: act });
   item.status = { confirm: 'confirmed', dismiss: 'dismissed', answered: 'answered' }[act];
-  if (act === 'confirm') setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || 'Sent a super chat', paid: money(item.amount) } });
+  if (act === 'confirm' && item.bounty) acceptBounty(item);
+  else if (act === 'confirm') setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || 'Sent a super chat', paid: money(item.amount) } });
   if ((act === 'answered' || act === 'dismiss') && S.state.featured?.id === 'w-' + item.id) setStage({ featured: null });
   renderSupers(); superInChat(item);
+}
+// ---------------------------------------------------------------- bounties: viewer-funded challenges on the stream
+function acceptBounty(item) {
+  const list = (S.state.bounties || []).filter((b) => b.id !== item.id);
+  list.push({ id: item.id, name: item.name, text: item.text, amount: money(item.amount), status: 'active', ts: Date.now(), endedAt: 0 });
+  const patch = { bounties: list };
+  if (!(S.state.elements || []).some((e) => e.type === 'bounty')) {
+    const e = withDefaults({ type: 'bounty' }), els = stageElements(), spot = freeSpot(e, els);
+    if (spot) Object.assign(e, spot); else e.stack = true;
+    e.home = [e.x, e.y, e.w, e.h]; patch.elements = [...els, e];
+  }
+  setStage(patch);
+  toast(`🎯 Bounty accepted: “${item.text}”. It’s on stream until you mark it done.`, { ms: 6000 });
+}
+function endBounty(id, status) {
+  setStage({ bounties: (S.state.bounties || []).map((b) => (b.id === id ? { ...b, status, endedAt: Date.now() } : b)) });
+  if (status === 'done') toast('Bounty completed. It flashes on stream, then clears.');
+}
+function renderBountyPanel() {
+  const box = $('#bountyList'); if (!box) return;
+  const list = (S.state.bounties || []).filter((b) => b.status === 'active');
+  $('#bountyEmpty').hidden = !!list.length;
+  box.replaceChildren(...list.map((b) => {
+    const li = document.createElement('li'); li.className = 'bounty-item';
+    const t = document.createElement('div');
+    t.append(Object.assign(document.createElement('b'), { textContent: b.text }), Object.assign(document.createElement('small'), { textContent: `${b.amount} from ${b.name}` }));
+    const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn sm primary'; ok.textContent = '✓ Done'; ok.onclick = () => endBounty(b.id, 'done');
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'btn sm ghost'; no.textContent = '✗ Failed'; no.onclick = () => endBounty(b.id, 'failed');
+    li.append(t, ok, no);
+    return li;
+  }));
+}
+/** The bounty board on stage: the active challenges, and a completed one flashing for a few seconds. */
+function drawBountyEl(e) {
+  const now = Date.now();
+  const list = (S.state.bounties || []).filter((b) => b.status === 'active' || (b.status === 'done' && now - b.endedAt < 8000)).slice(-3);
+  if (!list.length) return;
+  // The board is as tall as its rows (one to three), never a half-empty box.
+  const r0 = px(e), rowH = Math.min(r0.w * .1, r0.h / 4.2), pad = rowH * .35, headH = rowH * .8;
+  const r = { x: r0.x, y: r0.y, w: r0.w, h: Math.min(r0.h, pad * 2 + headH + list.length * rowH) };
+  g.save();
+  rr(r.x, r.y, r.w, r.h, 14); g.fillStyle = 'rgba(8,12,26,.86)'; g.fill();
+  const glow = g.createLinearGradient(r.x, r.y, r.x + r.w, r.y); glow.addColorStop(0, 'rgba(251,191,36,.18)'); glow.addColorStop(1, 'rgba(251,191,36,0)');
+  rr(r.x, r.y, r.w, r.h, 14); g.fillStyle = glow; g.fill();
+  rr(r.x + .5, r.y + .5, r.w - 1, r.h - 1, 14); g.strokeStyle = 'rgba(251,191,36,.5)'; g.lineWidth = 1.5; g.stroke();
+  g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.font = `800 ${headH * .5}px Inter, sans-serif`; g.fillStyle = '#fbbf24'; g.fillText('🎯 BOUNTIES', r.x + pad * 1.2, r.y + pad + headH / 2);
+  list.forEach((b, i) => {
+    const y = r.y + pad + headH + i * rowH + rowH / 2;
+    const done = b.status === 'done';
+    if (done) { const a = Math.max(0, 1 - (now - b.endedAt) / 8000); g.fillStyle = `rgba(34,197,94,${.25 * a + .1})`; rr(r.x + pad * .6, y - rowH * .44, r.w - pad * 1.2, rowH * .88, 8); g.fill(); }
+    g.font = `900 ${rowH * .42}px Inter, sans-serif`; g.fillStyle = done ? '#4ade80' : '#fde68a';
+    const amt = done ? '✓ DONE' : b.amount; g.fillText(amt, r.x + pad * 1.2, y);
+    const aw = g.measureText(amt).width + pad * .9;
+    g.font = `700 ${rowH * .38}px Inter, sans-serif`; g.fillStyle = '#ffffff';
+    let t = b.text; const maxW = r.w - pad * 2.4 - aw;
+    while (t.length > 1 && g.measureText(t).width > maxW) t = t.slice(0, -2) + '…';
+    g.fillText(t, r.x + pad * 1.2 + aw, y);
+  });
+  g.restore();
 }
 function renderSupers() {
   const box = $('#scList'); if (!box) return;

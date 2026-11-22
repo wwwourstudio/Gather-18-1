@@ -2226,3 +2226,19 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-match-mid { display: grid; place-content: center; text-align: center; padding: 0 10px; gap: 1px; }
 .wv-match-mid span { font: 800 10.5px var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
 .wv-match-mid em { font-style: normal; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
+
+/* bounties */
+.wv-bountysw { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer; background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.14); }
+.wv-bountysw input { margin-top: 2px; accent-color: #fbbf24; }
+.wv-bountysw span { display: grid; gap: 1px; }
+.wv-bountysw b { font-size: 12.5px; color: var(--ink); }
+.wv-bountysw small { font-size: 11px; color: var(--ink-3); }
+.wv-tipdock.bounty .wv-bountysw { background: rgba(251, 191, 36, 0.12); box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.5); }
+.wv-bounties { flex-basis: 100%; display: grid; gap: 5px; padding: 10px; border-radius: 12px; background: linear-gradient(160deg, rgba(251, 191, 36, 0.1), rgba(8, 12, 26, 0.6)); box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.3); }
+.wv-bounties-h { font: 800 10.5px var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; color: #fbbf24; }
+.wv-bounty { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12.5px; }
+.wv-bounty strong { min-width: 34px; font: 900 12px var(--font-ui); color: #fde68a; }
+.wv-bounty span { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-bounty em { font-style: normal; font-size: 11px; color: var(--ink-3); }
+.wv-bounty.done strong { color: #4ade80; } .wv-bounty.done span { color: var(--ink-3); text-decoration: line-through; }
+.wv-bounty.failed strong { color: #f87171; } .wv-bounty.failed span { color: var(--ink-3); }
