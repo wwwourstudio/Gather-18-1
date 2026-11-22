@@ -3125,7 +3125,7 @@ function renderLayoutsPanel() {
 // stage (the AI window shows the pinned answer, or the latest one). Guests receive the conversation read-only.
 S.ai = { items: [], busy: false };
 S.aiProv = store.get('aiProv', 'claude');
-const AI_DEFAULT_MODEL = { claude: 'claude-opus-5-5', openai: 'gpt-5.5', gemini: 'gemini-2.5-flash', grok: 'grok-4.7' };
+const AI_DEFAULT_MODEL = { claude: 'claude-opus-5-5', openai: 'gpt-5.5', gemini: 'newest Gemini Flash (automatic)', grok: 'grok-4.7' };
 const aiSync = new Map(); // id -> timer, so streaming answers reach guests a few times a second, not per token
 function upsertAI(item, local = true) {
   if (!item?.id) return;
@@ -4327,8 +4327,10 @@ async function generateWizKit(withVisuals) {
   busy(btn);
   try {
     const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'kit', provider: prov, apiKey: key, model: key ? store.get('aiModel:' + prov, '') : '', topic: $('#wTitle').value.trim() || $('#wDesc').value.trim(), streamType: wiz.streamType }) });
-    const kit = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(kit.error || `AI request failed (${res.status}).`);
+    const raw = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(raw.error || `AI request failed (${res.status}).`);
+    const kit = raw.kit || raw; // the server sends { kit: { title, description, hashtags, headline, accentColor, …Prompt } }
+    kit.color = kit.color || kit.accentColor;
     if (kit.title) $('#wTitle').value = kit.title;
     if (kit.description) $('#wDesc').value = kit.description;
     if (Array.isArray(kit.hashtags) && kit.hashtags.length) $('#wTags').value = kit.hashtags.join(', ');
