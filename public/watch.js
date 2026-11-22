@@ -1559,10 +1559,20 @@ function settleWagers(info) {
 }
 function renderArena(info) {
   const w = info.watch || {}, top = $('#wArenaTop'); if (!top) return;
-  const key = JSON.stringify([w.lobby, !$('#wClip')?.hidden]);
+  const sc = info.score;
+  const key = JSON.stringify([w.lobby, !$('#wClip')?.hidden, sc]);
   if (top.dataset.k !== key) {
-    top.dataset.k = key;
+    const prevSc = top.dataset.sc ? JSON.parse(top.dataset.sc) : null;
+    top.dataset.k = key; top.dataset.sc = JSON.stringify(sc || null);
     const parts = [];
+    if (sc) {
+      const m = document.createElement('div'); m.className = 'wv-match';
+      const side = (n, s, c, flash, right) => { const d = document.createElement('div'); d.className = 'wv-match-side' + (right ? ' r' : '') + (flash ? ' flash' : ''); d.style.setProperty('--c', c); d.append(Object.assign(document.createElement('b'), { textContent: n }), Object.assign(document.createElement('strong'), { className: 'num', textContent: String(s) })); return d; };
+      const mid = document.createElement('div'); mid.className = 'wv-match-mid';
+      mid.append(Object.assign(document.createElement('span'), { textContent: sc.round || 'Live' }), ...(sc.map ? [Object.assign(document.createElement('em'), { textContent: sc.map })] : []));
+      m.append(side(sc.a, sc.sa, sc.ca, prevSc && prevSc.sa !== sc.sa), mid, side(sc.b, sc.sb, sc.cb, prevSc && prevSc.sb !== sc.sb, true));
+      parts.push(m);
+    }
     if (w.lobby) {
       const l = document.createElement('div'); l.className = 'wv-lobby';
       l.append(Object.assign(document.createElement('span'), { textContent: 'Lobby' }), Object.assign(document.createElement('code'), { textContent: w.lobby }));
@@ -1641,6 +1651,10 @@ $('#wPtHypeIt')?.addEventListener('click', (e) => {
   const b = e.currentTarget; b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
 });
 function renderPlayExtras(info) {
+  renderArena(info); settleWagers(info); // before the up-next check below, which returns early when the line hasn't changed
+  const qph = $('#wModeQueueEmpty'), pph = $('#wModePollEmpty'), qi0 = info.queue || {};
+  if (qph) qph.hidden = !!(qi0.open || W.called);
+  if (pph) pph.hidden = !!info.poll;
   const qi = info.queue || {}, up = qi.up || [];
   $('#wModeSub').textContent = qi.open ? (qi.size ? `${qi.size} in the play-with-me line` : 'The play-with-me line is open') + (info.poll && info.poll.until > Date.now() ? ' · prediction open' : '') : info.poll && info.poll.until > Date.now() ? 'Prediction open: make your call' : 'Polls, predictions and the play-with-me line land here';
   const next = $('#wModeUpNext'); if (!next) return;
@@ -1653,10 +1667,6 @@ function renderPlayExtras(info) {
     c.append(Object.assign(document.createElement('b'), { className: 'num', textContent: String(i + 1) }), document.createTextNode(n === sess?.name ? `${n} (you)` : n));
     return c;
   }));
-  renderArena(info); settleWagers(info);
-  const qph = $('#wModeQueueEmpty'), pph = $('#wModePollEmpty');
-  if (qph) qph.hidden = !!(qi.open || W.called);
-  if (pph) pph.hidden = !!info.poll;
 }
 function renderMode(info) {
   const type = info.found && MODE_CFG[info.streamType] ? info.streamType : '';

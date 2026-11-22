@@ -2846,3 +2846,13 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 #wThumbAiBtn .i { width: 14px; height: 14px; }
 .wiz-col-setup .soc-top { position: relative; }
 .wiz-col-setup .soc-top input[type="checkbox"] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: auto; cursor: pointer; }
+
+/* ---------------------------------------------------------------- scoreboard controls (Play panel + element settings) */
+.score-quick { display: grid; gap: 8px; }
+.score-quick[hidden] { display: none; }
+.score-q-side { --c: var(--accent); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 18%, transparent), transparent 70%); box-shadow: inset 3px 0 0 var(--c); }
+.score-step { display: inline-flex; align-items: center; gap: 6px; }
+.score-step b { min-width: 30px; text-align: center; font: 800 18px var(--font-ui); color: var(--ink); }
+.score-step .icon-btn { font: 800 15px/1 var(--font-ui); }
+.score-side { display: grid; grid-template-columns: minmax(0, 1fr) 34px auto; align-items: end; gap: 8px; }
+.score-side input[type="color"] { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 8px; background: none; }

@@ -850,6 +850,15 @@
             <ol class="queue-list" id="queueList"></ol>
             <p class="hint empty-note" id="queueEmptyHint">Turn on “Take players” and viewers can line up with their gamertag.</p>
           </div></details>
+          <details class="psec" data-sec="gaming-score" open><summary><b>Scoreboard</b><span class="hint">on stage &amp; the watch page</span></summary><div class="psec-body">
+            <button type="button" class="btn sm primary" id="scoreAdd"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg>Add a scoreboard to the stage</button>
+            <div class="score-quick" id="scoreQuick" hidden>
+              <div class="score-q-side" id="scoreSide-a"><input class="input sm" id="scoreName-a" maxlength="20" aria-label="Left side name"><div class="score-step"><button type="button" class="icon-btn sm" data-sq="a:-1" aria-label="Left side minus one">−</button><b class="num" id="scoreVal-a">0</b><button type="button" class="icon-btn sm" data-sq="a:1" aria-label="Left side plus one">+</button></div></div>
+              <div class="score-q-side" id="scoreSide-b"><input class="input sm" id="scoreName-b" maxlength="20" aria-label="Right side name"><div class="score-step"><button type="button" class="icon-btn sm" data-sq="b:-1" aria-label="Right side minus one">−</button><b class="num" id="scoreVal-b">0</b><button type="button" class="icon-btn sm" data-sq="b:1" aria-label="Right side plus one">+</button></div></div>
+              <div class="row2"><input class="input sm" id="scoreRound" maxlength="24" placeholder="Round 3 · Best of 5" aria-label="Round"><input class="input sm" id="scoreMap" maxlength="32" placeholder="Map / mode" aria-label="Map or mode"></div>
+              <div class="row"><button type="button" class="btn sm" data-sq="swap">Swap sides</button><button type="button" class="btn sm ghost" data-sq="reset">Reset</button></div>
+            </div>
+          </div></details>
           <details class="psec" data-sec="gaming-lobby" open><summary><b>Lobby &amp; rig</b><span class="hint">on the watch page</span></summary><div class="psec-body">
             <label class="fld"><span>Lobby / party code</span><input id="wpLobby" maxlength="40" placeholder="e.g. XK7-2PQ or discord.gg/yourserver" spellcheck="false"></label>
             <label class="fld"><span>Rig &amp; settings <em>one per line</em></span><textarea id="wpRig" rows="4" maxlength="400" placeholder="GPU: RTX 4080&#10;Mouse: Viper V3 · 800 DPI&#10;Sens: 0.35 · 103 FOV"></textarea></label>

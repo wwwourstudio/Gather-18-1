@@ -1602,6 +1602,7 @@ function drawElement(e, t, onStage, custom) {
     case 'text': drawTextEl(e); return;
     case 'image': drawImageEl(e); return;
     case 'timer': drawTimerEl(e); return;
+    case 'score': drawScoreEl(e); return;
     case 'banner': drawBanner(t, clearOfCams(px(e))); return;
     case 'ticker': drawTicker(t, px(e)); return;
     case 'logo': drawLogo(px(e)); return;
@@ -2064,6 +2065,7 @@ const ELEMENT_DEFAULTS = {
   text: () => ({ type: 'text', x: .05, y: .82, w: .5, h: .1, text: 'Your headline here', size: 40, color: '#ffffff', bold: true, align: 'left', bg: '' }),
   image: () => ({ type: 'image', x: .82, y: .06, w: .14, h: .14, asset: '', fit: 'contain', opacity: 1, radius: 0 }),
   timer: () => ({ type: 'timer', x: .42, y: .025, w: .16, h: .08, mode: 'clock', target: 0, size: 40, color: '#ffffff', bg: '' }),
+  score: () => ({ type: 'score', x: .27, y: .025, w: .46, h: .1, a: 'Home', b: 'Away', sa: 0, sb: 0, round: '', map: '', ca: '#3b82f6', cb: '#f43f5e' }),
   media: () => ({ type: 'media', x: .025, y: .07, w: .7, h: .86, radius: 12 }),
   ai: () => ({ type: 'ai', x: .62, y: .07, w: .355, h: .62, size: 22 }),
   tip: () => ({ type: 'tip', x: .025, y: .64, w: .34, h: .31, provider: 'paypal', url: '', label: 'Support the show' }),
@@ -2334,6 +2336,45 @@ function drawImageEl(e) {
   g.drawImage(img, r.x + (r.w - dw) / 2, r.y + (r.h - dh) / 2, dw, dh);
   g.restore();
 }
+// The match scoreboard: two coloured sides with big scores, round and map between them. A score that just changed flashes.
+const scoreSeen = new Map();
+function drawScoreEl(e) {
+  const r = px(e), h = r.h, R = Math.min(18, h * 0.3), now = performance.now();
+  const prev = scoreSeen.get(e.id) || { sa: e.sa, sb: e.sb, ta: 0, tb: 0 };
+  if (prev.sa !== e.sa) { prev.ta = now; prev.sa = e.sa; } if (prev.sb !== e.sb) { prev.tb = now; prev.sb = e.sb; }
+  scoreSeen.set(e.id, prev);
+  const mid = (e.round || e.map) ? Math.min(r.w * 0.2, h * 1.9) : h * 0.6, side = (r.w - mid) / 2;
+  g.save();
+  g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 18; g.shadowOffsetY = 6;
+  rr(r.x, r.y, r.w, r.h, R); g.fillStyle = 'rgba(8,12,26,.86)'; g.fill();
+  g.shadowColor = 'transparent';
+  g.save(); rr(r.x, r.y, r.w, r.h, R); g.clip();
+  const team = (x, col, name, score, flashAt, alignRight) => {
+    const gr = g.createLinearGradient(x, 0, x + side, 0);
+    gr.addColorStop(alignRight ? 1 : 0, hexA(col, .55)); gr.addColorStop(alignRight ? 0 : 1, hexA(col, .08));
+    g.fillStyle = gr; g.fillRect(x, r.y, side, h);
+    g.fillStyle = col; g.fillRect(alignRight ? x + side - h * .06 : x, r.y, h * .06, h);
+    const fl = Math.max(0, 1 - (now - flashAt) / 900);
+    if (fl > 0) { g.fillStyle = `rgba(255,255,255,${fl * .35})`; g.fillRect(x, r.y, side, h); }
+    const sc = String(score), sw = h * .62;
+    g.font = `900 ${h * .56}px "JetBrains Mono", ui-monospace, monospace`; g.fillStyle = '#ffffff'; g.textBaseline = 'middle';
+    g.textAlign = 'center'; g.fillText(sc, alignRight ? x + h * .5 + sw / 2 : x + side - h * .5 - sw / 2, r.y + h / 2 + 2);
+    g.font = `800 ${h * .26}px Inter, sans-serif`; g.textAlign = alignRight ? 'right' : 'left';
+    const nx = alignRight ? x + side - h * .26 : x + h * .26, maxW = side - sw - h * .75;
+    let nm = name.toUpperCase(); while (nm.length > 1 && g.measureText(nm).width > maxW) nm = nm.slice(0, -1);
+    g.fillText(nm, nx, r.y + h / 2 + 1);
+  };
+  team(r.x, e.ca, e.a, e.sa, prev.ta, false);
+  team(r.x + side + mid, e.cb, e.b, e.sb, prev.tb, true);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; const cx = r.x + side + mid / 2;
+  if (e.round || e.map) {
+    g.font = `800 ${h * .22}px Inter, sans-serif`; g.fillStyle = 'rgba(255,255,255,.92)'; g.fillText((e.round || '').toUpperCase(), cx, r.y + h * (e.map ? .36 : .5));
+    if (e.map) { g.font = `600 ${h * .18}px Inter, sans-serif`; g.fillStyle = 'rgba(203,213,225,.75)'; g.fillText(e.map, cx, r.y + h * .68); }
+  } else { g.font = `800 ${h * .26}px Inter, sans-serif`; g.fillStyle = 'rgba(203,213,225,.7)'; g.fillText('VS', cx, r.y + h / 2); }
+  g.restore();
+  rr(r.x + .5, r.y + .5, r.w - 1, r.h - 1, R); g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1; g.stroke();
+  g.restore();
+}
 function drawTimerEl(e) {
   const r = px(e);
   let label;
@@ -2505,7 +2546,7 @@ function commitElements(delay = 0) {
   clearTimeout(editor.commitT);
   editor.commitT = setTimeout(() => setStage({ elements: S.state.elements }), delay);
 }
-function addElement(type) {
+function addElement(type, { edit = true } = {}) {
   const e = withDefaults({ type });
   if (type === 'slot') {
     const used = new Set((S.state.elements || []).filter((x) => x.type === 'slot').map((x) => x.index));
@@ -2519,8 +2560,7 @@ function addElement(type) {
   const patch = { elements: [...els, e] };
   if (type === 'slot' && S.state.layout !== 'custom') patch.layout = 'custom';
   setStage(patch);
-  editor.sel = e.id;
-  setEditing(true);
+  if (edit) { editor.sel = e.id; setEditing(true); }
   return e;
 }
 /** First position on the 8px grid (scanning in 32px steps, inside action-safe) where a rect overlaps nothing. */
@@ -2543,11 +2583,12 @@ function setEditing(on) {
   renderEditor();
   evaluateSceneSuggestion();
 }
-const ELABEL = { slot: 'Camera', chat: 'Chat box', text: 'Text', image: 'Image', timer: 'Timer', media: 'Presentation', ai: 'AI window', tip: 'Support card', callin: 'Watch link card', shape: 'Colour block', banner: 'Lower third', ticker: 'Ticker', logo: 'Logo', ads: 'Sponsor ads', featured: 'Featured chat', captions: 'Captions' };
+const ELABEL = { score: 'Scoreboard', slot: 'Camera', chat: 'Chat box', text: 'Text', image: 'Image', timer: 'Timer', media: 'Presentation', ai: 'AI window', tip: 'Support card', callin: 'Watch link card', shape: 'Colour block', banner: 'Lower third', ticker: 'Ticker', logo: 'Logo', ads: 'Sponsor ads', featured: 'Featured chat', captions: 'Captions' };
 function elName(e) {
   if (e.type === 'slot') return `Camera ${e.index + 1}`;
   if (e.type === 'text') return e.text ? `“${e.text.slice(0, 22)}”` : 'Text';
   if (e.type === 'timer') return e.mode === 'countdown' ? 'Countdown' : 'Clock';
+  if (e.type === 'score') return 'Scoreboard';
   if (e.type === 'tip') return `${(TIP_INFO[e.provider] || TIP_INFO.link).name} card`;
   if (e.type === 'shape' && e.label) return e.label;
   if (e.type === 'slot' && e.pip) return `Camera ${e.index + 1} (PiP)`;
@@ -2638,6 +2679,27 @@ function toggleBtn(name, label, pressed, fn) {
   b.classList.add('layer-toggle');
   return b;
 }
+// Scoreboard quick actions, from its settings and from the Play panel: 'a:1', 'b:-1', 'swap', 'reset'.
+function scoreAction(id, act) {
+  const e = (S.state.elements || []).find((x) => x.id === id); if (!e) return;
+  if (act === 'swap') return patchEl(id, { a: e.b, b: e.a, sa: e.sb, sb: e.sa, ca: e.cb, cb: e.ca });
+  if (act === 'reset') return patchEl(id, { sa: 0, sb: 0 });
+  const [side, d] = act.split(':');
+  patchEl(id, { ['s' + side]: Math.max(-999, Math.min(9999, (e['s' + side] || 0) + Number(d))) });
+}
+function renderScorePanel() {
+  const box = $('#scoreQuick'); if (!box) return;
+  const e = (S.state.elements || []).find((x) => x.type === 'score');
+  $('#scoreAdd').hidden = !!e; box.hidden = !e;
+  if (!e) return;
+  for (const s of ['a', 'b']) {
+    if (document.activeElement !== $('#scoreName-' + s)) $('#scoreName-' + s).value = e[s];
+    $('#scoreVal-' + s).textContent = String(e['s' + s]);
+    $('#scoreSide-' + s).style.setProperty('--c', e['c' + s]);
+  }
+  if (document.activeElement !== $('#scoreRound')) $('#scoreRound').value = e.round || '';
+  if (document.activeElement !== $('#scoreMap')) $('#scoreMap').value = e.map || '';
+}
 function patchEl(id, patch, verb) {
   const els = elementsCopy(), e = els.find((x) => x.id === id);
   if (!e) return;
@@ -2702,6 +2764,15 @@ function renderProps() {
     field('Fit', `<select data-k="fit"><option value="contain" ${e.fit === 'contain' ? 'selected' : ''}>Fit inside</option><option value="cover" ${e.fit === 'cover' ? 'selected' : ''}>Fill box</option></select>`);
     field('Opacity', `<input type="range" min="0.1" max="1" step="0.05" data-k="opacity" data-num value="${e.opacity}">`);
     field('Corner rounding', `<input type="range" min="0" max="120" data-k="radius" data-num value="${e.radius}">`);
+  }
+  if (e.type === 'score') {
+    for (const [s, label] of [['a', 'Left side'], ['b', 'Right side']]) {
+      f.push(`<div class="score-side"><label class="fld"><span>${label}</span><input data-k="${s}" maxlength="20" value="${val(s)}"></label>`
+        + `<input type="color" data-k="c${s}" value="${e['c' + s]}" aria-label="${label} colour">`
+        + `<div class="score-step"><button type="button" class="icon-btn sm" data-score="${s}:-1" aria-label="${label} minus one">−</button><b class="num">${e['s' + s]}</b><button type="button" class="icon-btn sm" data-score="${s}:1" aria-label="${label} plus one">+</button></div></div>`);
+    }
+    f.push(`<div class="row2"><label class="fld"><span>Round</span><input data-k="round" maxlength="24" value="${val('round')}" placeholder="Round 3 · Best of 5"></label><label class="fld"><span>Map / mode</span><input data-k="map" maxlength="32" value="${val('map')}" placeholder="Ascent"></label></div>`);
+    f.push(`<div class="row"><button type="button" class="btn sm" data-score="swap">Swap sides</button><button type="button" class="btn sm ghost" data-score="reset">Reset scores</button></div>`);
   }
   if (e.type === 'timer') {
     field('Shows', `<select data-k="mode"><option value="clock" ${e.mode === 'clock' ? 'selected' : ''}>Current time</option><option value="countdown" ${e.mode === 'countdown' ? 'selected' : ''}>Countdown</option></select>`);
@@ -2770,6 +2841,7 @@ $('#elProps').addEventListener('click', (ev) => {
   if (btn.dataset.order) moveEl(e.id, Number(btn.dataset.order));
   if (btn.dataset.reset !== undefined) resetEl(e.id);
   if (btn.dataset.count) { e.target = Date.now() + Number(btn.dataset.count) * 60_000; commitElements(); toast(`Countdown set to ${btn.dataset.count} min.`); }
+  if (btn.dataset.score) { scoreAction(e.id, btn.dataset.score); renderProps(); }
 });
 
 // Drag and resize on the stage: snaps to the 8px grid, safe areas and other layers' edges; refuses to overlap
@@ -5218,7 +5290,8 @@ function setPhase(p) {
   pill.hidden = p === 'online';
   renderAll();
 }
-function renderAll() { renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
+function renderAll() {
+  renderScorePanel(); renderHeader(); renderStageUI(); renderCrew(); renderDock(); renderPanels(); renderFeedUI(); renderChatOpts(); renderGuestBrief(); renderLayoutsPanel(); renderAIPanel(); renderTips(); renderBrandPanel(); renderStreamPanel(); renderGuestView(); syncTwitch(); syncCaptions(); renderDeck(); renderAds(); renderProducerUI(); renderGreenRoom(); renderLive(); renderWatchSec(); }
 function renderHeader() {
   // The studio name belongs to the studio you're in; outside one the header is just the wordmark.
   const inside = !!S.studio || S.phase === 'reconnecting';
@@ -8025,4 +8098,15 @@ function drawWaves() {
     g.fillText(w.e, (w.x + w.dx * Math.sin(t * 6)) * W, H * (0.9 - ease * 0.55));
   }
   g.restore();
+}
+
+// ---------------------------------------------------------------- Play panel: scoreboard quick controls
+$('#scoreAdd')?.addEventListener('click', () => { if (!isHost()) return toast('Only the host can change the stage.', { err: true }); addElement('score', { edit: false }); setTimeout(renderScorePanel, 50); toast('Scoreboard added to the stage. Drag it anywhere in Look → Layout.'); });
+$('#scoreQuick')?.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-sq]'); if (!b) return;
+  const e = (S.state.elements || []).find((x) => x.type === 'score'); if (!e) return;
+  scoreAction(e.id, b.dataset.sq); setTimeout(renderScorePanel, 30);
+});
+for (const [id, k] of [['scoreName-a', 'a'], ['scoreName-b', 'b'], ['scoreRound', 'round'], ['scoreMap', 'map']]) {
+  $('#' + id)?.addEventListener('change', (ev) => { const e = (S.state.elements || []).find((x) => x.type === 'score'); if (e) patchEl(e.id, { [k]: ev.target.value.trim() }); });
 }
