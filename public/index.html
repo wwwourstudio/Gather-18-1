@@ -1715,5 +1715,6 @@
 <div class="media-sink" id="mediaSink" aria-hidden="true"></div>
 
 <script src="/app.js" type="module"></script>
+<script type="module">import { startHero3D } from '/hero3d.js'; window.requestIdleCallback ? window.requestIdleCallback(() => startHero3D(), { timeout: 800 }) : setTimeout(startHero3D, 200);</script>
 </body>
 </html>

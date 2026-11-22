@@ -2946,3 +2946,13 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 .look-ai-row .btn.primary { background: linear-gradient(120deg, #4285f4, #7c5cff); border-color: transparent; }
 .aid-head .modal-close { position: static; }
 .aid-head #aidKeyBtn { margin-left: auto; }
+
+/* ---------------------------------------------------------------- home page: the 3D WebGL backdrop (hero3d.js) */
+.backdrop canvas.hero3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.4s var(--ease-out); }
+body.pre .backdrop canvas.hero3d { opacity: 1; }
+body:not(.pre) .backdrop canvas.hero3d { display: none; }
+/* the WebGL scene replaces the flat orbs and the line art on the home page */
+body.pre .backdrop.gl .aur-wave, body.pre .backdrop.gl .aur { display: none; }
+body.pre .backdrop.gl .aur-grid { opacity: 0.35; z-index: 1; }
+body.pre .backdrop.gl::before { opacity: 0; }
+body.pre .backdrop.gl::after { z-index: 1; background: radial-gradient(130% 95% at 50% 35%, transparent 45%, color-mix(in srgb, var(--bg) 70%, transparent) 100%); }
