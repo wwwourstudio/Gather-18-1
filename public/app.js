@@ -1363,7 +1363,8 @@ function drawBackground(t) {
     g.fillStyle = `rgba(4,8,20,${S.state.brand.dim ?? 0.25})`; g.fillRect(0, 0, W, H);
     return;
   }
-  const [a, b, c, glow] = BGS[S.state.brand.bg] || BGS.dusk;
+  const ac = accentOf();
+  const [a, b, c, glow] = S.state.brand.bg === 'dusk' || !BGS[S.state.brand.bg] ? [mixHex(ac, '#05070d', 0.8), mixHex(ac, '#070a14', 0.66), mixHex(ac, '#0b0f1e', 0.5), hexA(mixHex(ac, '#ffffff', 0.5), 0.07)] : BGS[S.state.brand.bg];
   const grd = g.createLinearGradient(0, 0, W, H);
   grd.addColorStop(0, a); grd.addColorStop(.6, b); grd.addColorStop(1, c);
   g.fillStyle = grd; g.fillRect(0, 0, W, H);
@@ -1614,6 +1615,13 @@ function drawElement(e, t, onStage, custom) {
     case 'captions': drawCaptions(clearOfCams(px(e))); return;
   }
 }
+/** Blend two #rrggbb colours: k = 0 gives a, k = 1 gives b. Used to tint the stage with the user's accent. */
+function mixHex(a, b, k) {
+  const p = (h) => { const n = parseInt(String(h).replace('#', '').padEnd(6, '0').slice(0, 6), 16) || 0; return [n >> 16, (n >> 8) & 255, n & 255]; };
+  const x = p(a), y = p(b);
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * k).toString(16).padStart(2, '0')).join('');
+}
+const accentOf = () => normalizeHex(S.state?.brand?.color) || '#3b82f6';
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
 function contrastInk(hex) { const n = parseInt(hex.slice(1), 16); const [r, gg, b] = [n >> 16, (n >> 8) & 255, n & 255]; return (0.299 * r + 0.587 * gg + 0.114 * b) > 170 ? '#111827' : '#ffffff'; }
 
@@ -2069,7 +2077,7 @@ const ELEMENT_DEFAULTS = {
   image: () => ({ type: 'image', x: .82, y: .06, w: .14, h: .14, asset: '', fit: 'contain', opacity: 1, radius: 0 }),
   timer: () => ({ type: 'timer', x: .42, y: .025, w: .16, h: .08, mode: 'clock', target: 0, size: 40, color: '#ffffff', bg: '' }),
   bounty: () => ({ type: 'bounty', x: .68, y: .16, w: .3, h: .22 }),
-  score: () => ({ type: 'score', x: .27, y: .025, w: .46, h: .1, a: 'Home', b: 'Away', sa: 0, sb: 0, round: '', map: '', ca: '#3b82f6', cb: '#f43f5e' }),
+  score: () => ({ type: 'score', x: .27, y: .025, w: .46, h: .1, a: 'Home', b: 'Away', sa: 0, sb: 0, round: '', map: '', ca: accentOf(), cb: '#f43f5e' }),
   media: () => ({ type: 'media', x: .025, y: .07, w: .7, h: .86, radius: 12 }),
   ai: () => ({ type: 'ai', x: .62, y: .07, w: .355, h: .62, size: 22 }),
   tip: () => ({ type: 'tip', x: .025, y: .64, w: .34, h: .31, provider: 'paypal', url: '', label: 'Support the show' }),
@@ -2507,7 +2515,7 @@ function drawTipEl(e) {
   g.restore();
 }
 // ---- super chat alert on the stream: a burst of the amount, who sent it and their message, ~6 s
-const SC_TIER = (a) => (a >= 50 ? ['#f43f5e', '#fb7185'] : a >= 20 ? ['#f59e0b', '#fbbf24'] : a >= 10 ? ['#22c55e', '#4ade80'] : ['#3b82f6', '#60a5fa']);
+const SC_TIER = (a) => (a >= 50 ? ['#f43f5e', '#fb7185'] : a >= 20 ? ['#f59e0b', '#fbbf24'] : a >= 10 ? ['#22c55e', '#4ade80'] : [accentOf(), mixHex(accentOf(), '#ffffff', 0.3)]);
 const scAnim = { id: '', t0: 0, parts: [] };
 function drawScAlert(t) {
   const a = S.state.scAlert;
@@ -2911,7 +2919,7 @@ $('#elProps').addEventListener('input', (ev) => {
     if (k === 'mode') { renderProps(); }
     commitElements(t.type === 'range' || t.tagName === 'TEXTAREA' ? 250 : 0);
   }
-  if (t.dataset.bg !== undefined) { e.bg = t.checked ? (e.type === 'text' ? '#1f6feb' : '#111827') : ''; renderProps(); commitElements(); }
+  if (t.dataset.bg !== undefined) { e.bg = t.checked ? (e.type === 'text' ? accentOf() : '#111827') : ''; renderProps(); commitElements(); }
 });
 $('#elProps').addEventListener('change', async (ev) => {
   const t = ev.target, e = selEl();
@@ -6202,7 +6210,7 @@ function drawAudioTile(p, x, y, w, h, t) {
   else if (av) g.drawImage(blurredOf(av), x, y, w, h);
   else {
     const gr = g.createRadialGradient(x + w * .3, y + h * .2, 10, x + w / 2, y + h / 2, Math.max(w, h) * .8);
-    gr.addColorStop(0, hexA(brand.color, .55)); gr.addColorStop(.55, '#152042'); gr.addColorStop(1, '#0a1022');
+    gr.addColorStop(0, hexA(brand.color, .55)); gr.addColorStop(.55, mixHex(brand.color, '#070a14', 0.78)); gr.addColorStop(1, mixHex(brand.color, '#04060c', 0.9));
     g.fillStyle = gr; g.fillRect(x, y, w, h);
   }
   g.fillStyle = brand.panel === 'solid' ? hexA(brand.panelColor || '#0f172a', .55) : 'rgba(8,14,30,.32)'; g.fillRect(x, y, w, h);
@@ -6778,7 +6786,7 @@ function drawOrb(cx, cy, r, t) {
   g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, rr2 * 2.2, 0, Math.PI * 2); g.fill();
   const a = t / 900;
   const og = g.createLinearGradient(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2, cx - Math.cos(a) * rr2, cy - Math.sin(a) * rr2);
-  og.addColorStop(0, '#60a5fa'); og.addColorStop(.5, S.state.brand.color); og.addColorStop(1, '#1d4ed8');
+  og.addColorStop(0, mixHex(accentOf(), '#ffffff', 0.35)); og.addColorStop(.5, accentOf()); og.addColorStop(1, mixHex(accentOf(), '#000000', 0.35));
   g.fillStyle = og; g.beginPath(); g.arc(cx, cy, rr2, 0, Math.PI * 2); g.fill();
   g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.beginPath(); g.arc(cx, cy, rr2, 0, Math.PI * 2); g.stroke();
 }
@@ -6968,7 +6976,7 @@ function renderInviteSeats(list) {
   if (!box) return;
   const slots = [];
   const accent = normalizeHex(S.state?.brand?.color) || '#3b82f6';
-  const palette = [accent, '#2563eb', '#10b981', '#f59e0b', '#0ea5e9', '#06b6d4'];
+  const palette = [accent, mixHex(accent, '#000000', 0.3), '#10b981', '#f59e0b', mixHex(accent, '#ffffff', 0.35), '#06b6d4'];
   for (let i = 0; i < MAX; i++) {
     const p = list[i];
     if (p) {

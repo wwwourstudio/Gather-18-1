@@ -454,7 +454,7 @@ body.pre .top.glass {
 .swatches button:focus-visible, .bgs button:focus-visible { box-shadow: var(--ring); }
 .swatches button.on, .bgs button.on { box-shadow: 0 0 0 2px var(--ink); }
 .swatches button:disabled, .bgs button:disabled { opacity: 0.45; cursor: not-allowed; }
-.bgs [data-bg="dusk"] { background: linear-gradient(135deg, #1d3f47, #2a3566 60%, #3c3f74); }
+.bgs [data-bg="dusk"] { background: linear-gradient(135deg, color-mix(in srgb, var(--stage-accent, var(--accent)) 20%, #05070d), color-mix(in srgb, var(--stage-accent, var(--accent)) 34%, #070a14) 60%, color-mix(in srgb, var(--stage-accent, var(--accent)) 50%, #0b0f1e)); }
 .bgs [data-bg="ember"] { background: linear-gradient(135deg, #3a1d24, #6d2f2a 60%, #a0533a); }
 .bgs [data-bg="forest"] { background: linear-gradient(135deg, #10291f, #1d4a3a 60%, #3b6b4b); }
 .bgs [data-bg="graphite"] { background: linear-gradient(135deg, #15181d, #262b33 60%, #3a404b); }
@@ -2956,3 +2956,46 @@ body.pre .backdrop.gl .aur-wave, body.pre .backdrop.gl .aur { display: none; }
 body.pre .backdrop.gl .aur-grid { opacity: 0.35; z-index: 1; }
 body.pre .backdrop.gl::before { opacity: 0; }
 body.pre .backdrop.gl::after { z-index: 1; background: radial-gradient(130% 95% at 50% 35%, transparent 45%, color-mix(in srgb, var(--bg) 70%, transparent) 100%); }
+
+/* ---------------------------------------------------------------- home page, design pass: glass + depth */
+body.pre .land-art { perspective: 1600px; }
+body.pre .land-art .hz-win { transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transform-style: preserve-3d; transition: box-shadow 0.4s; position: relative;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 10%, rgba(14, 20, 40, 0.62)), rgba(8, 12, 26, 0.55));
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 50px 120px -40px rgba(2, 6, 23, 0.9), 0 30px 90px -50px color-mix(in srgb, var(--accent) 80%, transparent); }
+/* a glare that follows the pointer across the glass */
+body.pre .land-art .hz-win::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(60% 50% at var(--gx, 50%) var(--gy, 30%), rgba(255, 255, 255, 0.09), transparent 70%); mix-blend-mode: screen; }
+/* gradient hairline border */
+body.pre .land-art .hz-win::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.32), color-mix(in srgb, var(--accent) 50%, transparent) 40%, rgba(255, 255, 255, 0.04) 70%, color-mix(in srgb, var(--accent) 35%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+html:not(.booting) body.pre .land-art .hz-win { animation: none; }
+body.pre .land-h1-grad { background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent) 45%, color-mix(in srgb, var(--accent) 60%, #22d3ee)); -webkit-background-clip: text; background-clip: text; color: transparent; background-size: 200% 100%; animation: land-sheen 9s ease-in-out infinite; }
+@keyframes land-sheen { 50% { background-position: 100% 0; } }
+body.pre .land-eyebrow { -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%); background: color-mix(in srgb, var(--accent) 8%, rgba(255, 255, 255, 0.04)); border-color: rgba(255, 255, 255, 0.12); }
+body.pre #enterStage { box-shadow: 0 14px 40px -12px color-mix(in srgb, var(--accent) 85%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25); transition: transform 0.25s var(--ease-out), box-shadow 0.25s; }
+body.pre #enterStage:hover { transform: translateY(-2px); box-shadow: 0 20px 50px -12px color-mix(in srgb, var(--accent) 95%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+body.pre .land-join { -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); }
+
+/* the four glass feature cards under the preview */
+.land-feats { display: none; }
+body.pre .land-feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; width: min(1080px, 100%); margin: 8px 0 0; padding: 0; list-style: none; text-align: left; }
+.land-feats li { position: relative; display: grid; gap: 6px; padding: 18px 18px 20px; border-radius: 18px; overflow: hidden;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 20px 50px -30px rgba(2, 6, 23, 0.9);
+  transition: transform 0.35s var(--ease-out), border-color 0.35s, box-shadow 0.35s; animation: lf-in 0.8s var(--ease-out) calc(0.6s + var(--d) * 0.09s) both; }
+.land-feats li::before { content: ""; position: absolute; inset: -40% -20% auto auto; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 45%, transparent), transparent); opacity: 0.45; filter: blur(10px); transition: opacity 0.35s, transform 0.6s var(--ease-out); pointer-events: none; }
+.land-feats li:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--accent) 45%, rgba(255, 255, 255, 0.14)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 30px 60px -30px color-mix(in srgb, var(--accent) 60%, transparent); }
+.land-feats li:hover::before { opacity: 0.8; transform: translate(-10%, 10%); }
+.lf-ic { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: #fff; margin-bottom: 4px;
+  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #a855f7)); box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.lf-ic .i { width: 18px; height: 18px; }
+.land-feats b { font: 700 15px/1.3 var(--font-display, var(--font-ui)); color: var(--ink); }
+.land-feats small { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+@keyframes lf-in { from { opacity: 0; transform: translateY(18px); filter: blur(6px); } }
+:root[data-theme="light"] .land-feats li { background: linear-gradient(160deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.45)); border-color: rgba(15, 23, 42, 0.08); box-shadow: inset 0 1px 0 #fff, 0 20px 50px -30px rgba(15, 23, 42, 0.35); }
+@media (max-width: 900px) { body.pre .land-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { body.pre .land-feats { grid-template-columns: minmax(0, 1fr); gap: 10px; } .land-feats li { padding: 14px 16px; } }
+@media (prefers-reduced-motion: reduce) { .land-feats li, body.pre .land-h1-grad { animation: none; } }

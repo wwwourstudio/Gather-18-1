@@ -198,6 +198,12 @@
             <div class="hz-dock"><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></i><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg></i><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg></i><span></span><i class="rec"><b></b></i><i class="orb"></i></div>
           </div>
         </div>
+        <ul class="land-feats" aria-label="What you get">
+          <li style="--d:0"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-users"/></svg></span><b>Six on stage</b><small>Guests join from a link. No downloads, no accounts.</small></li>
+          <li style="--d:1"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></span><b>AI producer</b><small>Sam answers chat, designs your overlays and runs the show with you.</small></li>
+          <li style="--d:2"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg></span><b>Everywhere at once</b><small>YouTube, Twitch, Kick and your own watch page, together.</small></li>
+          <li style="--d:3"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-tip"/></svg></span><b>A chat that pays</b><small>Super chats, voice tips and a live shop, paid straight to you.</small></li>
+        </ul>
         <ul class="land-feats">
           <li style="--fh:#60a5fa;--fh2:#2563eb"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg><b>Scenes in one click</b><span>Cameras, slides, banners, your brand.</span></li>
           <li style="--fh:#a78bfa;--fh2:#6366f1"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>An AI producer</b><span>Answers on air, runs the show.</span></li>
@@ -669,7 +675,7 @@
 
           </div></details><details class="psec" data-sec="bg" open><summary><b>Stage background</b><span class="hint">AI or upload</span></summary><div class="psec-body">
           <div class="bgs" id="bgs">
-            <button data-bg="dusk" aria-label="Dusk"></button>
+            <button data-bg="dusk" aria-label="Accent (follows your accent colour)" data-tip="Accent"></button>
             <button data-bg="ember" aria-label="Ember"></button>
             <button data-bg="forest" aria-label="Forest"></button>
             <button data-bg="graphite" aria-label="Graphite"></button>
@@ -1715,6 +1721,6 @@
 <div class="media-sink" id="mediaSink" aria-hidden="true"></div>
 
 <script src="/app.js" type="module"></script>
-<script type="module">import { startHero3D } from '/hero3d.js'; window.requestIdleCallback ? window.requestIdleCallback(() => startHero3D(), { timeout: 800 }) : setTimeout(startHero3D, 200);</script>
+<script type="module">import { startHero3D, tiltPreview } from '/hero3d.js'; tiltPreview(); window.requestIdleCallback ? window.requestIdleCallback(() => startHero3D(), { timeout: 800 }) : setTimeout(startHero3D, 200);</script>
 </body>
 </html>
