@@ -122,7 +122,7 @@ function localState() {
 }
 const isHost = () => !S.studio || S.host === S.id;
 const myId = () => S.id || 'me';
-const WATCH_DEFAULTS = { chat: true, supers: false, join: false, queue: false, voice: true, badge: true, direct: true, cap: 6, slow: 0, min: 2, about: '', pin: '', goal: { label: '', target: 0 }, reactsOnStream: true, links: [], pay: { paypal: '', venmo: '', cashapp: '', stripe: '' } };
+const WATCH_DEFAULTS = { chat: true, supers: false, join: false, queue: false, voice: true, badge: true, direct: true, cap: 6, slow: 0, min: 2, about: '', pin: '', lobby: '', rig: '', goal: { label: '', target: 0 }, reactsOnStream: true, links: [], pay: { paypal: '', venmo: '', cashapp: '', stripe: '' } };
 const watchCfg = () => ({ ...WATCH_DEFAULTS, ...(S.state.watch || {}), pay: { ...WATCH_DEFAULTS.pay, ...(S.state.watch?.pay || {}) } });
 function normalizeHex(hex) {
   const raw = String(hex || '').trim().replace(/^#/, '');
@@ -7302,6 +7302,8 @@ function renderWatchSec() {
   for (const k of Object.keys(PAY_NAME)) { const el = $('#wpPay-' + k); if (document.activeElement !== el) el.value = cfg.pay[k] || ''; }
   if (document.activeElement !== $('#wpCap')) $('#wpCap').value = String(cfg.cap);
   if (document.activeElement !== $('#wpAbout')) $('#wpAbout').value = cfg.about || '';
+  if ($('#wpLobby') && document.activeElement !== $('#wpLobby')) $('#wpLobby').value = cfg.lobby || '';
+  if ($('#wpRig') && document.activeElement !== $('#wpRig')) $('#wpRig').value = cfg.rig || '';
   if (document.activeElement !== $('#wpPin')) $('#wpPin').value = cfg.pin || '';
   if (document.activeElement !== $('#wpGoalLabel')) $('#wpGoalLabel').value = cfg.goal?.label || '';
   if (document.activeElement !== $('#wpGoalTarget')) $('#wpGoalTarget').value = cfg.goal?.target || '';
@@ -7456,6 +7458,8 @@ $('#wpCard').onclick = () => {
 for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpJoin', 'join'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id)) $(id).onchange = (e) => setWatch({ [k]: e.target.checked });
 $('#wpCap').onchange = (e) => setWatch({ cap: Number(e.target.value) });
 $('#wpAbout').onchange = (e) => setWatch({ about: e.target.value.trim() });
+$('#wpLobby').onchange = (e) => setWatch({ lobby: e.target.value.trim() });
+$('#wpRig').onchange = (e) => setWatch({ rig: e.target.value.trim() });
 $('#wpPin').onchange = (e) => setWatch({ pin: e.target.value.trim() });
 const setGoal = () => setWatch({ goal: { label: $('#wpGoalLabel').value.trim().slice(0, 40), target: Math.max(0, Math.min(100000, Math.round(Number($('#wpGoalTarget').value) || 0))) } });
 $('#wpGoalLabel').onchange = setGoal; $('#wpGoalTarget').onchange = setGoal;

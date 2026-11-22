@@ -778,7 +778,7 @@ function sendReact(e) {
     W.reactT = null;
     const n = Math.min(5, W.pendingReacts);
     W.pendingReacts = 0;
-    try { await ensureSession(); for (let i = 0; i < n; i++) await api('wsend', { ...creds(), type: 'react', emoji: e }); } catch {}
+    try { await ensureSession(); for (let i = 0; i < n; i++) await api('wsend', { ...creds(), type: 'react', emoji: e }); awardXp(1); } catch {}
   }, 600);
 }
 
@@ -865,6 +865,7 @@ $('#wCompose').addEventListener('submit', async (e) => {
     W.shown.add(r.id + ':');
     const item = { id: r.id, name: sess.name, text, ts: Date.now(), q: asking, av: ACCT.av, re };
     W.recentChat = [...W.recentChat, item].slice(-80);
+    awardXp(2);
     $('#wMsgs').append(msgEl(item)); $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
     renderMoodMeter(W.info);
   } catch (err) {
@@ -1288,10 +1289,11 @@ function renderPollCard(info, box = $('#wCards')) {
     const bar = document.createElement('i'); bar.style.width = show ? pct + '%' : '0';
     const a = document.createElement('span'); a.textContent = (p.answer === i ? '✓ ' : mine === i ? '• ' : '') + o; const c = document.createElement('b'); c.textContent = show ? pct + '%' : '';
     b.append(bar, a, c);
-    b.onclick = async () => { try { await ensureSession(); await api('wsend', { ...creds(), type: 'vote', poll: p.id, opt: i }); W.votes[p.id] = i; store.set('votes:' + code, W.votes); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
+    b.onclick = async () => { try { await ensureSession(); await api('wsend', { ...creds(), type: 'vote', poll: p.id, opt: i }); W.votes[p.id] = i; placeWager(p, i); store.set('votes:' + code, W.votes); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
     list.append(b);
   });
   fresh.append(k, q, list);
+  if (box.id === 'wModePoll' && p.kind === 'predict') fresh.append(wagerRow(p, open && mine == null));
   if (p.kind === 'predict' && p.answer >= 0 && mine != null) { const res = document.createElement('small'); res.textContent = mine === p.answer ? '🎉 You called it!' : 'Not this time.'; fresh.append(res); }
   if (card) card.replaceWith(fresh); else box.append(fresh);
 }
@@ -1317,9 +1319,13 @@ function renderQueueCard(info, box = $('#wCards')) {
     c.append(b, leave);
   } else {
     const f = document.createElement('div'); f.className = 'wv-q';
-    const inp = document.createElement('input'); inp.className = 'input'; inp.placeholder = 'Your gamertag'; inp.maxLength = 32; inp.value = store.get('gamertag', '');
+    const inp = document.createElement('input'); inp.className = 'input'; inp.placeholder = 'Your gamertag'; inp.maxLength = 20; inp.value = store.get('gamertag', '');
+    const mkSel = (opts, key, label) => { const s = document.createElement('select'); s.className = 'input wv-q-sel'; s.setAttribute('aria-label', label); s.append(...opts.map((o) => Object.assign(document.createElement('option'), { value: o, textContent: o }))); s.value = store.get(key, opts[0]); s.onchange = () => store.set(key, s.value); return s; };
+    const plat = box.id === 'wModeQueue' ? mkSel(['PC', 'PlayStation', 'Xbox', 'Switch', 'Mobile'], 'gplat', 'Platform') : null;
+    const role = box.id === 'wModeQueue' ? mkSel(['Flex', 'Support', 'Tank', 'DPS', 'IGL'], 'grole', 'Role') : null;
     const go = document.createElement('button'); go.type = 'button'; go.className = 'btn primary'; go.textContent = 'Join the line';
-    go.onclick = async () => { try { await ensureSession(); store.set('gamertag', inp.value.trim()); await api('wsend', { ...creds(), type: 'queue', tag: inp.value.trim() }); W.queued = true; store.set('queued:' + code, true); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
+    go.onclick = async () => { try { await ensureSession(); store.set('gamertag', inp.value.trim()); await api('wsend', { ...creds(), type: 'queue', tag: [inp.value.trim(), plat?.value, role?.value].filter(Boolean).join(' · ').slice(0, 32) }); awardXp(5); W.queued = true; store.set('queued:' + code, true); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
+    if (plat) { const sels = document.createElement('div'); sels.className = 'wv-q-sels'; sels.append(plat, role); c.append(sels); }
     f.append(inp, go); c.append(f);
   }
   if (card) card.replaceWith(c); else box.append(c);
@@ -1480,6 +1486,74 @@ function renderShopDrop(info, force) {
   }
   body.replaceChildren(...out);
 }
+// Arena: the lobby code to copy, Clip that, your XP (kept on this device, for fun: no money, nothing on a server),
+// XP wagers on predictions, and the streamer's rig & settings.
+const xpKey = () => 'xp:' + code;
+W.xp = Number(store.get(xpKey(), 100)); if (!Number.isFinite(W.xp)) W.xp = 100; // 100 XP to start, so a new viewer can wager straight away
+W.wagers = store.get('wagers:' + code, {});
+function awardXp(n) {
+  W.xp = Math.max(0, W.xp + n); store.set(xpKey(), W.xp);
+  const b = $('#wXpBadge'); if (b) { b.textContent = `${W.xp.toLocaleString()} XP`; b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+}
+function placeWager(p, opt) {
+  if (p.kind !== 'predict') { awardXp(10); return; }
+  const stake = Math.min(W.wagerStake || 0, W.xp);
+  W.wagers[p.id] = { opt, stake, settled: false };
+  store.set('wagers:' + code, W.wagers);
+  awardXp(10 - stake); // 10 for playing; the stake is held until the answer
+}
+function wagerRow(p, canBet) {
+  const row = document.createElement('div'); row.className = 'wv-wager';
+  const w = W.wagers[p.id];
+  if (w) { row.append(Object.assign(document.createElement('span'), { textContent: w.stake ? `${w.stake} XP on “${p.opts[w.opt]}”` : 'No XP wagered' })); return row; }
+  if (!canBet) return row;
+  row.append(Object.assign(document.createElement('span'), { textContent: 'Wager' }));
+  for (const amt of [0, 25, 50, 100]) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'num' + ((W.wagerStake || 0) === amt ? ' on' : ''); b.textContent = amt ? `${amt} XP` : 'None';
+    b.disabled = amt > W.xp; b.setAttribute('aria-pressed', String((W.wagerStake || 0) === amt));
+    b.onclick = () => { W.wagerStake = amt; row.querySelectorAll('button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); }); };
+    row.append(b);
+  }
+  return row;
+}
+function settleWagers(info) {
+  const p = info.poll; if (!p || p.kind !== 'predict' || !(p.answer >= 0)) return;
+  const w = W.wagers[p.id]; if (!w || w.settled) return;
+  w.settled = true; store.set('wagers:' + code, W.wagers);
+  if (w.opt === p.answer) { awardXp(w.stake * 2 + 25); toast(`🎯 You called it! +${w.stake * 2 + 25} XP`); }
+  else if (w.stake) toast(`Not this time: ${w.stake} XP lost.`);
+}
+function renderArena(info) {
+  const w = info.watch || {}, top = $('#wArenaTop'); if (!top) return;
+  const key = JSON.stringify([w.lobby, !$('#wClip')?.hidden]);
+  if (top.dataset.k !== key) {
+    top.dataset.k = key;
+    const parts = [];
+    if (w.lobby) {
+      const l = document.createElement('div'); l.className = 'wv-lobby';
+      l.append(Object.assign(document.createElement('span'), { textContent: 'Lobby' }), Object.assign(document.createElement('code'), { textContent: w.lobby }));
+      const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn sm'; cp.textContent = 'Copy';
+      cp.onclick = () => navigator.clipboard?.writeText(w.lobby).then(() => { toast('Lobby code copied.'); awardXp(2); }).catch(() => toast(w.lobby));
+      l.append(cp); parts.push(l);
+    }
+    if ($('#wClip') && !$('#wClip').hidden) {
+      const c = document.createElement('button'); c.type = 'button'; c.className = 'btn sm wv-clipit'; c.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg><span>Clip that</span>';
+      c.onclick = () => { $('#wClip').click(); awardXp(5); }; parts.push(c);
+    }
+    top.replaceChildren(...parts); top.hidden = !parts.length;
+  }
+  const rig = $('#wArenaRig'), lines = String(w.rig || '').split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 10);
+  const rk = lines.join('|');
+  if (rig.dataset.k !== rk) {
+    rig.dataset.k = rk; rig.hidden = !lines.length;
+    rig.replaceChildren(Object.assign(document.createElement('b'), { textContent: 'Rig & settings' }), ...lines.map((ln) => {
+      const i = ln.indexOf(':'), row = document.createElement('div');
+      if (i > 0) row.append(Object.assign(document.createElement('span'), { textContent: ln.slice(0, i) }), Object.assign(document.createElement('em'), { textContent: ln.slice(i + 1).trim() }));
+      else row.append(Object.assign(document.createElement('em'), { textContent: ln }));
+      return row;
+    }));
+  }
+}
 function renderPlayExtras(info) {
   const qi = info.queue || {}, up = qi.up || [];
   $('#wModeSub').textContent = qi.open ? (qi.size ? `${qi.size} in the play-with-me line` : 'The play-with-me line is open') + (info.poll && info.poll.until > Date.now() ? ' · prediction open' : '') : info.poll && info.poll.until > Date.now() ? 'Prediction open: make your call' : 'Polls, predictions and the play-with-me line land here';
@@ -1493,6 +1567,7 @@ function renderPlayExtras(info) {
     c.append(Object.assign(document.createElement('b'), { className: 'num', textContent: String(i + 1) }), document.createTextNode(n === sess?.name ? `${n} (you)` : n));
     return c;
   }));
+  renderArena(info); settleWagers(info);
   const qph = $('#wModeQueueEmpty'), pph = $('#wModePollEmpty');
   if (qph) qph.hidden = !!(qi.open || W.called);
   if (pph) pph.hidden = !!info.poll;
@@ -1507,12 +1582,13 @@ function renderMode(info) {
     const body = $('#wModeBody'); body.dataset.k = ''; body.replaceChildren();
     if (type) { $('#wModeIcon').setAttribute('href', '/icons.svg#' + MODE_CFG[type].icon); $('#wModeTitle').textContent = MODE_CFG[type].title; }
     $('#wModeTabs').hidden = true; $('#wBagBtn').hidden = true; W.shopTab = 'drop';
+    $('#wXpBadge').hidden = type !== 'gamer'; $('#wXpBadge').textContent = `${W.xp.toLocaleString()} XP`;
     $('#wTabShop').classList.toggle('mode-hidden', type === 'shopping');
     if (type === 'gamer') {
-      body.innerHTML = `<div class="wv-play">
+      body.innerHTML = `<div class="wv-arena-top" id="wArenaTop"></div><div class="wv-play">
         <div class="wv-play-col"><div class="wv-cards" id="wModeQueue"></div><div class="wv-play-empty" id="wModeQueueEmpty"><b>🎮 The line is closed</b><span>When the streamer opens it, you can join with your gamertag and get called up to play.</span></div><div class="wv-upnext" id="wModeUpNext" hidden></div></div>
-        <div class="wv-play-col"><div class="wv-cards" id="wModePoll"></div><div class="wv-play-empty" id="wModePollEmpty"><b>🔮 No prediction yet</b><span>Calls like “Do we clutch this round?” show up here. Pick a side before it locks.</span></div></div>
-      </div>`;
+        <div class="wv-play-col"><div class="wv-cards" id="wModePoll"></div><div class="wv-play-empty" id="wModePollEmpty"><b>🔮 No prediction yet</b><span>Calls like “Do we clutch this round?” show up here. Wager your XP before it locks.</span></div></div>
+      </div><div class="wv-rig" id="wArenaRig" hidden></div>`;
     }
   }
   if (type === 'shopping') renderShopDrop(info);
