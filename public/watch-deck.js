@@ -1,7 +1,7 @@
 import { replaceKids } from './ui.js';
 
 // Stream-type deck: the shopping shelf, gamer arena and play-along panels chosen by the stream type.
-// Created by app.js through createStreamDeck(app): `app` carries the studio state and helpers this part uses.
+// Created by watch.js through createStreamDeck(app): `app` carries the watch page state and helpers this part uses.
 export function createStreamDeck(app) {
   const {
     $, code, W, store, toast, likeMsg, setAsk, money, renderPollCard, renderQueueCard, renderPartyMe,

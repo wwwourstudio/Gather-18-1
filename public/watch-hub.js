@@ -1,7 +1,7 @@
 import { replaceKids } from './ui.js';
 
 // Watch party hub under the video: creator profile and the showcase tabs (notices, what's next, AI spotlight).
-// Created by app.js through createWatchHub(app): `app` carries the studio state and helpers this part uses.
+// Created by watch.js through createWatchHub(app): `app` carries the watch page state and helpers this part uses.
 export function createWatchHub(app) {
   const {
     $, $$, W, api, nameColor, openTipDock, openHostDrawer, setTab, MODE_CFG, scrollToMode, voiceOpen,

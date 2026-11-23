@@ -1,5 +1,5 @@
 // Instant 30-second clip studio with trim preview.
-// Created by app.js through createClipStudio(app): `app` carries the studio state and helpers this part uses.
+// Created by watch.js through createClipStudio(app): `app` carries the watch page state and helpers this part uses.
 export function createClipStudio(app) {
   const { $, $$, W, toast } = app;
   // ---------------------------------------------------------------- Instant 30s Clip Studio with Trim Preview

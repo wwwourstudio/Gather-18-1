@@ -4,6 +4,7 @@
 //   - Stage cards for all four, drawn into the program canvas so recordings and restreams carry them.
 // Bids and entries are taken and settled by the server (lib/watch.js); this file only asks and draws.
 import { resolveCardColors, isLightHex } from './stage-theme.js';
+import { buildSales, ask as askSales, onSales } from './sales.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const cents = (v) => { const n = Number(String(v || '').replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? Math.round(n * 100) : 0; };
@@ -225,6 +226,7 @@ export function draw(g, W, H, brand, font, now = Date.now()) {
 
 /** Server messages ('auction' / 'giveaway'), from the poll or as the result of the host's own action. */
 export function onMsg(m) {
+  if (m.type === 'sales') return onSales(m);
   if (m.type === 'auction') L.auction = m.auction || null;
   if (m.type === 'giveaway') L.giveaway = m.giveaway || null;
   renderPanels();
@@ -234,7 +236,7 @@ export function onMsg(m) {
 export function initLiveEvents(api) {
   L.api = api;
   const shop = $('#shopSec'), tips = $('details[data-sec="shop-shopify"]', shop);
-  if (shop) { const au = buildAuction(api), gw = buildGiveaway(api); if (tips) tips.before(au, gw); else shop.append(au, gw); }
+  if (shop) { const au = buildAuction(api), gw = buildGiveaway(api); if (tips) tips.before(au, gw); else shop.append(au, gw); const sales = buildSales(api), first = shop.querySelector(':scope > details.psec'); if (first) first.before(sales); else shop.prepend(sales); }
   const play = $('.panel[data-panel="gaming"] .panel-body');
   if (play) play.prepend(buildShoutout(api));
   // The host catches up after a reload; while something runs, the panel clock ticks and entries are re-counted.
@@ -245,5 +247,6 @@ export function initLiveEvents(api) {
     const busy = L.auction?.status === 'live' || L.giveaway?.status === 'open';
     if (api.isHost() && (now - lastGet > (busy ? 3000 : 30_000))) { lastGet = now; api.send({ type: 'auction', act: 'get' }); api.send({ type: 'giveaway', act: 'get' }); }
     if (busy) renderPanels();
+    askSales();
   }, 1000);
 }

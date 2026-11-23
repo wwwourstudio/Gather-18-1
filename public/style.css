@@ -4828,6 +4828,15 @@ body:not(.pre) .rail-btn:hover { color: var(--ink); background: color-mix(in srg
 .le-big small { font-size: 12px; color: var(--ink-3); }
 .le-bids { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; color: var(--ink-3); }
 .le-bids li:first-child { color: var(--ink-2); font-weight: 600; }
+.sales-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.sales-tile { display: grid; gap: 1px; padding: 8px 10px; border-radius: 10px; background: var(--fill); border: 1px solid var(--glass-border); min-width: 0; }
+.sales-tile .num { font: 800 15px/1.15 var(--font-display, inherit); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sales-tile span { font-size: 11.5px; color: var(--ink-2); }
+.sales-tile small { font-size: 11px; color: var(--ink-3); }
+.sales-tile:first-child { grid-column: 1 / -1; }
+.sales-tile:first-child .num { font-size: 24px; color: var(--accent-text, var(--ink)); }
+.sales-lists { display: grid; gap: 10px; }
+.sales-sub { display: block; font-size: 11.5px; color: var(--ink-2); margin-bottom: 3px; }
 
 /* ================================================================ Account & Creator Settings: refreshed (V9)
    Glass surface over a slowly drifting blurred gradient, an animated gradient edge, a full-size close button
@@ -5338,3 +5347,7 @@ body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on::before {
 }
 body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on .caption { color: var(--ink); font-weight: 700; }
 :root[data-theme="light"] body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on::before { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.chat-pop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chat-pop-qr { display: grid; justify-items: center; gap: 6px; padding: 10px; border-radius: 10px; background: #fff; }
+.chat-pop-qr img { image-rendering: pixelated; width: 132px; height: 132px; }
+.chat-pop-qr small { font-size: 11px; color: #334155; text-align: center; }

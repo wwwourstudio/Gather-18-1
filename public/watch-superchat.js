@@ -1,12 +1,9 @@
 import { replaceKids } from './ui.js';
 
 // Super chats: the single tray in the chat input (amount, message, voice note, card or app payment).
-// Created by app.js through createSuperChat(app): `app` carries the studio state and helpers this part uses.
+// Created by watch.js through createSuperChat(app): `app` carries the watch page state and helpers this part uses.
 export function createSuperChat(app) {
-  const {
-    $, $$, code, PAY, ACCT, W, api, creds, toast, ensureSession, clockText, poll, render, msgEl, startDirect,
-    updateHudUptime, showErr, renderMe, awardXp, joinSigned, openSignIn
-  } = app;
+  const { $, $$, PAY, ACCT, W, api, creds, toast, ensureSession, poll, msgEl, showErr, awardXp, joinSigned, openSignIn } = app;
   // ---------------------------------------------------------------- super chats (single unified inline tray)
   const SC = { amount: 5, method: '', opened: false };
   $('#wSuperBtn').onclick = () => openTipDock();
@@ -177,20 +174,6 @@ export function createSuperChat(app) {
     const url = location.origin + location.pathname;
     try { await navigator.clipboard.writeText(url); toast('Link copied.'); } catch { toast(url); }
   };
-
-  renderMe();
-  if (code) {
-    poll();
-    startDirect();
-    setInterval(() => {
-      if (W.info?.live?.on) $('#wLiveText').textContent = 'Live · ' + clockText(W.info.live.since);
-      updateHudUptime();
-    }, 1000);
-    setInterval(() => {
-      if (app.sess) api('wping', creds()).catch(() => {});
-      if ($('#wLive').hidden === false && W.info?.live?.since) $('#wLiveText').textContent = 'Live · ' + clockText(W.info.live.since);
-    }, 30000);
-  } else render({ found: false });
 
   return { tierOf, openTipDock, closeTipDock, loadStripe };
 }

@@ -1,7 +1,7 @@
 import { replaceKids } from './ui.js';
 
 // The watch party: friends watching together beside the stream.
-// Created by app.js through createWatchParty(app): `app` carries the studio state and helpers this part uses.
+// Created by watch.js through createWatchParty(app): `app` carries the watch page state and helpers this part uses.
 export function createWatchParty(app) {
   const {
     $, $$, code, ACCT, W, store, api, creds, toast, updateStageStatus, money, MODE_CFG, renderInteractive,

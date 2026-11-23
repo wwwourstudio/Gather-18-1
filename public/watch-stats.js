@@ -1,5 +1,5 @@
 // Stream stats HUD: bitrate, resolution/FPS, latency, loss and uptime.
-// Created by app.js through createStatsHud(app): `app` carries the studio state and helpers this part uses.
+// Created by watch.js through createStatsHud(app): `app` carries the watch page state and helpers this part uses.
 export function createStatsHud(app) {
   const { $, code, W, creds, clockText, toggleKeysPop } = app;
   // ---------------------------------------------------------------- Stream Stats HUD (Bitrate, Resolution/FPS, Latency, Loss, Uptime)

@@ -2547,3 +2547,13 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-stagebox { padding: 8px; }
   .wv-player { border-radius: 12px; }
 }
+
+/* Chat only (?chat=1): just the live chat, filling the window (watch.js CHAT_ONLY). */
+html.chat-only .wv { grid-template-rows: minmax(0, 1fr); }
+html.chat-only .wv .wv-top, html.chat-only .wv .wv-stagecol, html.chat-only .wv .wv-ambient, html.chat-only .wv .wv-chat-reopen, html.chat-only .wv .wv-collapse { display: none !important; }
+html.chat-only .wv .wv-main { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
+html.chat-only .wv.no-chat .wv-chat, html.chat-only .wv .wv-chat { display: grid; position: relative; inset: auto; width: auto; height: 100%; max-height: none; transform: none; border: 0; border-radius: 0; }
+html.chat-only, html.chat-only body { height: 100%; overflow: hidden; }
+html.chat-only .wv { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; grid-template-columns: minmax(0, 1fr); }
+html.chat-only .wv .wv-chat { grid-row: auto; }
+html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer):not(.toast):not([popover]) { display: none; }

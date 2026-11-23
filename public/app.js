@@ -1152,7 +1152,7 @@ async function onServer(m) {
     case 'queue': renderQueue(m.items); break;
     case 'wreport': if (m.count >= 3) toast(`A watch-page message was hidden after ${m.count} spam reports.`, { ms: 6000 }); break;
     case 'ai': upsertAI(m.item, false); break;
-    case 'auction': case 'giveaway': liveEvents.onMsg(m); break;
+    case 'auction': case 'giveaway': case 'sales': liveEvents.onMsg(m); break;
     case 'caption': showCaption(m.from, m.name, m.text, m.final); break;
     case 'host': {
       const wasHost = S.host === S.id;
@@ -3880,6 +3880,21 @@ function openGuestBrief() {
   $('#guestBriefDlg').showModal();
 }
 $('#optEditBriefBtn')?.addEventListener('click', openGuestBrief);
+// Pop-out chat (like StreamYard's): the watch page's live chat on its own, /w/<studio>?chat=1, in a window or on a phone.
+const chatPopUrl = () => watchLinkUrl() + '?chat=1';
+$('#optPopChat')?.addEventListener('click', () => {
+  if (!S.studio) return toast('Enter your studio first.', { err: true });
+  window.open(chatPopUrl(), 'gatherChat', 'popup,width=420,height=760');
+});
+$('#optPhoneChat')?.addEventListener('click', async () => {
+  const box = $('#optChatQr'), btn = $('#optPhoneChat');
+  if (!box.hidden) { box.hidden = true; btn.setAttribute('aria-expanded', 'false'); return; }
+  if (!S.studio) return toast('Enter your studio first.', { err: true });
+  const q = await qrReadyFor(chatPopUrl());
+  if (!q) return copy(chatPopUrl(), 'Couldn’t draw the QR code, so the chat link was copied instead.');
+  $('img', box).src = q.createDataURL(4, 2);
+  box.hidden = false; btn.setAttribute('aria-expanded', 'true');
+});
 $('#gbAddLink')?.addEventListener('click', () => addBriefLinkRow());
 $('#gbPickFile')?.addEventListener('click', () => $('#gbFileInput').click());
 $('#gbFileInput')?.addEventListener('change', async (e) => {

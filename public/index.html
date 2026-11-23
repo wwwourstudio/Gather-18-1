@@ -382,6 +382,11 @@
               </div>
             </div>
             <button type="button" class="btn sm block" id="optEditBriefBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-link"/></svg><span>Guest brief, links &amp; files</span></button>
+            <div class="row chat-pop-row">
+              <button type="button" class="btn sm" id="optPopChat" data-tip="Viewer chat in its own window: a second screen or an OBS browser source"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-external-link"/></svg><span>Pop out chat</span></button>
+              <button type="button" class="btn sm" id="optPhoneChat" aria-expanded="false" aria-controls="optChatQr"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-qr-code"/></svg><span>On your phone</span></button>
+            </div>
+            <div class="chat-pop-qr" id="optChatQr" hidden><img alt="QR code for the pop-out chat" width="132" height="132"><small>Scan to read and answer viewer chat on your phone.</small></div>
           </div>
           <div class="chat-filter" id="chatFilter" role="tablist" aria-label="Show in the chat">
             <button type="button" role="tab" data-f="all" class="on" aria-selected="true">All</button>

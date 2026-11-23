@@ -1,5 +1,19 @@
 # gather: progress
 
+## Competitor round: seller analytics and pop-out chat
+
+Checked against StreamYard (April 2026 updates), Riverside, Restream and Whatnot (2026 seller tools). gather already had a go-live ready check, so this round adds the two gaps that matter most and were cheap to do well.
+
+- **Sales this show** (Shop panel, top). Live totals for shop sales, auction wins and super chats, buyers and viewers, top buyers, best sellers, and a CSV of every line. This is Whatnot's live seller panel.
+  - The server keeps a sales ledger (`g:<studio>:orders`, 30 days). Shop orders without Stripe and auction wins are now recorded too. When an auction is paid by card, its win is marked paid.
+  - Host-only `sales` op in `lib/studio.js`; report built by `hostSales` in `lib/watch.js`; panel in `public/sales.js`.
+  - CSV cells that start with `= + - @` are escaped so spreadsheets don't run them as formulas.
+- **Pop-out chat.** Chat options → **Pop out chat** opens the viewer chat in its own window, for a second screen or an OBS browser source. **On your phone** shows a QR code for the same page. This is StreamYard's pop-out chat.
+  - The page is the watch page with `?chat=1`: chat only, filling the window, and it pulls no video, so it doesn't use a viewer seat.
+- **Tests:** `auction` checks the sales panel and CSV; new `popchat` suite.
+- The watch page's start-up code had landed inside `watch-superchat.js` during the module split; it's back in `watch.js`.
+- **Next:** AI highlight clips after the show (Riverside Magic Clips, StreamYard AI Clips).
+
 ## Module split
 
 `public/app.js` was 9,346 lines and `public/watch.js` 3,229. Both are now split by feature. The moved code is unchanged.

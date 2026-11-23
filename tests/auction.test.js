@@ -44,6 +44,15 @@ const signUp = async (page, name) => {
     check('viewer: wins and can pay', await wait(v, () => /You won!/.test(document.querySelector('#wActs').textContent) && /Pay \$10/.test(document.querySelector('#wActs').textContent)));
     check('the win is announced in the watch chat', await wait(v, () => /SOLD! Jordan won Signed vinyl/.test(document.querySelector('#wMsgs')?.textContent || '')));
 
+    // Sales this show: the win lands in the host's live seller report, and the CSV carries the line.
+    await a.click('#salesRefresh');
+    check('host: sales panel counts the auction win', await wait(a, () => /1 · \$10/.test([...document.querySelectorAll('#salesTiles .sales-tile')].find((t) => /Auctions/.test(t.textContent))?.textContent || '')));
+    check('host: sales total and top buyer', await wait(a, () => /\$10/.test(document.querySelector('#salesTiles .sales-tile .num')?.textContent || '') && /Jordan · \$10/.test(document.querySelector('#salesBuyers')?.textContent || '')));
+    const [dl] = await Promise.all([a.waitForEvent('download'), a.click('#salesCsv')]);
+    const csv = require('node:fs').readFileSync(await dl.path(), 'utf8');
+    check('host: the CSV has the auction line', /Auction win,Jordan,Signed vinyl,10\.00,awaiting payment/.test(csv), csv.slice(0, 200));
+    await a.screenshot({ path: SP + '/sales-host.png' });
+
     // 2 Giveaway.
     await a.fill('#gwPrize', 'Free hoodie'); await a.click('#gwGo');
     check('viewer: can enter the giveaway', await wait(v, () => !!document.querySelector('#wActs [data-kind="giveaway"] .btn.primary')));

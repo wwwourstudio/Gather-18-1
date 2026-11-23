@@ -51,6 +51,11 @@ export function embedFor(kind, raw, host = location.hostname) {
   return '';
 }
 
+// Chat only (?chat=1): the live chat filling the window, for a second screen, a phone or an OBS browser source.
+// No video is pulled, so it doesn't use a viewer seat or bandwidth.
+const CHAT_ONLY = new URLSearchParams(location.search).get('chat') === '1';
+if (CHAT_ONLY) document.documentElement.classList.add('chat-only');
+
 // ---------------------------------------------------------------- state
 const ACCT = { user: null, av: '', then: null, up: false };
 const W = {
@@ -577,6 +582,7 @@ function showPlayer(info) {
 }
 
 async function startDirect() {
+  if (CHAT_ONLY) return;
   const D = W.direct, gen = ++D.gen;
   if (!W.info?.found) return setTimeout(startDirect, 4000);
   D.state = 'connecting'; render(W.info);
@@ -871,14 +877,27 @@ $('#wCompose').addEventListener('submit', async (e) => {
 
 // ---------------------------------------------------------------- super chats (single unified inline tray) → ./watch-superchat.js
 const superChat = createSuperChat({
-  $, $$, code, PAY, ACCT, W, get sess() { return sess; }, api, creds, toast, ensureSession, clockText, poll,
-  render, msgEl, startDirect, updateHudUptime, showErr, renderMe, awardXp, joinSigned, openSignIn
+  $, $$, PAY, ACCT, W, get sess() { return sess; }, api, creds, toast, ensureSession, poll, msgEl, showErr, awardXp, joinSigned, openSignIn
 });
 const { tierOf } = superChat;
 function openTipDock(...args) { return superChat.openTipDock(...args); }
 function closeTipDock(...args) { return superChat.closeTipDock(...args); }
 function loadStripe(...args) { return superChat.loadStripe(...args); }
 
+// Start: the room, the direct video, and the live clock.
+renderMe();
+if (code) {
+  poll();
+  startDirect();
+  setInterval(() => {
+    if (W.info?.live?.on) $('#wLiveText').textContent = 'Live · ' + clockText(W.info.live.since);
+    updateHudUptime();
+  }, 1000);
+  setInterval(() => {
+    if (sess) api('wping', creds()).catch(() => {});
+    if ($('#wLive').hidden === false && W.info?.live?.since) $('#wLiveText').textContent = 'Live · ' + clockText(W.info.live.since);
+  }, 30000);
+} else render({ found: false });
 // ---------------------------------------------------------------- Host Drawer & Tabs (Chat | Stage | Shop)
 function openHostDrawer(on) {
   const wrap = $('#wDrawerWrap');

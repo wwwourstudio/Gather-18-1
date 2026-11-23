@@ -20,7 +20,7 @@ Legend: ✅ gather has it · 🆕 added in this change · 🟡 partial · ❌ mi
 | Auction winner checkout | Whatnot | 🆕 (Stripe when connected, else the host's pay links) |
 | Cart (several items, one checkout) | TikTok Shop, Amazon Live | ❌ next: one Stripe session for several items |
 | Shipping address and tax at checkout | Whatnot, TikTok Shop | 🟡 Stripe can collect them; not configured |
-| Seller dashboard: sales per show, top buyers, export | Whatnot, TikTok Shop | ❌ next: orders already live in `g:<studio>:orders` |
+| Seller dashboard: sales per show, top buyers, export | Whatnot, TikTok Shop | 🆕 Shop → Sales this show: live totals, top buyers, best sellers, CSV |
 | Shoppable replay (products linked at timestamps) | Amazon Live, TikTok | ❌ |
 | Product queue / run of show (next item lined up) | Whatnot | 🟡 the catalogue can be pinned in order; no queue |
 
@@ -51,6 +51,7 @@ Legend: ✅ gather has it · 🆕 added in this change · 🟡 partial · ❌ mi
 | Backstage / green room | ✅ | ✅ |
 | Multistream to several platforms | ✅ | ✅ via the relay |
 | Comments on screen from every platform | ✅ | ✅ Twitch, YouTube, Rumble |
+| Pop-out chat (own window, or phone by QR) | ✅ (April 2026) | 🆕 Chat options → Pop out chat / On your phone |
 | Lower thirds, banners, ticker, logo, brand kit | ✅ | ✅ |
 | Countdown / "Be right back" screens | ✅ | ✅ (never drew on stage before; fixed here) |
 | Local recording per guest (ISO tracks) | ✅ paid | ❌ only the program mix is recorded |
@@ -60,8 +61,9 @@ Legend: ✅ gather has it · 🆕 added in this change · 🟡 partial · ❌ mi
 
 ## Suggested order for what's left
 
-1. **Seller dashboard**: sales, auction results and top buyers per show, with CSV export. The data already exists.
-2. **Cart**: let a viewer add several pinned items and pay once.
-3. **Channel-point rewards**: let viewers spend XP on host-defined rewards (pick the next song, a shoutout). This completes the XP loop.
-4. **Instant replay**: keep the last 30 s of the program in memory and play it on stage.
-5. **ISO recordings**: record each guest's own track for editing.
+1. ~~**Seller dashboard**~~ Done.
+2. **AI highlight clips after the show** (Riverside Magic Clips, StreamYard AI Clips): the biggest gap with the podcast and creator studios.
+3. **Cart**: let a viewer add several pinned items and pay once.
+4. **Channel-point rewards**: let viewers spend XP on host-defined rewards (pick the next song, a shoutout). This completes the XP loop.
+5. **Instant replay**: keep the last 30 s of the program in memory and play it on stage.
+6. **ISO recordings**: record each guest's own track for editing.
