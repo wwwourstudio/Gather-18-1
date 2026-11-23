@@ -2574,6 +2574,7 @@ $$('[data-sc-tab]').forEach((b) => b.addEventListener('click', () => setShowcase
 
 function renderShowcase(info) {
   const notices = Array.isArray(info.notices) ? info.notices : [];
+  const next = info.whatNext || info.next || null;
   const spot = info.aiSpotlight || null;
 
   if ($('#wCntNotices')) { $('#wCntNotices').hidden = !notices.length; $('#wCntNotices').textContent = String(notices.length); }
