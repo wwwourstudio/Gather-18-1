@@ -5465,3 +5465,15 @@ body:not(.pre) .stage-card .stage { box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 
 /* invite card: same height and feel */
 #deck .crew-add-btn { border-radius: 14px; border: 1px dashed rgba(255, 255, 255, 0.18); transition: border-color .18s, background-color .18s; }
 #deck .crew-add-btn:hover { border-style: solid; border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* ================================================================ Rail active pill, refined (V11)
+   Flatter and tighter than V10: no glow shadow, no gradient blob. A compact tinted pill hugs the icon only,
+   with clear space before the label. */
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { gap: 7px; padding-top: 7px; }
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked::before { top: 4px; width: 44px; height: 28px; border-radius: 10px; }
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on::before {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on .caption { color: var(--ink); font-weight: 700; }
+:root[data-theme="light"] body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on::before { background: color-mix(in srgb, var(--accent) 14%, transparent); }

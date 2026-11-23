@@ -2531,3 +2531,19 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-ambient.on { opacity: .9; }
 .wv-player.fill .wv-ambient { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .wv-ambient { display: none; } }
+
+/* Rounded video player: no sharp 90° corners. The stage box gets a small inset so the rounded corners show
+   against the dark surround; the player clips the video, ambient glow, controls and empty state to its radius.
+   Fullscreen and theater mode stay square and edge to edge. */
+.wv-stagebox { padding: 10px; background: #05070f; }
+.wv-player {
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 22px 50px -26px rgba(0, 0, 0, .85);
+}
+.wv-video, .wv-video iframe, .wv-video video { border-radius: inherit; }
+.wv.theater .wv-stagebox { padding: 0; }
+.wv.theater .wv-player, .wv-player:fullscreen { border-radius: 0; box-shadow: none; }
+@media (max-width: 900px) {
+  .wv-stagebox { padding: 8px; }
+  .wv-player { border-radius: 12px; }
+}
