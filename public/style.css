@@ -1056,9 +1056,6 @@ body.deck-closed .deck { padding-bottom: var(--sp-2); }
 .tour-text { margin: 0; color: var(--ink-2); font-size: var(--fs-13); line-height: 1.55; }
 .tour-nav { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
 @media (max-width: 900px) { .deck-head { position: relative; padding-right: 36px; } .deck-toggle { position: absolute; right: 0; top: 0; } }
-.land-legal { margin: 0; font-size: var(--fs-12); color: var(--ink-3); }
-.land-legal a { color: var(--ink-3); }
-.land-legal a:hover { color: var(--ink); }
 
 /* ================================================================ sign in / create account
    Two panes: why gather on the left (hidden on phones), the form on the right. Google first, then email. */
@@ -1931,24 +1928,10 @@ body.pre .landing { grid-template-columns: minmax(0, 1fr); justify-items: center
 .land-mark { width: 44px; height: 44px; }
 .land-art { width: min(960px, 100%); text-align: left; }
 .land-art .hz-body { grid-template-columns: minmax(0, 1fr) 250px; }
-.land-feats { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); text-align: left; }
-.land-feats li { display: grid; gap: 4px; padding: 18px 18px 20px; border-radius: 16px; background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.07); }
-.land-feats .i { width: 20px; height: 20px; color: var(--accent-text); margin-bottom: 6px; }
-.land-feats b { font: 600 15px/1.3 var(--font-ui); color: var(--ink); }
-.land-feats span { font-size: 13.5px; line-height: 1.5; color: var(--ink-3); }
-.land-plats { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px 14px; color: var(--ink-2); font-size: 14px; }
-.land-plats > span { color: var(--ink-3); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-right: 4px; }
-.land-plats b { font-weight: 600; }
-.land-plats i { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); }
-.land-foot { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding-top: var(--sp-5); border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-3); }
-.land-tx { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink-2); letter-spacing: 0.01em; }
-.tx-emblem { width: 18px; height: 18px; flex: none; color: var(--accent-text); filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--accent) 40%, transparent)); }
 .help-tx { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--line); font-size: var(--fs-12); color: var(--ink-3); }
 @media (max-width: 900px) {
   body.pre .landing { padding: var(--sp-6) var(--sp-4) var(--sp-6); }
   .land-sub { padding-inline: var(--sp-2); }
-  .land-feats { grid-template-columns: 1fr; }
-  .land-foot { flex-direction: column; }
 }
 
 /* ---------------------------------------------------------------- the watch link badge: editable on the stage */
@@ -2109,19 +2092,11 @@ body:not(.pre) .backdrop .aur-wave { display: none; }
 @keyframes land-sheen { 0%, 70% { background-position: -150% 0; } 100% { background-position: 250% 0; } }
 
 /* one recipe for a glass edge: a 1px gradient ring (cyan top-left to violet bottom-right) */
-.hz-win, .land-feats li, .land-plats { position: relative; }
-.hz-win::after, .land-feats li::after, .land-plats::after { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; background: linear-gradient(135deg, rgba(125, 211, 252, 0.52), rgba(59, 130, 246, 0.16) 40%, rgba(37, 99, 235, 0.28) 85%, rgba(96, 165, 250, 0.42)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.hz-win { position: relative; }
+.hz-win::after { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; background: linear-gradient(135deg, rgba(125, 211, 252, 0.52), rgba(59, 130, 246, 0.16) 40%, rgba(37, 99, 235, 0.28) 85%, rgba(96, 165, 250, 0.42)); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
 .hz-win { background: linear-gradient(160deg, rgba(16, 24, 48, 0.78), rgba(8, 12, 26, 0.68)); -webkit-backdrop-filter: blur(28px) saturate(170%); backdrop-filter: blur(28px) saturate(170%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 60px 120px -50px rgba(0, 0, 0, 0.95), 0 0 90px -24px color-mix(in srgb, var(--accent) 34%, transparent); }
 .hz-chat { background: rgba(14, 21, 44, 0.54); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.land-feats li { background: linear-gradient(160deg, rgba(16, 26, 54, 0.58), rgba(10, 15, 34, 0.42)); border-color: transparent; -webkit-backdrop-filter: blur(20px) saturate(150%); backdrop-filter: blur(20px) saturate(150%); transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), background 0.35s; }
-.land-feats li:hover { transform: translateY(-4px); background: linear-gradient(160deg, rgba(22, 36, 72, 0.72), rgba(12, 20, 46, 0.56)); box-shadow: 0 24px 50px -24px rgba(0, 0, 0, 0.8), 0 0 40px -14px color-mix(in srgb, var(--accent) 36%, transparent); }
-.land-feats .i { box-sizing: content-box; padding: 9px; border-radius: 11px; background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 26%, transparent), rgba(37, 99, 235, 0.16)); box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.24); color: #93c5fd; }
-.land-plats { padding: 12px 22px; border-radius: 999px; background: rgba(14, 22, 46, 0.55); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
-.land-foot { border-top-color: rgba(255, 255, 255, 0.08); }
 :root[data-theme="light"] .hz-win { background: linear-gradient(160deg, rgba(22, 30, 56, 0.90), rgba(10, 14, 30, 0.86)); }
-:root[data-theme="light"] .land-feats li, :root[data-theme="light"] .land-plats { background: rgba(255, 255, 255, 0.65); }
-:root[data-theme="light"] .land-feats li::after, :root[data-theme="light"] .land-plats::after { background: linear-gradient(140deg, rgba(255, 255, 255, 0.9), rgba(15, 23, 42, 0.08)); }
-:root[data-theme="light"] .land-feats .i { color: var(--accent); }
 
 /* ---------------------------------------------------------------- landing: entrance (sharp & fast above the fold) */
 @keyframes land-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -2137,11 +2112,6 @@ html:not(.booting) body.pre .land-copy > :nth-child(n+5) { animation-delay: 0.12
 .land-mark .t, .land-mark .l { stroke-dasharray: none; }
 html:not(.booting) body.pre .land-art { animation: land-win 0.55s var(--ease-out) 0.14s both; }
 html:not(.booting) body.pre .land-art .hz-win { animation: land-float 9s ease-in-out 1.4s infinite; }
-html:not(.booting) body.pre .land-feats li { animation: land-up 0.45s var(--ease-out) both; }
-html:not(.booting) body.pre .land-feats li:nth-child(1) { animation-delay: 0.22s; }
-html:not(.booting) body.pre .land-feats li:nth-child(2) { animation-delay: 0.27s; }
-html:not(.booting) body.pre .land-feats li:nth-child(3) { animation-delay: 0.32s; }
-html:not(.booting) body.pre .land-plats, html:not(.booting) body.pre .land-foot { animation: land-up 0.45s var(--ease-out) 0.36s both; }
 
 /* ---------------------------------------------------------------- landing preview: a chat that's actually going */
 @media (min-width: 901px) { .hz-chat { contain: size; } } /* the stage sets the window's height; the chat never grows it */
@@ -2179,7 +2149,6 @@ html:not(.booting) body.pre .land-plats, html:not(.booting) body.pre .land-foot 
   .backdrop .aur, #enterStage::after, .hz-msg.in, .hz-msg.paid.in::after, .hz-float, .hz-toast, .hz-dots i, .hz-typing i { animation: none !important; }
   html:not(.booting) body.pre .landing *, html:not(.booting) body.pre .land-art { animation: none !important; }
   .land-mark .t, .land-mark .l { stroke-dashoffset: 0; }
-  .land-feats li:hover { transform: none; }
 }
 @media (max-width: 900px) {
   html, body.pre { overflow-x: clip; }
@@ -2706,23 +2675,8 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 @media (max-width: 900px) { .land-callout { display: none; } }
 
 /* feature cards: each has its own colour; a light follows the pointer */
-.land-feats li { --mx: 50%; --my: 0%; overflow: hidden; padding: 22px 20px 22px; border-radius: 18px; transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out), background 0.35s var(--ease-out); }
-.land-feats li::before { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: radial-gradient(260px circle at var(--mx) var(--my), color-mix(in srgb, var(--fh, #60a5fa) 22%, transparent), transparent 70%); opacity: 0.55; transition: opacity 0.35s var(--ease-out); }
-.land-feats li:hover::before { opacity: 1; }
-.land-feats li::after { background: linear-gradient(135deg, color-mix(in srgb, var(--fh, #60a5fa) 60%, transparent), rgba(148, 163, 184, 0.08) 45%, color-mix(in srgb, var(--fh2, #2563eb) 40%, transparent)) !important; }
-.land-feats li > * { position: relative; }
-.land-feats .i { width: 20px; height: 20px; color: #fff; background: linear-gradient(140deg, var(--fh, #60a5fa), var(--fh2, #2563eb)); box-shadow: 0 10px 24px -10px var(--fh, #60a5fa), inset 0 1px 0 rgba(255, 255, 255, 0.35); transition: transform 0.35s var(--ease-out); }
-.land-feats li:hover .i { transform: translateY(-2px) rotate(-6deg) scale(1.06); }
-.land-feats li:hover { transform: translateY(-5px); box-shadow: 0 28px 56px -26px rgba(0, 0, 0, 0.85), 0 0 46px -18px var(--fh, #60a5fa); }
-:root[data-theme="light"] .land-feats .i { color: #fff; }
 
 /* platforms: chips in their own colours */
-.land-plats { gap: 8px; padding: 10px 14px; }
-.land-plats i { display: none; }
-.land-plats b { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 13px; color: var(--ink-2); background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12); transition: color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s var(--ease-out); }
-.land-plats b::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
-.land-plats b:hover { color: var(--ink); transform: translateY(-1px); background: color-mix(in srgb, var(--c) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
-:root[data-theme="light"] .land-plats b { background: rgba(15, 23, 42, 0.03); box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08); }
 
 @keyframes land-spin { to { --land-ang: 360deg; } }
 @keyframes land-cta-spin { to { --cta-ang: 360deg; } }
@@ -2734,7 +2688,7 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 @media (prefers-reduced-motion: reduce) {
   .land-eyebrow::before, .land-eyebrow-dot::after, .land-h1-grad, #enterStage, #enterStage::before, .land-halo, .land-art .hz-win::after, .lc-ic.orb { animation: none !important; }
   html:not(.booting) body.pre .land-callout { animation: none !important; }
-  .land-feats li:hover, #enterStage:hover, .land-plats b:hover { transform: none; }
+  #enterStage:hover { transform: none; }
 }
 
 /* Light mode: the sign-in dialog and the landing header (they had a fixed dark-navy surface, so dark text sat on dark). */
@@ -2981,26 +2935,7 @@ body.pre #enterStage:hover { transform: translateY(-2px); box-shadow: 0 20px 50p
 body.pre .land-join { -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); }
 
 /* the four glass feature cards under the preview */
-.land-feats { display: none; }
-body.pre .land-feats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; width: min(1080px, 100%); margin: 8px 0 0; padding: 0; list-style: none; text-align: left; }
-.land-feats li { position: relative; display: grid; gap: 6px; padding: 18px 18px 20px; border-radius: 18px; overflow: hidden;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)); border: 1px solid rgba(255, 255, 255, 0.1);
-  -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 20px 50px -30px rgba(2, 6, 23, 0.9);
-  transition: transform 0.35s var(--ease-out), border-color 0.35s, box-shadow 0.35s; animation: lf-in 0.8s var(--ease-out) calc(0.6s + var(--d) * 0.09s) both; }
-.land-feats li::before { content: ""; position: absolute; inset: -40% -20% auto auto; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 45%, transparent), transparent); opacity: 0.45; filter: blur(10px); transition: opacity 0.35s, transform 0.6s var(--ease-out); pointer-events: none; }
-.land-feats li:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--accent) 45%, rgba(255, 255, 255, 0.14)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 30px 60px -30px color-mix(in srgb, var(--accent) 60%, transparent); }
-.land-feats li:hover::before { opacity: 0.8; transform: translate(-10%, 10%); }
-.lf-ic { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: #fff; margin-bottom: 4px;
-  background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #a855f7)); box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
-.lf-ic .i { width: 18px; height: 18px; }
-.land-feats b { font: 700 15px/1.3 var(--font-display, var(--font-ui)); color: var(--ink); }
-.land-feats small { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
-@keyframes lf-in { from { opacity: 0; transform: translateY(18px); filter: blur(6px); } }
-:root[data-theme="light"] .land-feats li { background: linear-gradient(160deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.45)); border-color: rgba(15, 23, 42, 0.08); box-shadow: inset 0 1px 0 #fff, 0 20px 50px -30px rgba(15, 23, 42, 0.35); }
-@media (max-width: 900px) { body.pre .land-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { body.pre .land-feats { grid-template-columns: minmax(0, 1fr); gap: 10px; } .land-feats li { padding: 14px 16px; } }
-@media (prefers-reduced-motion: reduce) { .land-feats li, body.pre .land-h1-grad { animation: none; } }
+@media (prefers-reduced-motion: reduce) { body.pre .land-h1-grad { animation: none; } }
 
 /* ---------------------------------------------------------------- side panels, refactored (panels.js) */
 .panel-head.ph2 { position: relative; gap: 11px; min-height: 62px; padding: 12px 16px; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
@@ -5351,3 +5286,56 @@ body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on .caption { color: var
 .chat-pop-qr { display: grid; justify-items: center; gap: 6px; padding: 10px; border-radius: 10px; background: #fff; }
 .chat-pop-qr img { image-rendering: pixelated; width: 132px; height: 132px; }
 .chat-pop-qr small { font-size: 11px; color: #334155; text-align: center; }
+
+
+/* ================================================================ Home on phones and tablets: one screen
+   Like desktop, the home page is exactly one screen tall: the heading and the line under it take two lines each,
+   the buttons follow, and the studio preview fills what's left and is cut off at the bottom edge. */
+.land-copy h1 .lh-line { display: block; }
+.land-sub .ls-short { display: none; }
+/* Desktop: the hero column keeps its full width (the feature cards under the preview used to set it). */
+@media (min-width: 901px) { body.pre .landing { width: min(1080px, calc(100vw - 48px)); } }
+@media (max-width: 900px) {
+  body.pre { height: 100vh; height: 100dvh; overflow: hidden; }
+  body.pre .app { height: 100vh; height: 100dvh; min-height: 0; grid-template-rows: auto minmax(0, 1fr); padding-bottom: 0; }
+  body.pre .main { min-height: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
+  body.pre .studio { display: block; height: 100%; min-height: 0; overflow: hidden; }
+  body.pre .landing {
+    display: flex; flex-direction: column; align-items: center; height: 100%; min-height: 0; overflow: hidden;
+    width: 100%; margin: 0; gap: clamp(18px, 3.4dvh, 32px);
+    padding: clamp(18px, 3.6dvh, 40px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  }
+  body.pre .land-copy { flex: none; width: 100%; max-width: 560px; gap: clamp(10px, 1.9dvh, 18px); }
+  .land-copy h1 { font-size: clamp(26px, min(9.4vw, 8.2dvh), 56px); line-height: 1.04; white-space: nowrap; }
+  body.pre .top .user-btn { min-width: 40px; height: 40px; }
+  .land-sub { padding-inline: 0; max-width: none; font-size: clamp(12.5px, 3.75vw, 17px); line-height: 1.5; color: var(--ink-2); }
+  .land-sub .ls-wide { display: none; }
+  .land-sub .ls-short { display: block; }
+  .land-sub .ls-short > span { display: block; white-space: nowrap; }
+  .land-cta { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .land-cta #enterStage { width: 100%; min-height: 50px; justify-content: center; }
+  .land-cta .land-join { width: 100%; }
+  .land-copy .btn.link { min-height: 40px; }
+  /* the preview: fills the rest of the screen, cut off at the bottom like on desktop */
+  body.pre .land-art {
+    flex: 1 1 0; min-height: 0; width: min(620px, 100%); overflow: hidden; padding-top: 2px;
+    -webkit-mask-image: linear-gradient(#000 calc(100% - 72px), transparent); mask-image: linear-gradient(#000 calc(100% - 72px), transparent);
+  }
+  body.pre .land-art .land-callout { display: none; }
+}
+/* short screens (small phones, landscape): drop the extras before the preview disappears */
+@media (max-width: 900px) and (max-height: 700px) {
+  .land-eyebrow, .land-copy .btn.link { display: none !important; }
+}
+@media (max-width: 900px) and (max-height: 520px) {
+  body.pre .land-art { display: none; }
+  body.pre .landing { justify-content: center; padding-top: 8px; padding-bottom: 12px; }
+  body.pre .land-copy { gap: 8px; }
+  .land-cta { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 8px; }
+  .land-cta #enterStage { min-height: 44px; }
+}
+/* Light theme on the home page: the preview keeps its dark frame, so its clock and viewer chip stay light;
+   the "Schedule a show" link needs a darker blue to read on the pale background. */
+:root[data-theme="light"] body.pre .hz-time { color: #cbd5e1; }
+:root[data-theme="light"] body.pre .hz-chip { color: #e2e8f0; background-color: rgba(255, 255, 255, 0.08); }
+:root[data-theme="light"] body.pre #heroSchedule { color: color-mix(in srgb, var(--accent) 70%, #0b1020); }

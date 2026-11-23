@@ -176,8 +176,8 @@
       <div class="landing" id="landing">
         <div class="land-copy">
           <span class="land-eyebrow" aria-hidden="true"><i class="land-eyebrow-dot"></i><b>Live in your browser</b><span>Up to 6 on stage · AI producer · Multistream</span></span>
-          <h1>Your show, live<br><span class="land-h1-grad">from the browser.</span></h1>
-          <p class="land-sub">Guests, scenes, an AI producer and a live chat that pays.<br>Stream everywhere at once. Free, nothing to install.</p>
+          <h1><span class="lh-line">Your show, live</span><span class="lh-line land-h1-grad">from the browser.</span></h1>
+          <p class="land-sub"><span class="ls-wide">Guests, scenes, an AI producer and a live chat that pays.<br>Stream everywhere at once. Free, nothing to install.</span><span class="ls-short"><span>Guests, scenes, an AI producer, paid chat.</span><span>Stream everywhere. Free, nothing to install.</span></span></p>
           <div class="land-cta">
             <button class="btn primary lg" id="enterStage"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><span>Go Live Now</span></button>
             <form class="land-join" id="landJoin" autocomplete="off">
@@ -236,37 +236,7 @@
             <div class="hz-dock"><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></i><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg></i><i><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg></i><span></span><i class="rec"><b></b></i><i class="orb"></i></div>
           </div>
         </div>
-        <ul class="land-feats" aria-label="What you get">
-          <li style="--d:0"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-users"/></svg></span><b>Six on stage</b><small>Guests join from a link. No downloads, no accounts.</small></li>
-          <li style="--d:1"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></span><b>AI producer</b><small>Sam answers chat, designs your overlays and runs the show with you.</small></li>
-          <li style="--d:2"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg></span><b>Everywhere at once</b><small>YouTube, Twitch, Kick and your own watch page, together.</small></li>
-          <li style="--d:3"><span class="lf-ic"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-tip"/></svg></span><b>A chat that pays</b><small>Super chats, voice tips and a live shop, paid straight to you.</small></li>
-        </ul>
-        <ul class="land-feats">
-          <li style="--fh:#60a5fa;--fh2:#2563eb"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg><b>Scenes in one click</b><span>Cameras, slides, banners, your brand.</span></li>
-          <li style="--fh:#a78bfa;--fh2:#6366f1"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><b>An AI producer</b><span>Answers on air, runs the show.</span></li>
-          <li style="--fh:#4ade80;--fh2:#0ea5e9"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><b>Chat that pays</b><span>Every platform in one chat, plus super chats.</span></li>
-        </ul>
-        <div class="land-plats" aria-label="Stream to">
-          <span>Stream to</span><b style="--c:#ff2a3d">YouTube</b><b style="--c:#9146ff">Twitch</b><b style="--c:#53fc18">Kick</b><b style="--c:#1877f2">Facebook</b><b style="--c:#e7e9ea">X</b><b style="--c:#60a5fa">Your own page</b>
-        </div>
-        <footer class="land-foot">
-          <span class="land-tx" aria-label="Made in Texas, United States only">
-            <svg class="tx-emblem" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <path d="M12.2 3.2h4.2v4.1l3.7 1.3 4.6-.4 1.2 4.3-2.3 3.7-2.6 4.7-.7 3.7-3.4-1.5-4.1-4.8-3.8-.5-3.2-3.4-2.8-1.4.4-2.7 3.4.3V3.2h5.4Z" fill="var(--accent)" fill-opacity="0.24" stroke="var(--accent-text)" stroke-width="1.6" stroke-linejoin="round"/>
-              <path d="M14.2 10.1l.8 2.2h2.3l-1.8 1.3.7 2.2-2-1.4-2 1.4.7-2.2-1.8-1.3h2.3z" fill="#f59e0b"/>
-            </svg>
-            <span>Made in Texas · United States only</span>
-          </span>
-          <span class="land-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
-        </footer>
       </div>
-      <script>
-  // Landing: the feature cards' light follows the pointer. Decorative only; nothing depends on it.
-  (function () { var ul = document.querySelector('.land-feats'); if (!ul || !window.matchMedia('(hover: hover)').matches) return;
-    ul.addEventListener('pointermove', function (e) { var li = e.target.closest('li'); if (!li) return; var r = li.getBoundingClientRect();
-      li.style.setProperty('--mx', (e.clientX - r.left) + 'px'); li.style.setProperty('--my', (e.clientY - r.top) + 'px'); }); })();
-</script>
       <div class="stage-card">
         <canvas class="stage-ambient" id="stageAmbient" width="64" height="36" aria-hidden="true"></canvas>
         <div class="stage-topbar" id="stageTopbar">
