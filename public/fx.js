@@ -202,6 +202,8 @@ const TASKS_WASM = 'https://unpkg.com/@mediapipe/tasks-vision@1.2.2/wasm';
 const TASKS_MODEL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite';
 let tasksLoad = null;
 function loadTasksSegmenter() {
+  // Tests can stand in a segmenter with the same API (tests/fxfollow.test.js); never set in the app.
+  if (globalThis.__gatherTestSegmenter) return Promise.resolve(globalThis.__gatherTestSegmenter);
   tasksLoad ||= (async () => {
     const { FilesetResolver, ImageSegmenter } = await import('/vendor/tasks-vision/vision_bundle.mjs');
     const files = await FilesetResolver.forVisionTasks(TASKS_WASM);
@@ -459,20 +461,26 @@ export async function createVideoFx(srcTrack, opts) {
   const segG = segC.getContext('2d'); const segImg = segG.createImageData(SEG, SEG);
   const FW = Math.min(W, 640), FH = Math.round(FW * H / W), fullC = document.createElement('canvas'); fullC.width = FW; fullC.height = FH;
   const fullG = fullC.getContext('2d');
-  function nextRoi(full, bb) {
+  let needFull = false, snapNext = false;
+  /** The next crop: a square around `bb` with room to move, eased toward (k < 1) or snapped to (k = 1). */
+  function nextRoi(full, bb, k = 0.75) {
     if (full || !bb) return { x: 0, y: 0, w: W, h: H };
     // a square a little larger than the person, inside the frame; wider than the frame is tall → the full width
     const cx = bb.x + bb.w / 2, cy = bb.y + bb.h / 2;
-    let side = Math.max(bb.w * 1.35, bb.h * 1.25, H * 0.35);
+    let side = Math.max(bb.w * 1.6, bb.h * 1.45, H * 0.4); // room to move before an arm or shoulder leaves the crop
     let w = Math.min(W, side), h = Math.min(H, side);
-    if (side > H) { h = H; w = Math.min(W, Math.max(h, bb.w * 1.35)); }
+    if (side > H) { h = H; w = Math.min(W, Math.max(h, bb.w * 1.6)); }
     const x = Math.max(0, Math.min(W - w, cx - w / 2)), y = Math.max(0, Math.min(H - h, cy - h / 2));
-    const k = 0.35; // ease toward it so the crop doesn't jump
+    // k: follow quickly (a slow crop cut off whoever had just moved), or snap after a full-frame check
     return { x: roi.x + (x - roi.x) * k, y: roi.y + (y - roi.y) * k, w: roi.w + (w - roi.w) * k, h: roi.h + (h - roi.h) * k };
   }
   function tasksStep() {
     frameNo++;
-    const full = frameNo % 45 === 1;
+    // Look at the whole frame when the person may have left the crop: they touched its edge last time, the
+    // picture is changing fast, or every 20th frame anyway (was 45). Then the crop re-centres on them at once.
+    const motion = cameraMotion();
+    const full = needFull || motion > 0.3 || frameNo % 20 === 1;
+    needFull = false;
     const r0 = full ? { x: 0, y: 0, w: W, h: H } : roi;
     cropG.drawImage(video, r0.x, r0.y, r0.w, r0.h, 0, 0, SEG, SEG);
     const ts = Math.max(lastTs + 1, performance.now()); lastTs = ts;
@@ -492,12 +500,18 @@ export async function createVideoFx(srcTrack, opts) {
     segG.putImageData(segImg, 0, 0);
     fullG.clearRect(0, 0, FW, FH);
     fullG.drawImage(segC, r0.x * FW / W, r0.y * FH / H, r0.w * FW / W, r0.h * FH / H);
-    r.setMask(fullC, 0, cameraMotion());
+    r.setMask(fullC, 0, motion);
+    // The outline reaching the crop's edge (where the crop isn't the frame's edge) means part of the person is
+    // outside it: check the whole frame next time instead of waiting.
+    if (!full && maxX >= 0) {
+      const e = 2;
+      needFull = (minX <= e && r0.x > 1) || (minY <= e && r0.y > 1) || (maxX >= SEG - 1 - e && r0.x + r0.w < W - 1) || (maxY >= SEG - 1 - e && r0.y + r0.h < H - 1);
+    }
     const bb = maxX < 0 ? null : { x: r0.x + minX / SEG * r0.w, y: r0.y + minY / SEG * r0.h, w: (maxX - minX + 1) / SEG * r0.w, h: (maxY - minY + 1) / SEG * r0.h };
-    if (full && bb) { // grow to include anyone the crop missed
-      const ux = Math.min(bb.x, roi.x), uy = Math.min(bb.y, roi.y);
-      roi = nextRoi(false, { x: ux, y: uy, w: Math.max(bb.x + bb.w, roi.x + roi.w) - ux, h: Math.max(bb.y + bb.h, roi.y + roi.h) - uy });
-    } else roi = nextRoi(!bb, bb);
+    // A full-frame pass sees everyone, so the crop jumps straight to them; otherwise it follows the outline.
+    if (full && bb) roi = nextRoi(false, bb, motion > 0.3 || snapNext ? 1 : 0.75);
+    else roi = nextRoi(!bb, bb);
+    snapNext = needFull; // the person left the crop: the full-frame check after this one re-centres on them at once
   }
   // How much the camera picture moved since the last mask (mean luma change of a 32×18 thumbnail), as 0..1.
   const motC = document.createElement('canvas'); motC.width = 32; motC.height = 18;
