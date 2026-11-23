@@ -1,67 +1,53 @@
 import { replaceKids } from './ui.js';
 
-// Super chats: the single tray in the chat input (amount, message, voice note, card or app payment).
+// Super chats: the single tray in the chat input (amount, message, voice note), paid by card right on the page.
 // Created by watch.js through createSuperChat(app): `app` carries the watch page state and helpers this part uses.
 export function createSuperChat(app) {
-  const { $, $$, PAY, ACCT, W, api, creds, toast, ensureSession, poll, msgEl, showErr, awardXp, joinSigned, openSignIn } = app;
+  const { $, $$, ACCT, W, api, creds, toast, ensureSession, poll, showErr, awardXp, joinSigned, openSignIn } = app;
   // ---------------------------------------------------------------- super chats (single unified inline tray)
-  const SC = { amount: 5, method: '', opened: false };
+  const SC = { amount: 5 };
   $('#wSuperBtn').onclick = () => openTipDock();
 
   // ---------------------------------------------------------------- super chat in the chat input
-  // The same direct payment as the dialog (the streamer's own PayPal / Venmo / Cash App / Stripe link; gather never
-  // touches the money), but inline: the message you're typing becomes the super chat.
+  // Paid by card, Apple Pay or Google Pay in Stripe's embedded checkout, on the streamer's own Stripe account. Nobody
+  // leaves the page, and the super chat goes on screen by itself once the payment clears (no "I've paid" step).
+  // The message you're typing becomes the super chat.
   const tierOf = (a) => (a >= 50 ? 'rose' : a >= 20 ? 'amber' : a >= 10 ? 'emerald' : 'blue');
   function tipRender() {
     const w = W.info?.watch || {};
-    const methods = Object.keys(PAY).filter((m) => (m === 'card' ? w.card : w.pay?.[m]));
-    if (!methods.includes(SC.method)) SC.method = methods[0] || '';
     const min = w.min || 2;
     SC.amount = Math.max(SC.amount, min);
     const amounts = [...new Set([min, 5, 10, 20, 50, 100].filter((a) => a >= min))].slice(0, 5);
     replaceKids($('#wTipAmts'), ...amounts.map((a) => {
       const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.tier = tierOf(a); b.className = 'num'; b.textContent = '$' + a;
-      b.setAttribute('aria-checked', String(a === SC.amount)); b.onclick = () => { SC.amount = a; SC.opened = false; const c = $('#wTipCustom'); if (c) c.value = ''; tipRender(); };
+      b.setAttribute('aria-checked', String(a === SC.amount)); b.onclick = () => { SC.amount = a; const c = $('#wTipCustom'); if (c) c.value = ''; tipRender(); };
       return b;
     }), (() => {
       const c = Object.assign(document.createElement('input'), { className: 'input num', id: 'wTipCustom', type: 'number', min: String(min), max: '10000', step: '1', placeholder: 'Other', inputMode: 'decimal' });
       c.setAttribute('aria-label', 'Other amount in dollars');
       if (!amounts.includes(SC.amount)) c.value = String(SC.amount);
-      c.oninput = () => { const v = Math.round(Number(c.value)); if (v >= min) { SC.amount = v; SC.opened = false; tipSync(); } };
+      c.oninput = () => { const v = Math.round(Number(c.value)); if (v >= min) { SC.amount = v; tipSync(); } };
       return c;
     })());
-    replaceKids($('#wTipMethods'), ...methods.map((m) => {
-      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.m = m; b.textContent = m === 'card' ? '💳 Card · Apple Pay' : m === 'stripe' ? 'Stripe link' : PAY[m].label;
-      b.onclick = () => { SC.method = m; SC.opened = false; tipSync(); };
-      return b;
-    }));
     $('#wTipSub').textContent = `Paid straight to ${W.info?.host?.name || 'the streamer'}`;
     $('#wTipRec').hidden = !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || w.voice === false;
     tipSync();
   }
   function tipSync() {
     $$('#wTipAmts button').forEach((b) => b.setAttribute('aria-checked', String(b.textContent === '$' + SC.amount)));
-    $$('#wTipMethods button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.m === SC.method)));
     $('#wTipDock').dataset.tier = tierOf(SC.amount);
-    const onsite = !!PAY[SC.method]?.onsite;
-    const label = SC.method === 'stripe' ? 'card' : onsite ? '' : PAY[SC.method]?.label || '';
-    $('#wTipPay').textContent = SC.opened ? `Open ${label} again` : `${onsite ? 'Pay' : 'Pay'} $${SC.amount}${label ? ' with ' + label : ''}`;
-    $('#wTipSend').hidden = onsite;
-    $('#wTipDock').classList.toggle('onsite', onsite);
-    $('#wTipSend').disabled = !SC.opened;
-    $('#wTipSend').textContent = `I’ve paid · send $${SC.amount}`;
+    $('#wTipPay').textContent = `Pay $${SC.amount}`;
+    $('#wTipDock').classList.add('onsite');
     const msg = $('#wTipMsg').value.trim();
     $('#wTipCount').textContent = `${$('#wTipMsg').value.length}/${$('#wTipMsg').maxLength}`;
-    $('#wTipNote').textContent = onsite ? `Pay here without leaving. ${TV.blob ? 'Your voice message and ' : ''}${msg ? 'message' : 'super chat'} pops up on screen the moment it’s paid.`
-      : SC.opened
-      ? `Paid? Send it and it goes on screen as soon as the streamer sees your $${SC.amount}.`
-      : $('#wBounty')?.checked ? (msg ? `Bounty: “${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}”, on stream once the streamer accepts it.` : 'Type the challenge above, e.g. “win a round with pistols only”.')
-      : 'Pay in the app that opens, then come back and tap “I’ve paid”. It goes on screen once the streamer sees it.';
+    $('#wTipNote').textContent = $('#wBounty')?.checked
+      ? (msg ? `Bounty: “${msg.slice(0, 60)}${msg.length > 60 ? '…' : ''}”, on stream once it’s paid.` : 'Type the challenge above, e.g. “win a round with pistols only”.')
+      : `Card, Apple Pay or Google Pay, right here. Your ${TV.blob ? 'voice message' : msg ? 'message' : 'super chat'} goes on screen the moment it’s paid.`;
   }
   function openTipDock() {
     const w = W.info?.watch || {};
     if (!w.supers) return;
-    SC.opened = false; showErr('#wTipErr', '');
+    showErr('#wTipErr', '');
     $('#wTipDock').hidden = false; $('#wTipBtn').setAttribute('aria-expanded', 'true'); $('#wTipBtn').classList.add('on');
     $('#wTipMsg').value ||= $('#wText').value.trim(); // anything typed in the chat box comes along
     tipRender();
@@ -108,13 +94,8 @@ export function createSuperChat(app) {
   $('#wTipRec').onclick = () => (TV.rec?.state === 'recording' ? TV.rec.stop() : tipRecStart());
   $('#wTipRecX').onclick = tipRecClear;
   const tipBody = () => ({ amount: SC.amount, text: $('#wTipMsg').value.trim(), ...($('#wBounty').checked ? { bounty: true } : {}), ...(TV.data ? { voice: TV.data, dur: TV.dur } : {}) });
-  function tipSent(id, pending) {
-    const text = $('#wTipMsg').value.trim();
+  function tipSent() {
     $('#wBounty').checked = false; $('#wTipDock').classList.remove('bounty'); $('#wTipMsg').value = ''; tipRecClear(); closeTipDock();
-    if (pending) {
-      $('#wMsgs').append(msgEl({ id: 'mine-' + id, sc: id, name: app.sess.name, text: text || 'Waiting for the streamer to confirm your super chat…', paid: '$' + SC.amount, amount: SC.amount, status: 'pending' }));
-      $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
-    }
     awardXp(Math.min(50, 5 + Math.round(SC.amount)));
   }
 
@@ -143,31 +124,13 @@ export function createSuperChat(app) {
   }
   async function checkoutDone(id) {
     for (let i = 0; i < 8; i++) {
-      try { const r = await api('wcheckdone', { ...creds(), sc: id }); if (r.status === 'confirmed') { toast(`Paid! Your $${SC.amount} super chat is on screen.`); tipSent(id, false); poll?.(); return; } } catch {}
+      try { const r = await api('wcheckdone', { ...creds(), sc: id }); if (r.status === 'confirmed') { toast(`Paid! Your $${SC.amount} super chat is on screen.`); tipSent(); poll?.(); return; } } catch {}
       await new Promise((r) => setTimeout(r, 1500));
     }
     toast('Payment received. Your super chat will appear in a moment.');
-    tipSent(id, false);
+    tipSent();
   }
-  $('#wTipPay').onclick = async () => {
-    if (PAY[SC.method]?.onsite) return payOnSite();
-    const w = W.info?.watch || {}, handle = w.pay?.[SC.method];
-    if (!handle) return showErr('#wTipErr', 'The streamer hasn’t set up a payment method yet.');
-    try { await ensureSession(); } catch {}
-    window.open(PAY[SC.method].link(handle, SC.amount, `Super chat on gather: ${($('#wTipMsg').value || '').slice(0, 60)}`), '_blank', 'noopener');
-    SC.opened = true; tipSync();
-  };
-  $('#wTipSend').onclick = async () => {
-    showErr('#wTipErr', '');
-    try {
-      await ensureSession();
-      if (!app.sess?.named) { if (ACCT.user) await joinSigned(); else { ACCT.then = () => $('#wTipSend').click(); return openSignIn(); } }
-      if ($('#wBounty').checked && !$('#wTipMsg').value.trim()) { $('#wTipMsg').focus(); return showErr('#wTipErr', 'Type the challenge first.'); }
-      const r = await api('wsend', { ...creds(), type: 'super', method: SC.method, ...tipBody() });
-      tipSent(r.id, true);
-      toast(`Sent. Your $${SC.amount} super chat pops up on screen once the streamer sees the payment.`);
-    } catch (err) { showErr('#wTipErr', err.message); }
-  };
+  $('#wTipPay').onclick = () => payOnSite();
   $$('button[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog')?.close()));
 
   $('#wShare').onclick = async () => {

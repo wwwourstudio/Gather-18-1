@@ -42,8 +42,8 @@ const SP = process.argv[2];
   if (!sceneKept) console.log('FAIL showing an answer changed the scene');
   await a.waitForTimeout(600);
   await a.screenshot({ path: SP + '/r-host-ai.png' });
-  // support card
-  await a.click('[data-tab="shop"]');
+  // support card (Audience → Get paid → Tip QR cards)
+  await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="supers"]');
   await a.fill('.tip-row:has-text("PayPal") input', 'gathershow'); await a.click('.tip-row:has-text("PayPal") button');
   await b.waitForFunction(() => window.__gather.state.elements.some(e => e.type === 'tip' && e.url === 'https://paypal.me/gathershow'), null, { timeout: 5000 });
   console.log('4 PayPal QR card synced:', true);

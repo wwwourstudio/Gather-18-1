@@ -20,8 +20,8 @@ const PANEL_INFO = {
   brand: ['palette', 'Brand kit, palette, backgrounds, logo & typography'],
   overlays: ['palette', 'Overlay packs, banners, countdowns & sponsors'],
   shop: ['shopping-bag', 'Live drops, stock counter & instant checkout'],
-  polls: ['bar-chart-2', 'Polls, XP predictions & audience moments'],
-  gaming: ['gamepad-2', 'Scoreboard, bounties, lobby & priority queue'],
+  polls: ['clapperboard', 'Watch page, viewers, Get paid, stage & audience'], // Audience → Polls: same header as Audience
+  gaming: ['clapperboard', 'Watch page, viewers, Get paid, stage & audience'], // Audience → Play
   music: ['music', 'AI song maker, audio editor, soundboard & voiceovers'],
 };
 const icon = (n) => `<svg class="i" aria-hidden="true"><use href="/icons.svg#i-${n}"/></svg>`;

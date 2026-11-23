@@ -308,15 +308,19 @@ async function signUpAndCreate(s: Session): Promise<string> {
   await p.click('#userBtn'); await shot(s, 'account-dialog'); await checkLayout(s, 'Account dialog');
   await p.click('#acTabs [data-ac="up"]');
   await p.fill('#acName', 'Audit Host'); await p.fill('#acEmail', `audit${Date.now()}${s.width}@example.com`); await p.fill('#acPass', 'audit-pass-1234');
+  if (await p.isVisible('#acAgree')) await p.check('#acAgree'); // sign-up asks to agree to the Terms
   await p.click('#acGo');
   await p.waitForFunction(() => document.getElementById('userLabel')?.textContent !== 'Sign in', null, { timeout: 8000 }).catch(() => add('Account', 'Sign-up did not complete', 'P0', 'Check /api/account signup and the store.', s.width));
   await shot(s, 'account-signed-in'); await checkLayout(s, 'Account (signed in)');
   await sweep(s, '#acctDlg', 'Account dialog', 1);
   await p.keyboard.press('Escape');
   await p.click('#enterStage'); await p.waitForTimeout(900);
+  // Go Live Now opens "Start a broadcast" first; its button leads to the device check (#enterDlg).
+  await shot(s, 'start-broadcast'); await checkLayout(s, 'Start a broadcast');
+  if (await p.isVisible('#wGo')) { await p.click('#wGo'); await p.waitForSelector('#enterDlg[open]', { timeout: 8000 }).catch(() => undefined); }
   await shot(s, 'green-room'); await checkLayout(s, 'Step into the studio');
   await sweep(s, '#enterDlg', 'Step into the studio', 1);
-  if (!(await p.locator('#enterDlg[open]').count())) await p.click('#enterStage');
+  if (!(await p.locator('#enterDlg[open]').count())) { await p.click('#enterStage'); if (await p.isVisible('#wGo')) await p.click('#wGo'); await p.waitForSelector('#enterDlg[open]', { timeout: 8000 }).catch(() => undefined); }
   await p.click('#enterDlg [data-mode="create"]').catch(() => undefined);
   await p.fill('#enterName', 'Audit Host');
   await p.click('#enterGo');
@@ -485,7 +489,7 @@ async function featureChecks(s: Session, browser: Browser, code: string): Promis
   });
 
   await step('QR hide', async () => {
-    await p.click('.rail-btn[data-tab="look"]'); await p.click('.look-seg:visible [data-look="brand"]');
+    await p.click('.rail-btn[data-tab="show"]'); await p.click('.aud-seg:visible [data-aud="supers"]'); // Tip QR cards live in Audience → Get paid
     await p.fill('[aria-label="PayPal link"]', 'gathershow');
     await clickOrExplain(p.locator('.tip-row', { hasText: 'PayPal' }).locator('button'), 'Feature: QR hide');
     await p.waitForFunction(() => (window as unknown as GatherWindow).__gather.state.elements.some((e) => e.type === 'tip'), null, { timeout: 5000 });

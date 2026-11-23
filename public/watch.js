@@ -17,13 +17,6 @@ const code = safeDecode(location.pathname.split('/')[2] || '').toLowerCase().rep
 
 const NAMES = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick', facebook: 'Facebook', x: 'X', rumble: 'Rumble', custom: 'Watch' };
 const HOSTS = { 'youtube.com': 'YouTube', 'youtu.be': 'YouTube', 'twitch.tv': 'Twitch', 'kick.com': 'Kick', 'facebook.com': 'Facebook', 'x.com': 'X', 'twitter.com': 'X', 'rumble.com': 'Rumble' };
-const PAY = {
-  card: { label: 'Card · Apple Pay · Google Pay', onsite: true },
-  paypal: { label: 'PayPal', link: (h, a) => `https://paypal.me/${encodeURIComponent(h)}/${a}USD` },
-  venmo: { label: 'Venmo', link: (h, a, note) => `https://venmo.com/?txn=pay&audience=private&recipients=${encodeURIComponent(h)}&amount=${a}&note=${encodeURIComponent(note)}` },
-  cashapp: { label: 'Cash App', link: (h, a) => `https://cash.app/$${encodeURIComponent(h)}/${a}` },
-  stripe: { label: 'Card · Apple Pay · Google Pay', link: (h) => h },
-};
 const REACTS = ['❤️', '🔥', '😂', '👏', '🎉', '😮'];
 
 function nameOf(l) {
@@ -877,9 +870,16 @@ $('#wCompose').addEventListener('submit', async (e) => {
 
 // ---------------------------------------------------------------- super chats (single unified inline tray) → ./watch-superchat.js
 const superChat = createSuperChat({
-  $, $$, PAY, ACCT, W, get sess() { return sess; }, api, creds, toast, ensureSession, poll, msgEl, showErr, awardXp, joinSigned, openSignIn
+  $, $$, ACCT, W, get sess() { return sess; }, api, creds, toast, ensureSession, poll, showErr, awardXp, joinSigned, openSignIn
 });
 const { tierOf } = superChat;
+// The "Your watch page" QR card on stage links here with ?tip=1: open the tip tray as soon as tips are on.
+if (new URLSearchParams(location.search).get('tip') === '1') {
+  const t0 = Date.now(), tick = setInterval(() => {
+    if (W.info?.watch?.supers) { clearInterval(tick); superChat.openTipDock(); }
+    else if (Date.now() - t0 > 20000) clearInterval(tick);
+  }, 400);
+}
 function openTipDock(...args) { return superChat.openTipDock(...args); }
 function closeTipDock(...args) { return superChat.closeTipDock(...args); }
 function loadStripe(...args) { return superChat.loadStripe(...args); }
@@ -1500,10 +1500,7 @@ async function payAuction(a, btn) {
       host.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    const names = { paypal: 'PayPal', venmo: 'Venmo', cashapp: 'Cash App', stripe: 'Card' };
-    const ways = Object.entries(r.pay || {}).map(([m, h]) => `${names[m] || m}: ${h}`);
-    if (r.url) window.open(r.url, '_blank', 'noopener');
-    toast(ways.length ? `Send ${r.amount} to the host — ${ways.join(' · ')}` : r.url ? `Finish your ${r.amount} order on the store that just opened.` : `The host will tell you how to pay ${r.amount}.`);
+    toast(`You won! The host will be in touch to settle your ${r.amount}.`);
   } catch (e) { toast(e.message, true); }
   finally { btn.disabled = false; }
 }

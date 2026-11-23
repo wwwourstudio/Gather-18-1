@@ -1850,7 +1850,7 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-chat { grid-row: 1; grid-column: 2; height: 100%; border-left: 1px solid rgba(255, 255, 255, 0.08); border-bottom: 0; }
 }
 
-/* Host relay indicator in Watch Party chat & Made in Texas hairline footer */
+/* Host relay indicator in Watch Party chat */
 .wv-host-pill {
   flex: none;
   color: var(--accent-text);
@@ -1858,34 +1858,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.wv-tx-foot {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 12px clamp(12px, 1.5%, 20px) 16px;
-  border-top: 1px solid rgba(148, 175, 255, 0.1);
-  font-size: 12px;
-  color: var(--ink-3);
-}
-.wv-tx-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  color: var(--ink-2);
-}
-.wv-tx-badge .tx-emblem {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  color: var(--accent-text);
-}
-.wv-tx-links { display: inline-flex; align-items: center; gap: 12px; }
-.wv-tx-links a { color: var(--ink-3); text-decoration: none; font-weight: 500; }
-.wv-tx-links a:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .wv-backdrop .aur { animation: none; } }
 
 /* ================================================================ Stream-type deck & on-video hotspot
@@ -2076,7 +2048,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-creator-about { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wv-creator-tags { display: none !important; }
   .wv-sc-pane { max-height: 128px; overflow-y: auto; scrollbar-width: thin; }
-  .wv-tx-foot { flex: none; padding: 6px clamp(10px, 1.2%, 16px) 8px; }
 }
 .wv-drop-more { grid-column: 1 / -1; justify-self: center; font: 600 11.5px var(--font-ui); color: var(--ink-3); padding: 2px 8px; }
 .wv-drop-more:hover { color: var(--ink); }
@@ -2101,9 +2072,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-tipamts button { height: 30px; padding: 0 11px; border-radius: 8px; font: 700 12.5px var(--font-ui); color: var(--ink); background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18); }
 .wv-tipamts button[aria-checked="true"] { color: #0b1020; background: linear-gradient(135deg, var(--t2), var(--t1)); box-shadow: none; }
 .wv-tipamts input { width: 74px; height: 30px; padding: 0 8px; font-size: 12.5px; }
-.wv-tipmethods { display: flex; flex-wrap: wrap; gap: 5px; }
-.wv-tipmethods button { height: 26px; padding: 0 10px; border-radius: 999px; font: 600 11.5px var(--font-ui); color: var(--ink-2); background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16); }
-.wv-tipmethods button[aria-checked="true"] { color: #fff; box-shadow: inset 0 0 0 1.5px var(--t2); background: color-mix(in srgb, var(--t1) 18%, transparent); }
 .wv-tipacts { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 6px; }
 .wv-tipacts .btn { height: 36px; justify-content: center; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wv-tippay { background: linear-gradient(120deg, var(--t1), var(--t2)) !important; border-color: transparent !important; color: #0b1020 !important; font-weight: 800 !important; }
@@ -2271,7 +2239,7 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-tipdock.onsite .wv-tipacts { grid-template-columns: 1fr; }
 .wv-checkout { max-height: min(62vh, 560px); overflow: auto; border-radius: 12px; background: #fff; padding: 4px; }
 .wv-checkout[hidden] { display: none; }
-.wv-tipdock.paying .wv-tipamts, .wv-tipdock.paying .wv-tipmsg, .wv-tipdock.paying .wv-tipvoice, .wv-tipdock.paying .wv-bountysw, .wv-tipdock.paying .wv-tipmethods, .wv-tipdock.paying .wv-tipacts { display: none; }
+.wv-tipdock.paying .wv-tipamts, .wv-tipdock.paying .wv-tipmsg, .wv-tipdock.paying .wv-tipvoice, .wv-tipdock.paying .wv-bountysw, .wv-tipdock.paying .wv-tipacts { display: none; }
 .wv-tipdock { max-height: calc(100dvh - 160px); overflow-y: auto; }
 
 /* super chats in the chat list: coloured by amount */
@@ -2519,7 +2487,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-acts { grid-row: 4; padding: 8px 10px; }
   .wv-chat { grid-row: 5; }
   .wv-below, .wv-below-v2 { grid-row: 6; }
-  .wv-tx-foot { grid-row: 7; }
 }
 .wv-msgs li.sys { list-style: none; margin: 6px 8px; padding: 6px 10px; border-radius: 8px; text-align: center; font: 600 12.5px/1.4 var(--font-ui); color: var(--ink-2); background: color-mix(in srgb, var(--accent, #2f6bf0) 12%, transparent); }
 

@@ -9,7 +9,7 @@ export function createAudience(app) {
     $, smooth, $$, store, S, isHost, watchCfg, normalizeHex, hexLuminance, notifier, toast, fmtTime, copy,
     audioCtx, mixInMedia, api, creds, wsSend, setStage, canvas, g, speaking, rr, stageElements, chatShell,
     uid, withDefaults, assetImg, setAssetData, storeAsset, compressImage, wrapLines, px, superAlert,
-    playScVoice, elementsCopy, freeSpot, renderTips, acct, acctApi, setUser, openAccount, parseHashtags,
+    playScVoice, elementsCopy, freeSpot, acct, acctApi, setUser, openAccount, parseHashtags,
     rasterizeSvg, appendLog, setTab, flashBtn, renderInviteDialog, chime
   } = app;
   // ---------------------------------------------------------------- the public watch page (/w/<studio>)
@@ -268,7 +268,6 @@ export function createAudience(app) {
     for (const id of ['#wpCopy', '#wpCard', '#wpOpen']) $(id).disabled = !on;
     $('#wpCount').textContent = on && cfg.direct ? `${VIEW.size} of ${cfg.cap} watching directly` : '';
     for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id) && document.activeElement !== $(id)) $(id).checked = cfg[k] !== false && !!(cfg[k] ?? true);
-    for (const k of Object.keys(PAY_NAME).filter((m) => m !== 'card')) { const el = $('#wpPay-' + k); if (document.activeElement !== el) el.value = cfg.pay[k] || ''; }
     if (document.activeElement !== $('#wpCap')) $('#wpCap').value = String(cfg.cap);
     if (document.activeElement !== $('#wpAbout')) $('#wpAbout').value = cfg.about || '';
     if ($('#wpLobby') && document.activeElement !== $('#wpLobby')) $('#wpLobby').value = cfg.lobby || '';
@@ -279,15 +278,13 @@ export function createAudience(app) {
     $('#wpReacts').checked = cfg.reactsOnStream !== false;
     if (document.activeElement !== $('#wpLinks')) $('#wpLinks').value = (cfg.links || []).map((l) => `${l.label} | ${l.url}`).join('\n');
     if (document.activeElement !== $('#wpMin')) $('#wpMin').value = String(cfg.min);
-    // Super chats: the payment fields are always shown, with one line saying what's left to do.
-    const payOn = Object.values(cfg.pay).some(Boolean) || CARD.ready;
+    // Super chats are paid by card on the watch page, so they need Stripe connected; one line says what's left.
     if (S.studio && isHost() && !CARD.checked) cardStatus();
-    $('#wpSupersState').textContent = cfg.supers && payOn ? 'On' : cfg.supers ? 'Needs a way to pay' : 'Off';
-    $('#wpPayStatus').textContent = !payOn ? 'Add at least one way to get paid. Viewers pay you directly; gather never touches the money.'
-      : cfg.supers ? 'Viewers see a Tip button in the chat on your watch page.' : 'Payments are set. Turn on super chats above to show the Tip button.';
+    $('#wpSupersState').textContent = cfg.supers && CARD.ready ? 'On' : cfg.supers ? 'Connect Stripe' : 'Off';
+    $('#wpPayStatus').textContent = !CARD.ready ? (cfg.supers ? 'Super chats are on, but viewers won’t see the tip button until Stripe is connected.' : 'Connect Stripe, then turn on super chats.')
+      : cfg.supers ? 'Viewers see a tip button in the chat on your watch page.' : 'Stripe is connected. Turn on super chats to show the tip button.';
     if (document.activeElement !== $('#wpQueue')) $('#wpQueue').checked = !!cfg.queue;
     if (window.__shopReady) { renderShop(); renderPoll(); renderEmotes(); }
-    $('#wpNoPay').hidden = true; // replaced by #wpPayStatus
     renderShowcaseSec();
     renderHandle();
   }
@@ -464,12 +461,6 @@ export function createAudience(app) {
     setWatch({ links });
   };
   $('#wpMin').onchange = (e) => setWatch({ min: Math.max(1, Number(e.target.value) || 2) });
-  for (const k of Object.keys(PAY_NAME).filter((m) => m !== 'card')) $('#wpPay-' + k).addEventListener('change', (e) => {
-    const clean = e.target.value.trim().replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '');
-    setWatch({ pay: { [k]: clean } });
-    const all = store.get('tips', {}); all[k] = clean; store.set('tips', all);
-    renderTips();
-  });
   setInterval(() => { if ($('#watchSec') && !$('#watchSec').closest('[hidden]')) renderWatchSec(); }, 3000);
   window.__watchReady = true;
   renderWatchSec();

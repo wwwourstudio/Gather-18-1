@@ -57,7 +57,7 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const payWrong = await post('wauctionpay', { ...viewers[5], auction: au.id });
     check('only the winner can pay', payWrong.status === 403, payWrong.error);
     const payWin = await post('wauctionpay', { ...other, auction: au.id });
-    check('the winner gets a way to pay', payWin.status === 200 && payWin.mode === 'links' && payWin.amount === '$15', JSON.stringify(payWin));
+    check('without card payments the winner is told the host will settle up (no outside pay links)', payWin.status === 200 && payWin.mode === 'host' && payWin.amount === '$15' && !payWin.pay && !payWin.url, JSON.stringify(payWin));
     const after = await post('wbid', { ...viewers[5], auction: au.id, amt: 99999 });
     check('no bids after the auction ends', after.status === 409);
 

@@ -1,5 +1,18 @@
 # gather: progress
 
+## Design pass: home on phones, rail, deck, Audience, Get paid
+
+- **Home page on phones and tablets:** one screen tall like desktop. Heading and subtitle two lines each, then Go Live and Join, then the preview cut off at the bottom. Removed everything under the preview (two feature-card lists, the platform strip, the footer). Fixed light-mode contrast in the preview and the Schedule link.
+- **Sidebar rail:** one definition replacing about eight layers of overrides. No background on hover or when selected; selected = accent icon, bold label and a short accent bar. Nothing scales or moves, so hovering doesn't flicker.
+- **Under the video:** underline tabs, quiet filter chips with 28px tap targets, outlined scene and people cards (accent ring when selected), and suggestion copy that fits ("Just 1 on stage. Use Solo?").
+- **People cards:** "mic on" / "muted" / "no mic" now uses the same test as the muted badge, so they can't disagree. On stage, the muted icon sits inside the name tag.
+- **Audience tab:** Audience, Polls and Play share one header (same icon, single row of tabs, status pinned so nothing shifts). "Stage" sub-tab renamed "Studio". Switches are a plain list, not cards inside cards; section hints wrap instead of being cut off.
+- **Get paid:** "Card payments" (Stripe status, Take super chats, minimum) and "Tip QR cards on stage", moved here from Shop. The duplicate PayPal / Venmo / Cash App fields are gone.
+- **Payments stay in the app:** super chats are paid by card in Stripe's embedded checkout on the watch page, nothing else. The server refuses "paid in another app" super chats, no longer sends payment handles to viewers, and an auction won without card payments no longer hands out outside pay links. A new "Your watch page" tip QR card sends platform viewers to the in-app card tray (`/w/<studio>?tip=1`).
+- **Watch page:** the Made in Texas bar is gone (Terms and Privacy stay in sign-in).
+- **Audit script** updated to the current flow (agree to Terms, "Start a broadcast" step, tip cards in Get paid).
+- **Not done yet:** the studio on phones: the side panel covers the scene strip and the bottom tab bar sits under the dock. It needs its own mobile layout.
+
 ## Competitor round: seller analytics and pop-out chat
 
 Checked against StreamYard (April 2026 updates), Riverside, Restream and Whatnot (2026 seller tools). gather already had a go-live ready check, so this round adds the two gaps that matter most and were cheap to do well.

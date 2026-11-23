@@ -1494,7 +1494,9 @@ function drawTile(p, rect, t) {
   if (brand.names) {
     const label = p.name; // the program is recorded and streamed, so never "(you)" here
     g.font = `700 ${fs}px ${stageFont()}`; g.textAlign = 'left'; g.textBaseline = 'middle';
-    const tw = Math.min(g.measureText(label).width, w - 80), bw = tw + fs * 1.4, bh = fs * 1.9;
+    // A muted mic sits inside the tag, at its end, instead of in a separate box beside it.
+    const muted = !p.mic, icon = muted ? fs * 1.25 : 0;
+    const tw = Math.min(g.measureText(label).width, w - 80 - icon), bw = tw + fs * 1.4 + icon, bh = fs * 1.9;
     const style = brand.tag || 'solid';
     let ink = '#ffffff';
     if (style === 'solid') { g.fillStyle = brand.color; rr(tx, ty, bw, bh, 6); g.fill(); ink = contrastInk(brand.color); }
@@ -1503,15 +1505,16 @@ function drawTile(p, rect, t) {
     else { g.fillStyle = brand.color; g.fillRect(tx + fs * .7, ty + bh - 3, tw, 3); }
     g.fillStyle = ink;
     if (style === 'minimal') { g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 8; }
-    g.save(); g.beginPath(); g.rect(tx, ty, bw, bh); g.clip();
+    g.save(); g.beginPath(); g.rect(tx, ty, bw - icon, bh); g.clip();
     g.fillText(label, tx + fs * .7, ty + fs * .97); g.restore();
     g.shadowColor = 'transparent';
-    tx += bw + 6;
+    if (muted) drawMicOff(tx + fs * .7 + tw + fs * .3 + icon / 2, ty + bh / 2, fs * .42, style === 'solid' ? ink : '#ff6b6b');
+    return;
   }
-  if (!p.mic) {
+  if (!p.mic) { // name tags off: a small badge of its own
     const s = fs * 1.9;
-    g.fillStyle = 'rgba(17,24,39,.78)'; rr(tx, ty, s, s, 6); g.fill();
-    drawMicOff(tx + s / 2, ty + s / 2, s * .32);
+    g.fillStyle = 'rgba(17,24,39,.82)'; rr(tx, ty, s, s, s * .3); g.fill();
+    drawMicOff(tx + s / 2, ty + s / 2, s * .3);
   }
 }
 // A camera fills its tile only when that crops little. Otherwise (a 4:3 webcam in a 16:9 tile, a tall tile in
@@ -1538,8 +1541,8 @@ function drawFitVideo(el, x, y, w, h, id) {
   const s = Math.min(w / vw, h / vh), dw = vw * s, dh = vh * s;
   g.drawImage(el, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
-function drawMicOff(cx, cy, r) {
-  g.save(); g.strokeStyle = '#ff6b6b'; g.lineWidth = Math.max(1.6, r * .2); g.lineCap = 'round';
+function drawMicOff(cx, cy, r, color = '#ff6b6b') {
+  g.save(); g.strokeStyle = color; g.lineWidth = Math.max(1.6, r * .2); g.lineCap = 'round';
   g.beginPath(); g.roundRect(cx - r * .35, cy - r, r * .7, r * 1.25, r * .35); g.stroke();
   g.beginPath(); g.arc(cx, cy - r * .1, r * .75, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
   g.beginPath(); g.moveTo(cx, cy + r * .65); g.lineTo(cx, cy + r); g.stroke();
@@ -2415,7 +2418,7 @@ function drawAiEl(e) {
   g.restore();
 }
 const TIP_INFO = {
-  paypal: { name: 'PayPal', color: '#0070e0' }, venmo: { name: 'Venmo', color: '#008cff' }, cashapp: { name: 'Cash App', color: '#00d64f' },
+  gather: { name: 'Tip here', color: '#4c8dff' }, paypal: { name: 'PayPal', color: '#0070e0' }, venmo: { name: 'Venmo', color: '#008cff' }, cashapp: { name: 'Cash App', color: '#00d64f' },
   stripe: { name: 'Stripe', color: '#635bff' }, kofi: { name: 'Ko-fi', color: '#ff5e5b' }, patreon: { name: 'Patreon', color: '#f96854' },
   bmc: { name: 'Buy Me a Coffee', color: '#ffdd00' }, link: { name: 'Website', color: '#4c8dff' },
 };
@@ -2813,7 +2816,7 @@ function renderProps() {
   }
   if (e.type === 'ai') f.push(`<label class="fld"><span>Text size</span><input type="range" min="14" max="34" data-k="size" data-num value="${e.size}"></label><p class="hint">Shows the latest question and answer from the AI panel. Long answers keep the newest lines in view.</p>`);
   if (e.type === 'media') f.push(`<label class="fld"><span>Corner rounding</span><input type="range" min="0" max="40" data-k="radius" data-num value="${e.radius}"></label><p class="hint">Shows whoever is presenting: a screen, a video or PDF slides.</p>`);
-  if (e.type === 'tip') f.push(`<label class="fld"><span>Card text</span><input data-k="label" maxlength="60" value="${val('label')}"></label><p class="hint">Edit the link in Shop → Support links.</p>`);
+  if (e.type === 'tip') f.push(`<label class="fld"><span>Card text</span><input data-k="label" maxlength="60" value="${val('label')}"></label><p class="hint">Edit the link in Audience → Get paid → Tip QR cards.</p>`);
   if (e.type === 'shape') {
     field('Name', `<input data-k="label" maxlength="40" value="${val('label')}" placeholder="Colour block">`);
     f.push(`<div class="row2"><label class="fld"><span>Colour</span><input type="color" data-k="color" value="${e.color}"></label><label class="fld"><span>Opacity</span><input type="range" min="0.05" max="1" step="0.05" data-k="opacity" data-num value="${e.opacity ?? 1}"></label></div>`);
@@ -3166,13 +3169,15 @@ for (const [input, form] of [['#chatInput', '#chatForm'], ['#aiInput', '#aiForm'
   t.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $(form).requestSubmit(); } });
 }
 
-// ---------------------------------------------------------------- support links (PayPal, Venmo, Cash App, Stripe…)
+// ---------------------------------------------------------------- tip QR cards on stage (Audience → Get paid)
+// "Your watch page" keeps the payment in gather (viewers scan, then pay by card in the chat); the rest open that app.
 const TIP_FIELDS = [
-  ['paypal', 'PayPal', 'paypal.me/yourname'], ['venmo', 'Venmo', '@yourname'], ['cashapp', 'Cash App', '$yourtag'],
+  ['gather', 'Your watch page', ''], ['paypal', 'PayPal', 'paypal.me/yourname'], ['venmo', 'Venmo', '@yourname'], ['cashapp', 'Cash App', '$yourtag'],
   ['stripe', 'Stripe', 'buy.stripe.com/…'], ['kofi', 'Ko-fi', 'ko-fi.com/yourname'], ['patreon', 'Patreon', 'patreon.com/yourname'],
   ['bmc', 'Buy Me a Coffee', 'buymeacoffee.com/you'], ['link', 'Website', 'yoursite.com/support'],
 ];
 function tipUrl(provider, raw) {
+  if (provider === 'gather') return S.studio ? watchLinkUrl() + '?tip=1' : '';
   let v = String(raw || '').trim();
   if (!v) return '';
   if (provider === 'venmo' && !/\//.test(v)) return 'https://venmo.com/u/' + v.replace(/^@/, '');
@@ -3186,23 +3191,22 @@ function tipUrl(provider, raw) {
 function renderTips() {
   const box = $('#tipList');
   if (!box) return;
-  // Single source of truth: merge Get paid handles (watchCfg().pay) with local tips so handles are only entered once.
-  const pay = watchCfg().pay || {};
-  const saved = { ...store.get('tips', {}) };
-  for (const k of ['paypal', 'venmo', 'cashapp', 'stripe']) if (pay[k] && !saved[k]) saved[k] = pay[k];
+  const saved = store.get('tips', {});
   if (!box.children.length) {
     replaceKids(box, ...TIP_FIELDS.map(([id, name, ph]) => {
       const row = document.createElement('div'); row.className = 'tip-row'; row.dataset.provider = id;
       const tag = document.createElement('span'); tag.className = 'tip-tag'; tag.textContent = name; tag.style.setProperty('--c', TIP_INFO[id].color);
+      if (id === 'gather') { // nothing to type: it's this studio's own watch page
+        const note = document.createElement('small'); note.className = 'tip-own'; note.textContent = 'Card tips in your chat. Needs Stripe connected.';
+        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn sm tip-toggle';
+        btn.onclick = () => toggleTip(id, name, '');
+        row.classList.add('own'); row.append(tag, note, btn);
+        return row;
+      }
       const inp = document.createElement('input'); inp.className = 'input sm'; inp.placeholder = ph; inp.value = saved[id] || ''; inp.spellcheck = false; inp.setAttribute('aria-label', name + ' link');
       inp.onchange = () => {
         const clean = inp.value.trim();
         const all = store.get('tips', {}); all[id] = clean; store.set('tips', all);
-        if (['paypal', 'venmo', 'cashapp', 'stripe'].includes(id)) {
-          const norm = clean.replace(/^@|^\$/, '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '');
-          setWatch({ pay: { [id]: norm } });
-          const wpInp = $('#wpPay-' + id); if (wpInp && document.activeElement !== wpInp) wpInp.value = norm;
-        }
         const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === id), url = tipUrl(id, clean);
         if (card && url && card.url !== url && isHost()) patchEl(card.id, { url });
       };
@@ -3214,8 +3218,6 @@ function renderTips() {
   }
   for (const row of $$('.tip-row', box)) {
     const prov = row.dataset.provider;
-    const inp = $('input', row);
-    if (inp && document.activeElement !== inp && pay[prov] && inp.value !== pay[prov]) inp.value = pay[prov];
     const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === prov);
     const btn = $('.tip-toggle', row);
     btn.textContent = !card ? 'On stage' : card.hidden ? 'Show' : 'Hide';
@@ -3231,9 +3233,9 @@ function toggleTip(id, name, raw) {
     return;
   }
   const url = tipUrl(id, raw);
-  if (!url) return toast(`Add your ${name} link first.`, { err: true });
-  const all = store.get('tips', {}); all[id] = raw.trim(); store.set('tips', all);
-  const e = withDefaults({ type: 'tip', provider: id, url, label: 'Support the show' });
+  if (!url) return toast(id === 'gather' ? 'Enter your studio first.' : `Add your ${name} link first.`, { err: true });
+  if (id !== 'gather') { const all = store.get('tips', {}); all[id] = raw.trim(); store.set('tips', all); }
+  const e = withDefaults({ type: 'tip', provider: id, url, label: id === 'gather' ? 'Tip the show' : 'Support the show' });
   const els = stageElements(), spot = freeSpot(e, els);
   if (spot) Object.assign(e, spot); else if (spot === false) e.stack = true;
   e.home = [e.x, e.y, e.w, e.h];
@@ -3530,7 +3532,7 @@ const HELP = [
   ['Upload custom chat emotes', 'emote emoji custom sticker chat', 'overlays', '#emoteName', 'Stage → Overlays → Custom emotes'],
   ['Change stage colours, fonts and animations', 'brand colour color font animation style', 'brand', '#fontCardGrid', 'Stage → Brand'],
   ['Add my logo or a transparent overlay', 'logo overlay watermark frame ai', 'overlays', '#overlayPick', 'Stage → Overlays → Stage overlay'],
-  ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support', 'shop', '#tipList', 'Shop → Support links'],
+  ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support qr', 'show:supers', '#tipList', 'Audience → Get paid → Tip QR cards'],
   ['Run a live auction', 'auction bid bidding whatnot sell highest bidder sudden death', 'shop', '#auTitle', 'Shop → Live auction'],
   ['Run a giveaway', 'giveaway raffle contest prize winner draw', 'shop', '#gwPrize', 'Shop → Giveaway'],
   ['Shout out or raid another creator', 'shoutout shout out raid host send viewers follow creator', 'show:gaming', '#soName', 'Audience → Play → Shoutout & raid'],
@@ -4056,9 +4058,11 @@ function renderCrewSubs() {
     if (p.me) {
       const autoMuted = !!S.local.autoMuted && !S.local.micOn;
       card.classList.toggle('auto-muted', autoMuted);
-      const micTxt = S.local.micOn ? 'mic on' : autoMuted ? 'auto-muted' : 'muted';
+      // Same test as the muted badge on the picture (participants(): a mic counts only with a live audio track),
+      // so the card never says "mic on" next to a muted badge.
+      const micTxt = p.mic ? 'mic on' : !S.local.micOn ? (autoMuted ? 'auto-muted' : 'muted') : 'no mic';
       const presLbl = S.local.pres ? ({ screen: 'a screen', video: 'a video', pdf: 'slides' }[S.local.pres.kind] || 'content') : '';
-      sub.textContent = S.local.pres ? `Presenting ${presLbl}` : S.local.camOn ? `Camera on · ${micTxt}` : (autoMuted ? 'Auto-muted (silence)' : 'Camera off');
+      sub.textContent = S.local.pres ? `Presenting ${presLbl}` : `${p.cam ? 'Camera on' : 'Camera off'} · ${micTxt}`;
     }
     else {
       card.classList.remove('auto-muted');
@@ -4367,16 +4371,16 @@ function recommendedSceneForStage() {
         n,
         scId: 'b-grid',
         autoEligible: true,
-        text: l === 'custom' && cap < n ? `${n} people on stage (only ${cap} shown) — switch to Grid?` : `${n} people on stage — switch to Grid?`,
+        text: l === 'custom' && cap < n ? `${n} on stage, ${cap} shown. Use Grid?` : `${n} on stage. Use Grid?`,
       };
     }
   } else if (n === 2) {
     if (l === 'solo' || (l === 'custom' && cap < 2)) {
-      return { key: `2|b-split|${l}|${cap}`, n, scId: 'b-split', autoEligible: false, text: '2 people on stage — switch to Side by side?' };
+      return { key: `2|b-split|${l}|${cap}`, n, scId: 'b-split', autoEligible: false, text: '2 on stage. Use Side by side?' };
     }
   } else if (n === 1) {
     if (l === 'grid' || l === 'split' || l === 'spotlight') {
-      return { key: `1|b-solo|${l}|${cap}`, n, scId: 'b-solo', autoEligible: false, text: '1 person on stage — switch back to Solo?' };
+      return { key: `1|b-solo|${l}|${cap}`, n, scId: 'b-solo', autoEligible: false, text: 'Just 1 on stage. Use Solo?' };
     }
   }
   return null;
@@ -5555,7 +5559,7 @@ const audience = createAudience({
   hexLuminance, notifier, toast, fmtTime, copy, get recDest() { return recDest; }, audioCtx, mixInMedia, api,
   creds, wsSend, setStage, canvas, g, speaking, rr, stageElements, get camRects() { return camRects; },
   chatShell, uid, withDefaults, assetImg, setAssetData, storeAsset, compressImage, wrapLines, px, superAlert,
-  playScVoice, elementsCopy, freeSpot, renderTips, acct, acctApi, setUser, openAccount, parseHashtags,
+  playScVoice, elementsCopy, freeSpot, acct, acctApi, setUser, openAccount, parseHashtags,
   rasterizeSvg, appendLog, setTab, flashBtn, renderInviteDialog, chime
 });
 const { watchSlug, watchLinkUrl, watchLinkText, money, shopCfg } = audience;

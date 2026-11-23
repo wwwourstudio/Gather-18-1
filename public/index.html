@@ -463,7 +463,7 @@
             <button type="button" role="tab" data-aud="watch" class="on" aria-selected="true">Watch</button>
             <button type="button" role="tab" data-aud="viewers">Viewers</button>
             <button type="button" role="tab" data-aud="supers">Get paid</button>
-            <button type="button" role="tab" data-aud="stage">Stage</button>
+            <button type="button" role="tab" data-aud="stage">Studio</button>
             <button type="button" role="tab" data-aud="polls">Polls</button>
             <button type="button" role="tab" data-aud="gaming">Play</button>
           </div>
@@ -500,7 +500,7 @@
               </div>
               <hr>
               <div class="form">
-                <div class="row between"><b>Add Notice or Ad Card</b><select class="input sm" id="wpNoticeKind" style="width:auto"><option value="notice">Notice</option><option value="ad">Sponsor / Ad</option><option value="announcement">Headline</option></select></div>
+                <div class="row between"><b class="sub-h">Add a notice or ad</b><select class="input sm" id="wpNoticeKind" style="width:auto"><option value="notice">Notice</option><option value="ad">Sponsor / Ad</option><option value="announcement">Headline</option></select></div>
                 <input class="input sm" id="wpNoticeHead" maxlength="80" placeholder="Headline or sponsor title">
                 <textarea id="wpNoticeBody" rows="2" maxlength="320" placeholder="Short notice copy or offer details"></textarea>
                 <div class="row2">
@@ -551,21 +551,20 @@
               </div>
             </div></details>
 
-            <details class="psec" data-sec="supers" data-aud-group="supers" open><summary><b>Get paid · Super chats &amp; tips</b><span class="hint" id="wpSupersState"></span></summary><div class="psec-body">
-              <label class="toggle-row"><span><b>Take super chats</b><small>Card payments confirm automatically. App links also sync to Shop support QR cards.</small></span><input type="checkbox" class="toggle" id="wpSupers" role="switch"></label>
-              <div class="form pay-box" id="wpPayBox">
-                <p class="hint pay-status" id="wpPayStatus"></p>
-                <div class="pay-card" id="wpPayCard">
-                  <span class="pay-card-ic" aria-hidden="true">💳</span>
-                  <div><b>Cards, Apple Pay &amp; Google Pay (Default)</b><small id="wpCardState">Viewers pay right on the page. Goes straight to your Stripe account — super chats and shop purchases confirm automatically.</small></div>
-                  <button type="button" class="btn sm primary" id="wpCardGo">Connect Stripe</button>
-                </div>
-                <p class="hint" style="margin:2px 0 0">Fallback app handles (shared with Shop → Support links):</p>
-                <div class="row2"><label class="fld"><span>PayPal.me name</span><input id="wpPay-paypal" maxlength="40" placeholder="yourname" spellcheck="false"></label><label class="fld"><span>Venmo username</span><input id="wpPay-venmo" maxlength="31" placeholder="your-name" spellcheck="false"></label></div>
-                <div class="row2"><label class="fld"><span>Cash App $cashtag</span><input id="wpPay-cashapp" maxlength="21" placeholder="$yourname" spellcheck="false"></label><label class="fld"><span>Minimum ($)</span><input id="wpMin" type="number" min="1" max="500" step="1"></label></div>
-                <label class="fld"><span>Stripe payment link <em>optional fallback</em></span><input id="wpPay-stripe" maxlength="120" placeholder="https://buy.stripe.com/…" spellcheck="false"></label>
-                <p class="hint warn-note" id="wpNoPay" hidden>Connect Stripe or add at least one payment handle so viewers see the Super chat button.</p>
+            <details class="psec" data-sec="supers" data-aud-group="supers" open><summary><b>Card payments</b><span class="hint" id="wpSupersState"></span></summary><div class="psec-body">
+              <div class="pay-card" id="wpPayCard">
+                <span class="pay-card-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-tip"/></svg></span>
+                <div><b>Card, Apple Pay &amp; Google Pay</b><small id="wpCardState">Viewers pay right on your watch page, straight into your own Stripe account. Nobody leaves gather.</small></div>
+                <button type="button" class="btn sm primary" id="wpCardGo">Connect Stripe</button>
               </div>
+              <label class="toggle-row"><span><b>Take super chats</b><small>A tip button in your watch page chat. Paid super chats go on stream by themselves.</small></span><input type="checkbox" class="toggle" id="wpSupers" role="switch"></label>
+              <label class="fld"><span>Smallest super chat ($)</span><input id="wpMin" type="number" min="1" max="500" step="1"></label>
+              <p class="hint pay-status" id="wpPayStatus"></p>
+            </div></details>
+
+            <details class="psec" data-sec="tips" data-aud-group="supers" open><summary><b>Tip QR cards on stage</b><span class="hint">for viewers on YouTube, Twitch and other platforms</span></summary><div class="psec-body">
+              <div class="tip-list" id="tipList"></div>
+              <p class="hint">“Your watch page” keeps the payment in gather: viewers scan it and pay by card in your chat. The other cards open that app.</p>
             </div></details>
 
             <details class="psec" data-sec="viewers" data-aud-group="viewers" open><summary><b>Viewer features</b></summary><div class="psec-body">
@@ -881,12 +880,6 @@
             <div class="row"><button type="button" class="btn sm" id="shopLoad">Load my Shopify products</button><span class="hint" id="shopMsg"></span></div>
           </div></details>
 
-          <details class="psec" data-sec="tips" open><summary><b>Support links</b><span class="hint">shown on stage as a QR card</span></summary><div class="psec-body">
-            <div class="fld"><span class="dup">Support links</span>
-              <div class="tip-list" id="tipList"></div>
-              <p class="hint">Viewers scan the QR code or click to tip you.</p>
-            </div>
-          </div></details>
         </div>
       </section>
 
@@ -897,7 +890,7 @@
             <button type="button" role="tab" data-aud="watch">Watch</button>
             <button type="button" role="tab" data-aud="viewers">Viewers</button>
             <button type="button" role="tab" data-aud="supers">Get paid</button>
-            <button type="button" role="tab" data-aud="stage">Stage</button>
+            <button type="button" role="tab" data-aud="stage">Studio</button>
             <button type="button" role="tab" data-aud="polls" class="on" aria-selected="true">Polls</button>
             <button type="button" role="tab" data-aud="gaming">Play</button>
           </div>
@@ -920,7 +913,7 @@
             <button type="button" role="tab" data-aud="watch">Watch</button>
             <button type="button" role="tab" data-aud="viewers">Viewers</button>
             <button type="button" role="tab" data-aud="supers">Get paid</button>
-            <button type="button" role="tab" data-aud="stage">Stage</button>
+            <button type="button" role="tab" data-aud="stage">Studio</button>
             <button type="button" role="tab" data-aud="polls">Polls</button>
             <button type="button" role="tab" data-aud="gaming" class="on" aria-selected="true">Play</button>
           </div>

@@ -29,7 +29,7 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     await setW({ chat: true, supers: true, min: 5, pay: { venmo: 'host-name', paypal: 'bad handle!', stripe: 'https://evil.example/pay' } });
     const f0 = await feed(code);
     check('the feed is one cached GET for every viewer', /s-maxage=2/.test(f0.cache) || !process.env.VERCEL, f0.cache);
-    check('payment handles are checked: bad PayPal and non-Stripe links are dropped', f0.watch.pay.venmo === 'host-name' && !f0.watch.pay.paypal && !f0.watch.pay.stripe, JSON.stringify(f0.watch.pay));
+    check('payment handles are never sent to viewers, and super chats stay off without card payments', !('pay' in f0.watch) && f0.watch.supers === false, JSON.stringify(f0.watch));
     check('reserved names are refused', (await post('whello', { studio: code, name: 'Host' })).status === 400);
     const v = await post('whello', { studio: code, name: 'Viewer 1' });
     const v2 = await post('whello', { studio: code, vid: v.vid, vtok: v.vtok, name: 'Jordan' });
@@ -47,22 +47,11 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const fd = await feed(code);
     check('a deleted message leaves the feed and is listed as gone', del.ok && !fd.chat.some((x) => x.id === c1.id) && fd.gone.includes(c1.id), JSON.stringify(fd.gone));
     await new Promise((r) => setTimeout(r, 1100));
-    const low = await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'super', amount: 2, method: 'venmo', text: 'hi' });
-    check('super chats below the host’s minimum are refused', low.status === 400 && /\$5/.test(low.error || ''), low.error);
-    await new Promise((r) => setTimeout(r, 1100));
-    const noMethod = await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'super', amount: 10, method: 'paypal', text: 'hi' });
-    check('a payment method the host didn’t set up is refused', noMethod.status === 400);
-    await new Promise((r) => setTimeout(r, 1100));
-    const sc = await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'super', amount: 10, method: 'venmo', text: 'Great show' });
-    const f1 = await feed(code);
-    check('an unconfirmed super chat is not public', !!sc.id && !f1.chat.some((m) => m.paid), JSON.stringify(sc) + ' ' + JSON.stringify(f1.chat.map((m) => m.text)));
+    // Super chats are paid by card on the page (wcheckout, see pay.test.js); a "paid elsewhere" super chat is refused.
+    const outside = await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'super', amount: 10, method: 'venmo', text: 'Great show' });
+    check('a super chat "paid in another app" is refused: card only, on the page', outside.status === 400 && /card/.test(outside.error || ''), outside.error);
+    check('…and nothing paid shows in the chat', !(await feed(code)).chat.some((m) => m.paid));
     const guest = await post('join', { studio: code, dev: 'f'.repeat(24), name: 'Guest', intent: 'join' });
-    await post('send', { studio: code, id: guest.id, tok: guest.tok, ops: [{ type: 'superchat', id: sc.id, do: 'confirm' }] });
-    check('a guest can’t confirm a super chat', !(await feed(code)).chat.some((m) => m.paid));
-    await post('send', { studio: code, id: h.id, tok: h.tok, ops: [{ type: 'superchat', id: sc.id, do: 'confirm' }] });
-    const f2 = await feed(code);
-    const paid = f2.chat.find((m) => m.paid);
-    check('once the host confirms, everyone sees it as paid', paid?.paid === '$10' && paid.name === 'Jordan', JSON.stringify(paid));
     await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'react', emoji: '🔥' });
     check('reactions are counted for everyone', (await feed(code)).reacts['🔥'] >= 1);
     await setW({ cap: 0, direct: false, chat: true });
@@ -74,7 +63,8 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const a = await mk();
     await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
     await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const sc2 = (await a.evaluate(() => window.__gather.studio)).trim(); await a.keyboard.press('Escape');
-    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="supers"]'); await a.check('#wpSupers'); await a.fill('#wpPay-venmo', 'maya-host'); await a.press('#wpPay-venmo', 'Tab');
+    await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="supers"]'); await a.check('#wpSupers');
+    check('Get paid says super chats need Stripe before viewers see the tip button', /Stripe/.test(await a.textContent('#wpPayStatus')));
     await a.click('[data-tab="chat"]');
     const w = await mk();
     await w.goto(B + '/w/' + sc2);
@@ -91,21 +81,9 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     await signUp(w, 'Jordan'); // the message waiting in the box goes out once they're signed in
     const inStudio = await a.waitForFunction(() => [...document.querySelectorAll('#msgs .msg.ext')].some((li) => /Hello from the watch page/.test(li.textContent)), null, { timeout: 10000 }).then(() => true).catch(() => false);
     check('viewer chat reaches the studio chat', inStudio);
-    // Super chat right in the chat input: $ opens the tip tray with its own message box.
-    await w.click('#wTipBtn'); await w.click('#wTipAmts button:has-text("$10")'); await w.fill('#wTipMsg', 'Shout-out!');
-    await w.evaluate(() => { window.open = () => null; }); // the payment app opens in a new tab; not reachable from the test sandbox
-    check('super chat: send stays locked until the payment app was opened', await w.isDisabled('#wTipSend'));
-    await w.click('#wTipPay'); await w.click('#wTipSend');
-    const pending = await a.waitForSelector('#msgs .sc-pending', { timeout: 10000 }).then(() => true).catch(() => false);
-    check('a new super chat shows in the studio chat with its confirm buttons', pending);
-    await a.click('#msgs .sc-pending .btn.primary');
-    const onStage = await a.waitForFunction(() => window.__gather.state.featured?.paid === '$10', null, { timeout: 5000 }).then(() => true).catch(() => false);
-    const public_ = await w.waitForFunction(() => [...document.querySelectorAll('#wMsgs li.paid')].some((li) => !li.classList.contains('pending') && /Shout-out/.test(li.textContent)), null, { timeout: 10000 }).then(() => true).catch(() => false);
-    check('confirming puts it on stage with its amount and in everyone’s chat', onStage && public_);
-    check('confirming plays the super chat alert on the stream', await a.evaluate(() => { const x = window.__gather.state.scAlert; return x?.amount === 10 && x.name === 'Jordan' && /Shout-out/.test(x.text); }));
-    await a.waitForTimeout(700); await a.screenshot({ path: process.argv[2] + '/watch-sc-alert-studio.png' });
-    check('…and pops up in the viewer’s chat', await w.waitForSelector('#wScPop:not([hidden])', { timeout: 6000 }).then(() => true).catch(() => false));
-    await w.screenshot({ path: process.argv[2] + '/watch-sc-alert-viewer.png' });
+    // Super chats are on, but this site has no Stripe connected: no tip button, so nobody is sent to pay elsewhere.
+    check('without card payments the watch page shows no tip button', await w.evaluate(() => { const b = document.querySelector('#wTipBtn'); return !b || b.hidden || !b.offsetParent; }));
+    // The super chat alert on stream and in the viewer's chat is covered with a real card payment in pay.test.js.
     check('the page fits one screen (no page scroll)', await w.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
     const p = await mk({ width: 390, height: 844 }); await p.goto(B + '/w/' + sc2); await p.waitForTimeout(2500);
     check('on a phone the page fits one screen and the chat box is visible', await p.evaluate(() => { const r = document.querySelector('#wText').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && r.bottom <= innerHeight; }));

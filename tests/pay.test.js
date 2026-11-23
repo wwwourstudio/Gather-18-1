@@ -100,8 +100,8 @@ const mock = http.createServer((req, res) => {
     // the super chat tray on the watch page offers the card
     await page.click('#wTipBtn');
     await page.waitForSelector('#wTipDock:not([hidden])');
-    const dock = await page.evaluate(() => ({ methods: [...document.querySelectorAll('#wTipMethods button')].map((b) => b.dataset.m), pay: document.querySelector('#wTipPay').textContent, send: document.querySelector('#wTipSend').hidden, msg: !!document.querySelector('#wTipMsg'), rec: !!document.querySelector('#wTipRec') }));
-    check('the tray: card first, one Pay button, its own message box and voice recorder', dock.methods[0] === 'card' && /Pay \$/.test(dock.pay) && dock.send && dock.msg && dock.rec, JSON.stringify(dock));
+    const dock = await page.evaluate(() => ({ picker: !!document.querySelector('#wTipMethods'), paid: !!document.querySelector('#wTipSend'), pay: document.querySelector('#wTipPay').textContent, msg: !!document.querySelector('#wTipMsg'), rec: !document.querySelector('#wTipRec').hidden, note: document.querySelector('#wTipNote').textContent }));
+    check('the tray: card only (no app picker, no “I’ve paid”), one Pay button, its own message box and voice recorder', !dock.picker && !dock.paid && /^Pay \$/.test(dock.pay) && dock.msg && dock.rec && /Card, Apple Pay or Google Pay/.test(dock.note), JSON.stringify(dock));
     await page.fill('#wTipMsg', 'Shout out to the chat!');
     await page.screenshot({ path: process.argv[2] + '/pay-tray.png' });
     console.log('errors', JSON.stringify(errs));
