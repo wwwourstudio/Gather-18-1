@@ -5087,3 +5087,87 @@ body.pre .stage-ambient { display: none; }
     linear-gradient(160deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 252, 0.95)) padding-box,
     conic-gradient(from var(--ac-ang), var(--accent), #a855f7, #22d3ee, rgba(15, 23, 42, 0.08) 55%, var(--accent)) border-box;
 }
+
+/* ================================================================ Audience panel + rail (V9)
+   Sub-tabs: a 3×2 grid. The base .seg flows into one fixed-height row, which squeezed six labels into one
+   ("Viewers Get paid"). */
+.panel-head .seg.aud-seg {
+  grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); height: auto; gap: 4px; padding: 4px;
+  border-radius: 11px;
+}
+.panel-head .seg.aud-seg > button { height: 30px; padding: 0 8px; border-radius: 8px; font-size: 12px; }
+.panel-head .seg.aud-seg > button.on {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-3)); color: var(--ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* Jump chips scroll sideways: fade the edge so a cut-off chip reads as "more this way", not as broken. */
+.ph-chips { mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); scroll-padding: 0 14px; }
+
+/* Rail: the active tab gets one even 1.5 px border on all four sides (no thicker left bar, no stray pseudo bar),
+   and every tab reserves the same border so nothing shifts when it turns on. Labels get room to breathe. */
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { width: 60px; padding: 8px 2px 7px; border: 1.5px solid transparent; border-radius: 12px; }
+body:not(.pre) .main > .rail .rail-btn .caption { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; letter-spacing: -0.01em; }
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--accent) 90%, transparent);
+  color: var(--ink);
+}
+body:not(.pre) .main > .rail .rail-btn.on::before, body:not(.pre) .main > .rail .rail-btn.on::after { content: none; display: none; }
+body:not(.pre) .main > .rail .rail-btn.on .i { color: var(--accent-text); }
+body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked:focus-visible { border-color: var(--accent); box-shadow: var(--ring); }
+@media (max-width: 900px) {
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { width: auto; min-width: 58px; padding: 6px 8px; }
+}
+
+/* ---------------------------------------------------------------- Audience panel: design pass (V9) */
+.panel[data-panel="show"] {
+  --aud-field: color-mix(in srgb, var(--ink) 5%, rgba(6, 10, 22, 0.55));
+  --aud-line: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+/* The sub-tabs already navigate this panel; the jump chips repeated them (and ran off the edge). Search stays. */
+.panel[data-panel="show"] .ph-chips { display: none; }
+.panel[data-panel="show"] .ph-tools { padding-bottom: 10px; }
+/* Header: a quiet title row over a roomy segmented control. */
+.panel[data-panel="show"] .panel-head.ph2 { padding: 14px 14px 12px; row-gap: 12px; }
+/* Sections: clean cards, title + hint on one line, no hanging accent stripe. */
+.panel[data-panel="show"] .psec::before { display: none; }
+.panel[data-panel="show"] .psec {
+  border-radius: 14px; border: 1px solid var(--aud-line);
+  background: linear-gradient(170deg, color-mix(in srgb, var(--ink) 6%, transparent), color-mix(in srgb, var(--ink) 2%, transparent));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 24px -18px rgba(0, 0, 0, 0.7);
+}
+.panel[data-panel="show"] .psec[open] { border-color: color-mix(in srgb, var(--accent) 28%, var(--aud-line)); }
+.panel[data-panel="show"] .psec > summary { padding: 12px 14px; gap: 8px; align-items: baseline; }
+.panel[data-panel="show"] .psec > summary b { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.panel[data-panel="show"] .psec > summary .hint { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel[data-panel="show"] .psec > .psec-body { padding: 12px 14px 14px; gap: 12px; }
+/* One field style for every input, select and textarea in the panel. */
+.panel[data-panel="show"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):not(.ph-find *):not(.wp-handle-row *) {
+  min-height: 36px; border-radius: 9px; border: 1px solid var(--aud-line); background-color: var(--aud-field);
+  color: var(--ink); font-size: 13px; box-shadow: none;
+  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+.panel[data-panel="show"] textarea { padding: 9px 11px; line-height: 1.45; resize: vertical; }
+.panel[data-panel="show"] :is(input, select, textarea):focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.panel[data-panel="show"] .fld > span { font-size: 11.5px; font-weight: 600; color: var(--ink-2); letter-spacing: 0.01em; }
+/* Watch link and permanent name: one row style, readable ink (not an error-red URL). */
+.panel[data-panel="show"] .wp-linkrow, .panel[data-panel="show"] .wp-handle-row {
+  min-height: 40px; border-radius: 10px; border: 1px solid var(--aud-line); background: var(--aud-field);
+}
+.panel[data-panel="show"] .wp-linkrow code, .panel[data-panel="show"] .wp-linkrow .wp-url, .panel[data-panel="show"] #wpLink { color: var(--ink); font-weight: 600; background: none; }
+.panel[data-panel="show"] .wp-handle-row input { min-height: 0; border: 0; background: transparent; border-radius: 0; }
+.panel[data-panel="show"] .wp-handle-row input:focus-visible { box-shadow: none; }
+.panel[data-panel="show"] .wp-handle-row:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.panel[data-panel="show"] .wp-handle-row .btn { margin: 4px; border-radius: 7px; min-height: 30px; }
+.panel[data-panel="show"] .btn:disabled { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink-3); border-color: transparent; box-shadow: none; }
+/* Toggle rows read as a list, not a stack of boxes. */
+.panel[data-panel="show"] .toggle-row { padding: 10px 12px; border-radius: 11px; background: color-mix(in srgb, var(--ink) 3%, transparent); border: 1px solid var(--aud-line); }
+.panel[data-panel="show"] .toggle-row small { color: var(--ink-3); }
+.panel[data-panel="show"] .panel-body { gap: 12px; }
+/* Sub-tab switch: a soft cross-fade instead of a jump. */
+.panel[data-panel="show"] #watchSec > details.psec:not([hidden]) { animation: aud-in 220ms var(--ease-out) both; }
+@keyframes aud-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .panel[data-panel="show"] #watchSec > details.psec { animation: none; } }
+:root[data-theme="light"] .panel[data-panel="show"] { --aud-field: #ffffff; --aud-line: rgba(15, 23, 42, 0.12); }
+.panel[data-panel="show"] .wp-handle-row input#wpHandle { background: transparent !important; border: 0 !important; box-shadow: none !important; }
