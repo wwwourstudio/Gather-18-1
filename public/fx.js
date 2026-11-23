@@ -60,7 +60,7 @@ void main() {
   float prev = texture(uPrev, st).r;
   // uMotion (0..1) is how much the camera picture itself changed: still → heavy smoothing (no shimmer), moving →
   // the mask follows at once (no trailing halo). Model noise alone never speeds it up.
-  float lo = mix(0.22, 0.8, uMotion);
+  float lo = mix(0.3, 0.85, clamp(uMotion * 1.6, 0.0, 1.0));
   float k = uFirst > 0.5 ? 1.0 : clamp(lo + abs(raw - prev) * 2.6, lo, 1.0);
   float m = mix(prev, raw, k);
   o = vec4(m, m, m, 1.0);
@@ -482,7 +482,7 @@ export async function createVideoFx(srcTrack, opts) {
     const full = needFull || motion > 0.3 || frameNo % 20 === 1;
     needFull = false;
     const r0 = full ? { x: 0, y: 0, w: W, h: H } : roi;
-    cropG.drawImage(video, r0.x, r0.y, r0.w, r0.h, 0, 0, SEG, SEG);
+    cropG.drawImage(src, r0.x, r0.y, r0.w, r0.h, 0, 0, SEG, SEG);
     const ts = Math.max(lastTs + 1, performance.now()); lastTs = ts;
     const res = tseg.segmentForVideo(cropC, ts);
     let minX = SEG, minY = SEG, maxX = -1, maxY = -1;
@@ -519,7 +519,7 @@ export async function createVideoFx(srcTrack, opts) {
   let motPrev = null;
   function cameraMotion() {
     try {
-      motG.drawImage(video, 0, 0, 32, 18);
+      motG.drawImage(src, 0, 0, 32, 18);
       const d = motG.getImageData(0, 0, 32, 18).data, cur = new Float32Array(32 * 18);
       let sum = 0;
       for (let i = 0; i < cur.length; i++) { cur[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114; if (motPrev) sum += Math.abs(cur[i] - motPrev[i]); }
@@ -543,27 +543,44 @@ export async function createVideoFx(srcTrack, opts) {
           maskChannel = minA < 250 ? 3 : 0;
         }
         r.setMask(m, maskChannel, cameraMotion());
+        if (pendingSnap) { r.render(pendingSnap); pendingSnap = null; } // show the very picture this mask is for
       });
     } catch (e) { note = e.message; }
   }
   function apply(next) { o = { ...o, ...next }; r.set(next); ensureSeg(); }
   apply({});
-  // Segment first, then composite: the frame on screen is cut out with its own mask, not the previous frame's
-  // (which made moving shoulders and heads trail behind).
-  let lastFrameAt = 0;
+  // Every frame is snapshotted once; the segmenter works on that snapshot and the renderer shows that same
+  // snapshot. Reading the live <video> twice (once for the mask, once to draw) could pair a mask with a newer
+  // picture, which made the cutout trail a moving person. Aligned beats instant: on a slow device the picture
+  // waits for its mask instead of being cut with an old one.
+  let lastFrameAt = 0, pendingSnap = null, flip = false;
+  const snapA = document.createElement('canvas'), snapB = document.createElement('canvas');
+  for (const c of [snapA, snapB]) { c.width = W; c.height = H; }
+  let src = video; // what tasksStep / cameraMotion read: the current snapshot
+  function snapshot() { const c = flip ? snapA : snapB; flip = !flip; c.getContext('2d').drawImage(video, 0, 0, W, H); return c; }
   function frame() {
     if (stopped || video.readyState < 2) return;
     lastFrameAt = performance.now();
-    if (tseg && !segBusy && (o.effect === 'blur' || o.effect === 'image') && performance.now() >= segNext) {
-      // The model runs on the main thread: pace it by its own cost (every frame on a GPU; fewer on a slow CPU,
-      // where the time-smoothed mask carries the frames in between) so the studio never stalls.
-      segBusy = true; const t0 = performance.now();
+    const ai = o.effect === 'blur' || o.effect === 'image';
+    if (ai && tseg) {
+      // The model runs on the main thread: pace it by its own cost so the page stays responsive on slow devices.
+      // A skipped frame keeps showing the last aligned one (picture + its own mask): fewer frames, never a lag.
+      if (performance.now() < segNext) return;
+      const snap = snapshot(); src = snap; const t0 = performance.now();
       try { tasksStep(); } catch (e) { console.warn('[fx] segmenter:', e?.message || e); }
-      finally { segBusy = false; segCost = segCost ? segCost * 0.8 + (performance.now() - t0) * 0.2 : performance.now() - t0; segNext = performance.now() + segCost * 1.5; }
-    } else if (seg && !segBusy && (o.effect === 'blur' || o.effect === 'image')) {
-      segBusy = true;
-      seg.send({ image: video }).catch(() => {}).finally(() => { segBusy = false; });
+      r.render(snap);
+      const cost = performance.now() - t0;
+      segCost = segCost ? segCost * 0.8 + cost * 0.2 : cost;
+      segNext = performance.now() + Math.max(0, segCost * 1.5 - 1000 / 60); // fast machines: every frame
+      return;
     }
+    if (ai && seg) {
+      if (segBusy) return; // hold the last aligned frame until this snapshot's mask arrives
+      const snap = snapshot(); src = snap; pendingSnap = snap; segBusy = true;
+      seg.send({ image: snap }).catch(() => { pendingSnap = null; }).finally(() => { segBusy = false; });
+      return;
+    }
+    src = video;
     r.render(video);
   }
   // Run once per camera frame (requestVideoFrameCallback), so nothing is shown twice or skipped. The interval keeps

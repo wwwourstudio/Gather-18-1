@@ -2220,7 +2220,7 @@ function renderGoogle() {
   if (!yt.liveChatId) setYtStatus('off');
   renderDriveButton();
 }
-api('config').then((c) => {
+S.configP = api('config').then((c) => {
   configureGoogle(c.googleClientId); renderGoogle();
   S.houseAI = c.houseAI || null; S.houseVoice = c.houseVoice || null; S.houseImages = c.houseImages || null; syncWizAiBar(); renderAIPanel(); renderProducerUI(); renderVoiceNames();
   S.relayOn = !!c.relay; renderLive();
@@ -3985,6 +3985,8 @@ $('#acPass').addEventListener('input', () => {
 });
 /** Starting a studio needs an account (guests don't): hydrate existing token before ever prompting sign-in. */
 async function needAccountThen(fn) {
+  if (acct.user) return fn();
+  try { await S.configP; } catch {} // a click before the site's settings arrive must not skip the sign-in
   if (!S.requireAccount || acct.user) return fn();
   if (acct.token) {
     try { await acctBootP; } catch {}
@@ -6013,7 +6015,8 @@ function renderHeader() {
   $('#enterTop').hidden = !S.studio;
   if ($('#watchTop')) $('#watchTop').hidden = !S.studio || !isHost();
   $('#liveTop').hidden = !S.studio || !isHost();
-  document.body.classList.toggle('pre', !S.studio && S.phase !== 'reconnecting'); // landing: just the stage hero
+  // landing: just the stage hero. A host checking their camera before going in already sees their studio behind it.
+  document.body.classList.toggle('pre', !S.studio && S.phase !== 'reconnecting' && !S.hostEntering);
   // Scheduled shows: on the landing page they sit under the hero (that's where you start one); inside a studio, in Go live.
   const upHome = document.body.classList.contains('pre') ? $('#landing .land-copy') : $('#liveDlg .live-body');
   if ($('#upBlock').parentElement !== upHome) upHome.append($('#upBlock'));
@@ -6037,10 +6040,10 @@ function renderCrew() {
     let li = $('#card-' + cssId(p.id));
     if (!li) {
       li = document.createElement('li'); li.className = 'crew-card'; li.id = 'card-' + cssId(p.id); li.dataset.id = p.id;
-      li.innerHTML = `<div class="crew-thumb"><video autoplay playsinline></video><div class="ini" hidden><span></span></div><div class="tagrow"></div>`
+      li.innerHTML = `<div class="crew-thumb"><video autoplay playsinline></video><div class="ini" hidden><span></span></div>`
         + `<div class="crew-viz" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="crew-vu" aria-hidden="true"><i></i></div>`
         + `<div class="crew-tools"><button type="button" class="icon-btn sm on-media ct-stage" aria-pressed="false">${ICON.stage}</button><button type="button" class="icon-btn sm on-media ct-mute" aria-label="Ask to mute">${ICON.mute}</button><button type="button" class="icon-btn sm on-media danger ct-kick" aria-label="Remove from studio">${ICON.kick}</button></div></div>`
-        + `<div class="crew-info"><div class="crew-name"><span class="nm"></span></div><div class="crew-sub"></div></div>`;
+        + `<div class="crew-info"><div class="crew-name"><span class="nm"></span></div><div class="tagrow"></div><div class="crew-sub"></div></div>`; // status lives beside the picture, not on it
       const v = $('video', li);
       if (p.me) { v.muted = true; const ov = outVideo(); if (ov) v.srcObject = new MediaStream([ov]); v.classList.toggle('mirror', !!S.videoFx.mirror); }
       else if (p.peer.stream.getTracks().length) { v.srcObject = p.peer.stream; playEl(v); }
@@ -7481,6 +7484,7 @@ async function openEnter(mode, code) {
   $('#enterErr').hidden = true;
   $('#enterGo').disabled = false;
   $('#enterDlg').showModal();
+  S.hostEntering = enterMode !== 'join'; renderHeader(); // the studio shows behind the host's device check
   checkServer();
   if (acct.token) acctApi('me').then((r) => setUser(r.user)).catch(() => {});
   (S.name ? (mode === 'join' && !code ? $('#enterCode') : $('#enterGo')) : $('#enterName')).focus();
@@ -7522,8 +7526,14 @@ function setEnterMode(m) {
   enterMode = m;
   $$('#enterForm .seg button[data-mode]').forEach((b) => { const on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#codeFld').hidden = m !== 'join';
-  $('#enterGo').textContent = m === 'join' ? 'Join studio' : 'Go Live Now';
+  $('#enterGo').textContent = m === 'join' ? 'Join studio' : 'Enter the studio';
   $('#enterErr').hidden = true;
+  // The host (creating) gets the device check over their own studio; a guest joining keeps the join form.
+  $('#enterDlg').classList.toggle('host', m !== 'join');
+  $('#enterH').textContent = m === 'join' ? 'Join the show' : 'Step into the studio';
+  $('#enterSub').textContent = m === 'join' ? 'Check your camera and mic, then join the host backstage.' : 'Check how you look and sound. Your studio is ready behind this.';
+  S.hostEntering = m !== 'join' && $('#enterDlg').open;
+  renderHeader();
 }
 $$('#enterForm .seg button[data-mode]').forEach((b) => b.addEventListener('click', () => setEnterMode(b.dataset.mode)));
 $('#enterForm').addEventListener('submit', async (e) => {
@@ -7550,6 +7560,7 @@ $('#enterForm').addEventListener('submit', async (e) => {
   finally { busy($('#enterGo'), false); }
 });
 $('#enterDlg').addEventListener('close', () => {
+  S.hostEntering = false; renderHeader(); // closed without going in: back to the homepage
   if (!S.studio) { previewing = false; stopCam(); stopMic(); renderStageUI(); renderDock(); }
 });
 
@@ -7791,7 +7802,8 @@ $('#downloadQr').onclick = () => {
 $('#addSlot').onclick = openInvite;
 $('#enterTop').onclick = openInvite;
 $('#heroSchedule').onclick = () => openWizard('later');
-$('#enterStage').onclick = () => openWizard('now');
+// Go Live Now: sign in (or create an account) first, then Start a broadcast. Nobody starts a stream signed out.
+$('#enterStage').onclick = () => needAccountThen(() => openWizard('now'));
 $('#landJoin').addEventListener('submit', (e) => {
   e.preventDefault();
   const raw = $('#landCode').value, code = parseCode(raw), kind = linkKind(raw);
