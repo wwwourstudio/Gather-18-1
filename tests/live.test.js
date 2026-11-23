@@ -46,7 +46,7 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
   a.on('request', (r) => { if (r.url().includes(`:${GATHER}/api/`)) toGather.push(r.postData() || ''); });
   const B = `http://127.0.0.1:${GATHER}`;
   await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Host'); await a.click('#enterGo');
-  await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.keyboard.press('Escape');
+  await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = await a.evaluate(() => window.__gather.studio); await a.keyboard.press('Escape');
   await b.goto(B + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Guest'); await b.click('#enterGo');
   await b.waitForFunction(() => !!window.__gather.studio, null, { timeout: 12000 });
   const guestTry = await b.evaluate(async () => { const g = window.__gather; const r = await fetch('/api/studio?action=relay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studio: g.studio, id: g.id, tok: g.tok }) }); return r.status; });

@@ -23,7 +23,7 @@ const signUp = async (page, name) => {
   try {
     const a = await mk();
     await a.goto(BASE + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Host'); await a.click('#enterGo');
-    await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim(); await a.keyboard.press('Escape');
+    await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = (await a.evaluate(() => window.__gather.studio)).trim(); await a.keyboard.press('Escape');
 
     const v = await mk({ width: 390, height: 844 });
     await v.goto(`${BASE}/w/${code}`);

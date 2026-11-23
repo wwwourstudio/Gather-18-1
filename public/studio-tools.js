@@ -41,7 +41,7 @@ function initPreLiveChecklist(api) {
   box.className = 'prelive-box';
   box.innerHTML = `
     <div class="prelive-head">
-      <b>Pre-live checklist</b>
+      <b>1. Ready to go?</b>
       <button type="button" class="btn sm ghost" id="preLiveRun">Re-check</button>
     </div>
     <ul class="prelive-list" id="preLiveList"></ul>
@@ -55,7 +55,7 @@ function initPreLiveChecklist(api) {
       { id: 'mic', label: 'Microphone', ok: false, fix: 'Unmute your mic or select a working microphone in Studio Settings.' },
       { id: 'relay', label: 'Broadcast relay', ok: false, fix: 'Relay is unreachable. Check your connection or configure RELAY_URL.' },
       { id: 'key', label: 'Stream key & destination', ok: false, fix: 'Add at least one destination (YouTube, Twitch, Kick or Custom) with its stream key below.' },
-      { id: 'bitrate', label: 'Upload & bitrate test', ok: false, fix: 'Connection looks slow (< 2.5 Mbps). Drop output quality to 720p in Settings.' },
+      { id: 'bitrate', label: 'Connection', ok: false, fix: 'Your connection looks slow (under ~2.5 Mbps). Drop the quality to 720p in Settings.' },
     ];
     list.innerHTML = items.map((x) => `<li class="pl-row pending" data-ck="${x.id}"><i></i><div><b>${x.label}</b><small>Checking…</small></div></li>`).join('');
 
@@ -80,7 +80,7 @@ function initPreLiveChecklist(api) {
       setRow('relay', relayOk, relayOk ? `Reachable (${ms} ms latency)` : items[2].fix);
       const estMbps = navigator.connection?.downlink ? Math.max(1.5, Math.min(25, navigator.connection.downlink * 0.6)) : (ms < 180 ? 8.5 : 4.2);
       const brOk = estMbps >= 2.5;
-      setRow('bitrate', brOk, brOk ? `~${estMbps.toFixed(1)} Mbps estimated · 1080p ready` : items[4].fix);
+      setRow('bitrate', brOk, brOk ? `Looks fast enough (browser estimate ~${estMbps.toFixed(1)} Mbps)` : items[4].fix);
     } catch {
       setRow('relay', false, items[2].fix);
       setRow('bitrate', false, items[4].fix);

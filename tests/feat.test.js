@@ -15,8 +15,7 @@ let pages = []; // for the timing dump on failure
   const a = await mk(), b = await mk(browserB);
   pages = [['host', a], ['guest', b]];
   await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Morgan'); await a.click('#enterGo');
-  await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.click('#inviteDlg .modal-close');
-  await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]');
+  await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = await a.evaluate(() => window.__gather.studio); await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]');
   // Picking a background in the green room must not turn an invited guest's "Join studio" into "Create studio".
   // Any chip triggered that bug, so "Real" is enough. "Blur" would load and compile the background model on the
   // guest's main thread just as it joins; on CI's GPU-less machines that stalled the guest for seconds and made

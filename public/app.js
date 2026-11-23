@@ -1081,8 +1081,10 @@ async function onServer(m) {
       if (S.host === S.id) { refreshLobby(); refreshSupers(); refreshVoice(); }
       renderAll();
       renderChatMood();
-      if (!m.peers.length && S.host === S.id) setTimeout(() => openInvite(), 350);
-      else toast(S.host === S.id ? 'Studio ready.' : `You joined ${m.peers.length ? 'the studio' : 'an empty studio'}.`);
+      // No invite pop-up on entry: the header's Invite button and the footer's "Copy link" are one click away.
+      // Keyboard users land on Invite rather than on the bare page.
+      toast(S.host === S.id ? (m.peers.length ? 'Studio ready.' : 'Studio ready. Invite guests from the Invite button.') : `You joined ${m.peers.length ? 'the studio' : 'an empty studio'}.`);
+      setTimeout(() => { const at = document.activeElement; if (!at || at === document.body) [$('#enterTop'), $('#micBtn')].find((b) => b && !b.hidden && b.offsetParent)?.focus({ preventScroll: true }); }, 350);
       tryPlayAll();
       break;
     }
@@ -1741,9 +1743,26 @@ function drawElement(e, t, onStage, custom) {
       const p = onStage[e.index], r = { ...px(e), r: e.radius };
       if (p) drawTile(p, smoothTileRect(p.id, r, t), t);
       else editorOnly((c) => {
-        c.strokeStyle = 'rgba(255,255,255,.28)'; c.setLineDash([8, 8]); c.lineWidth = 2; c.beginPath(); c.roundRect(r.x, r.y, r.w, r.h, r.r ?? 10); c.stroke();
-        c.fillStyle = 'rgba(255,255,255,.45)'; c.font = '500 15px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText(`Stage position ${e.index + 1}`, r.x + r.w / 2, r.y + r.h / 2);
+        // Host-only hint for an empty seat. It lives on the editor layer above the program, so cut out every
+        // overlay (scoreboard, banners, cards…) before it shows: the hint never covers what viewers see.
+        const R = r.r ?? 12;
+        c.fillStyle = 'rgba(255,255,255,.035)'; c.beginPath(); c.roundRect(r.x, r.y, r.w, r.h, R); c.fill();
+        c.strokeStyle = 'rgba(255,255,255,.22)'; c.setLineDash([6, 7]); c.lineWidth = 1.5; c.beginPath(); c.roundRect(r.x + .75, r.y + .75, r.w - 1.5, r.h - 1.5, R); c.stroke();
+        c.setLineDash([]);
+        const cx = r.x + r.w / 2, cy = r.y + r.h / 2, ic = Math.max(14, Math.min(22, r.h * .06));
+        c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 2; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(cx - ic / 2, cy - ic); c.lineTo(cx + ic / 2, cy - ic); c.moveTo(cx, cy - ic * 1.5); c.lineTo(cx, cy - ic / 2); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,.62)'; c.font = '600 15px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText('Empty seat', cx, cy + ic * .4);
+        c.fillStyle = 'rgba(255,255,255,.38)'; c.font = '500 12.5px Inter, sans-serif';
+        c.fillText(`Position ${e.index + 1} · invite a guest to fill it`, cx, cy + ic * .4 + 20);
+        c.globalCompositeOperation = 'destination-out';
+        for (const o of S.state.elements || []) {
+          if (o === e || o.hidden || o.type === 'slot' || o.type === 'media') continue;
+          if (TIER_Z[tierOf(o)] <= TIER_Z[tierOf(e)]) continue;
+          const q = px(o); c.beginPath(); c.roundRect(q.x - 6, q.y - 6, q.w + 12, q.h + 12, 14); c.fill();
+        }
+        c.globalCompositeOperation = 'source-over';
       });
       return;
     }
@@ -2526,40 +2545,60 @@ function drawImageEl(e) {
 // The match scoreboard: two coloured sides with big scores, round and map between them. A score that just changed flashes.
 const scoreSeen = new Map();
 function drawScoreEl(e) {
-  const r = px(e), h = r.h, R = Math.min(18, h * 0.3), now = performance.now();
+  // Broadcast scoreboard: a dark glass bar, a solid team-colour score tile on each side, team colour along the
+  // outer edges, a centre capsule (VS, or round + map). The leader's tile glows; a new point flashes and pops.
+  const r = px(e), h = r.h, R = Math.min(16, h * 0.28), now = performance.now();
   const prev = scoreSeen.get(e.id) || { sa: e.sa, sb: e.sb, ta: 0, tb: 0 };
   if (prev.sa !== e.sa) { prev.ta = now; prev.sa = e.sa; } if (prev.sb !== e.sb) { prev.tb = now; prev.sb = e.sb; }
   scoreSeen.set(e.id, prev);
-  const mid = (e.round || e.map) ? Math.min(r.w * 0.2, h * 1.9) : h * 0.6, side = (r.w - mid) / 2;
+  const info = e.round || e.map;
+  const mid = info ? Math.min(r.w * 0.22, h * 2.1) : h * 0.95, side = (r.w - mid) / 2, tileW = Math.min(side * 0.36, h * 1.15);
+  const lead = Number(e.sa) === Number(e.sb) ? 0 : Number(e.sa) > Number(e.sb) ? -1 : 1;
   g.save();
-  g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 18; g.shadowOffsetY = 6;
-  rr(r.x, r.y, r.w, r.h, R); g.fillStyle = 'rgba(8,12,26,.86)'; g.fill();
+  // bar
+  g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 22; g.shadowOffsetY = 8;
+  const bg = g.createLinearGradient(0, r.y, 0, r.y + h); bg.addColorStop(0, 'rgba(18,24,44,.94)'); bg.addColorStop(1, 'rgba(7,10,22,.94)');
+  rr(r.x, r.y, r.w, h, R); g.fillStyle = bg; g.fill();
   g.shadowColor = 'transparent';
-  g.save(); rr(r.x, r.y, r.w, r.h, R); g.clip();
-  const team = (x, col, name, score, flashAt, alignRight) => {
-    const gr = g.createLinearGradient(x, 0, x + side, 0);
-    gr.addColorStop(alignRight ? 1 : 0, hexA(col, .55)); gr.addColorStop(alignRight ? 0 : 1, hexA(col, .08));
-    g.fillStyle = gr; g.fillRect(x, r.y, side, h);
-    g.fillStyle = col; g.fillRect(alignRight ? x + side - h * .06 : x, r.y, h * .06, h);
-    const fl = Math.max(0, 1 - (now - flashAt) / 900);
-    if (fl > 0) { g.fillStyle = `rgba(255,255,255,${fl * .35})`; g.fillRect(x, r.y, side, h); }
-    const sc = String(score), sw = h * .62;
-    g.font = `900 ${h * .56}px "JetBrains Mono", ui-monospace, monospace`; g.fillStyle = '#ffffff'; g.textBaseline = 'middle';
-    g.textAlign = 'center'; g.fillText(sc, alignRight ? x + h * .5 + sw / 2 : x + side - h * .5 - sw / 2, r.y + h / 2 + 2);
-    g.font = `800 ${h * .26}px Inter, sans-serif`; g.textAlign = alignRight ? 'right' : 'left';
-    const nx = alignRight ? x + side - h * .26 : x + h * .26, maxW = side - sw - h * .75;
-    let nm = name.toUpperCase(); while (nm.length > 1 && g.measureText(nm).width > maxW) nm = nm.slice(0, -1);
-    g.fillText(nm, nx, r.y + h / 2 + 1);
+  g.save(); rr(r.x, r.y, r.w, h, R); g.clip();
+  const team = (left, col, name, score, flashAt, leads) => {
+    const x0 = left ? r.x : r.x + side + mid;
+    // team colour wash fading toward the centre, plus a solid edge
+    const wash = g.createLinearGradient(left ? x0 : x0 + side, 0, left ? x0 + side : x0, 0);
+    wash.addColorStop(0, hexA(col, .34)); wash.addColorStop(1, hexA(col, 0));
+    g.fillStyle = wash; g.fillRect(x0, r.y, side, h);
+    g.fillStyle = col; g.fillRect(left ? x0 : x0 + side - h * .07, r.y, h * .07, h);
+    // score tile on the inner side
+    const tx = left ? x0 + side - tileW : x0, pop = Math.max(0, 1 - (now - flashAt) / 700);
+    const tg = g.createLinearGradient(0, r.y, 0, r.y + h); tg.addColorStop(0, hexA(col, 1)); tg.addColorStop(1, hexA(col, .72));
+    g.fillStyle = tg; g.fillRect(tx, r.y, tileW, h);
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(tx, r.y, tileW, h * .42); // glass sheen
+    if (leads) { g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(tx, r.y, tileW, h); }
+    if (pop > 0) { g.fillStyle = `rgba(255,255,255,${pop * .45})`; g.fillRect(tx, r.y, tileW, h); }
+    g.save();
+    g.translate(tx + tileW / 2, r.y + h / 2 + 1); const sc = 1 + pop * .22; g.scale(sc, sc);
+    g.font = `900 ${h * .56}px "JetBrains Mono", ui-monospace, monospace`; g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 6; g.fillText(String(score), 0, 0);
+    g.restore();
+    // name
+    g.font = `800 ${h * .27}px Inter, sans-serif`; g.fillStyle = '#ffffff'; g.textBaseline = 'middle'; g.textAlign = left ? 'left' : 'right';
+    const nx = left ? x0 + h * .3 : x0 + side - h * .3, maxW = side - tileW - h * .5;
+    let nm = String(name || '').toUpperCase(); while (nm.length > 1 && g.measureText(nm).width > maxW) nm = nm.slice(0, -1);
+    g.fillText(nm, left ? nx : nx, r.y + h / 2 + 1);
+    if (leads) { g.fillStyle = hexA(col, .9); const d = h * .07; g.beginPath(); g.arc(left ? nx + g.measureText(nm).width + h * .22 : nx - g.measureText(nm).width - h * .22, r.y + h / 2, d, 0, Math.PI * 2); g.fill(); }
   };
-  team(r.x, e.ca, e.a, e.sa, prev.ta, false);
-  team(r.x + side + mid, e.cb, e.b, e.sb, prev.tb, true);
-  g.textAlign = 'center'; g.textBaseline = 'middle'; const cx = r.x + side + mid / 2;
-  if (e.round || e.map) {
-    g.font = `800 ${h * .22}px Inter, sans-serif`; g.fillStyle = 'rgba(255,255,255,.92)'; g.fillText((e.round || '').toUpperCase(), cx, r.y + h * (e.map ? .36 : .5));
-    if (e.map) { g.font = `600 ${h * .18}px Inter, sans-serif`; g.fillStyle = 'rgba(203,213,225,.75)'; g.fillText(e.map, cx, r.y + h * .68); }
-  } else { g.font = `800 ${h * .26}px Inter, sans-serif`; g.fillStyle = 'rgba(203,213,225,.7)'; g.fillText('VS', cx, r.y + h / 2); }
+  team(true, e.ca, e.a, e.sa, prev.ta, lead === -1);
+  team(false, e.cb, e.b, e.sb, prev.tb, lead === 1);
+  // centre capsule
+  const cx = r.x + side + mid / 2;
+  g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(r.x + side, r.y, mid, h);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (info) {
+    g.font = `800 ${h * .22}px Inter, sans-serif`; g.fillStyle = 'rgba(255,255,255,.95)'; g.fillText(String(e.round || '').toUpperCase(), cx, r.y + h * (e.map ? .37 : .5));
+    if (e.map) { g.font = `600 ${h * .17}px Inter, sans-serif`; g.fillStyle = 'rgba(203,213,225,.75)'; g.fillText(e.map, cx, r.y + h * .68); }
+  } else { g.font = `800 ${h * .24}px Inter, sans-serif`; g.fillStyle = 'rgba(226,232,240,.75)'; g.fillText('VS', cx, r.y + h / 2 + 1); }
   g.restore();
-  rr(r.x + .5, r.y + .5, r.w - 1, r.h - 1, R); g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1; g.stroke();
+  rr(r.x + .5, r.y + .5, r.w - 1, h - 1, R); g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1; g.stroke();
   g.restore();
 }
 function drawTimerEl(e) {
@@ -7564,6 +7603,11 @@ async function renderInviteQr() {
 function renderInviteSeats(list) {
   const box = $('#inviteSeats');
   if (!box) return;
+  // Rebuild only when who's here changes: renderAll runs on every stage update, and replacing the seat under the
+  // pointer between press and release swallowed the click ("nothing happens").
+  const key = list.slice(0, MAX).map((p) => `${p.id}:${p.name}:${!!p.me}`).join('|') + '|' + (S.state?.brand?.color || '');
+  if (box.dataset.k === key) return;
+  box.dataset.k = key;
   const slots = [];
   const accent = normalizeHex(S.state?.brand?.color) || '#3b82f6';
   const palette = [accent, mixHex(accent, '#000000', 0.3), '#10b981', '#f59e0b', mixHex(accent, '#ffffff', 0.35), '#06b6d4'];
@@ -7587,21 +7631,27 @@ function renderInviteSeats(list) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'inv-seat open';
-      btn.setAttribute('aria-label', `Seat ${i + 1} open — click to copy guest invite link`);
-      btn.title = 'Click to copy guest invite link';
+      btn.setAttribute('aria-label', `Seat ${i + 1} open: invite a guest`);
+      btn.title = 'Invite a guest to this seat';
       const av = document.createElement('span');
       av.className = 'inv-seat-av';
       av.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg>';
       const nm = document.createElement('span');
       nm.className = 'inv-seat-name';
-      nm.textContent = 'Open';
+      nm.textContent = 'Invite';
       btn.append(av, nm);
-      btn.onclick = () => {
-        copy(preferredInviteUrl(), 'Invite link copied.');
+      btn.onclick = async () => {
+        const url = preferredInviteUrl();
         guideMark('invited');
+        // Phones (and some desktops) get the share sheet; everyone else gets the link on the clipboard.
+        if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+          try { await navigator.share({ title: `Join ${S.state?.title || 'my show'} on gather`, text: 'Come on the show:', url }); return; } catch (e) { if (e?.name === 'AbortError') return; }
+        }
+        copy(url, `Invite link copied. Send it to your guest: they land in seat ${i + 1}'s green room.`);
         btn.classList.add('copied');
-        nm.textContent = 'Copied';
-        setTimeout(() => { btn.classList.remove('copied'); nm.textContent = 'Open'; }, 1500);
+        av.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-check"/></svg>';
+        nm.textContent = 'Link copied';
+        setTimeout(() => { btn.classList.remove('copied'); av.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg>'; nm.textContent = 'Invite'; }, 2200);
       };
       slots.push(btn);
     }

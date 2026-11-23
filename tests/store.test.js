@@ -26,7 +26,7 @@ const signUp = async (page, name) => {
     // Host: a studio with a product, a flash sale, a poll, the queue and an emote.
     const a = await mk(bh);
     await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
-    await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim(); await a.keyboard.press('Escape');
+    await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = (await a.evaluate(() => window.__gather.studio)).trim(); await a.keyboard.press('Escape');
     await a.click('[data-tab="shop"]'); await a.click('#shopSec .sub-fold > summary');
     await a.fill('#shopTitle', 'Limited hoodie'); await a.fill('#shopPrice', '$45'); await a.fill('#shopUrl', 'https://www.etsy.com/listing/123/limited-hoodie'); await a.click('#shopAdd');
     await a.click('#shopList .shop-item .btn.primary'); // Pin

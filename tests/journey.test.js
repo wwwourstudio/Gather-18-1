@@ -24,11 +24,11 @@ const URL0 = process.env.GATHER_URL || 'http://localhost:8080';
     await page.click('#wGo');
     await page.waitForSelector('#enterDlg[open]');
     await page.focus('#enterName'); await page.keyboard.type('Kim Keys'); await page.keyboard.press('Enter');
-    await page.waitForSelector('#inviteDlg[open]', { timeout: 15000 });
+    await page.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 });
     check('the show is named after its host', await page.evaluate(() => window.__gather.state.title) === 'Kim’s show', await page.evaluate(() => window.__gather.state.title));
     await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
-    check('closing the auto-opened invite dialog leaves focus on a control, not the page', !['BODY', ''].includes(await focused()), await focused());
+    check('entering the studio leaves focus on a control, not the page', !['BODY', ''].includes(await focused()), await focused());
     check('the setup guide no longer asks to name the show', !/Name your show/.test(await page.textContent('.dock')));
 
     // The scene strip is one tab stop; arrows move inside it.

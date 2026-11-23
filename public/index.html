@@ -268,6 +268,7 @@
       li.style.setProperty('--mx', (e.clientX - r.left) + 'px'); li.style.setProperty('--my', (e.clientY - r.top) + 'px'); }); })();
 </script>
       <div class="stage-card">
+        <canvas class="stage-ambient" id="stageAmbient" width="64" height="36" aria-hidden="true"></canvas>
         <div class="stage-topbar" id="stageTopbar">
           <span class="air-pill off" id="stageAirPill" role="status" aria-live="polite">
             <i class="air-dot" aria-hidden="true"></i>
@@ -277,7 +278,6 @@
         </div>
 
         <div class="stage-wrap">
-          <canvas class="stage-ambient" id="stageAmbient" width="64" height="36" aria-hidden="true"></canvas>
           <div class="stage" id="stage">
             <canvas id="stageCanvas" width="1280" height="720" aria-label="Studio stage"></canvas>
             <canvas id="editorCanvas" width="1280" height="720" aria-hidden="true"></canvas>
@@ -1119,7 +1119,7 @@
     <h2 id="liveH">Go live</h2>
     <div class="form live-body">
       <section class="live-sec" id="liveSec" aria-label="Where to stream">
-        <h3 class="live-label">Stream to</h3>
+        <h3 class="live-label">2. Stream to</h3>
         <div class="plat-grid">
           <button type="button" class="plat-tile" data-plat="youtube" style="--c:#ff2a3d"><i></i>YouTube</button>
           <button type="button" class="plat-tile" data-plat="twitch" style="--c:#9b6bff"><i></i>Twitch</button>
@@ -1143,7 +1143,7 @@
         <div class="soft-card" id="liveOff" hidden><p><b>Going live isn’t available on this site yet.</b> You can record your show now and upload it to YouTube or anywhere else afterwards.</p><button type="button" class="btn sm" id="liveOffRec">Record instead</button></div>
       </section>
       <section class="live-row" aria-label="Format">
-        <h3 class="live-label">Format</h3>
+        <h3 class="live-label">3. Format</h3>
         <div class="seg sm fmt-seg" role="radiogroup" aria-label="Stage format" id="aspectSeg">
           <button type="button" role="radio" data-aspect="16:9"><i class="fmt-ic land" aria-hidden="true"></i>Landscape</button>
           <button type="button" role="radio" data-aspect="9:16"><i class="fmt-ic vert" aria-hidden="true"></i>Vertical</button>
@@ -1981,7 +1981,7 @@
 
     <header class="inv-head">
       <div class="inv-title-row">
-        <h2 id="inviteH">Invite &amp; Watch</h2>
+        <h2 id="inviteH">Invite &amp; share</h2>
         <span class="inv-seats-readout num" id="inviteSeatCount">1 / 6 live</span>
       </div>
       <button type="button" class="icon-btn sm modal-close" value="cancel" data-close aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
@@ -1992,14 +1992,14 @@
     <div class="inv-grid-2">
       <section class="inv-col" aria-label="Backstage guest invite">
         <div class="inv-sec-h">
-          <b>Green room link</b>
-          <span>Co-hosts &amp; backstage guests</span>
+          <b>1. Invite guests</b>
+          <span>They join backstage first</span>
         </div>
         <div class="inv-linkbox">
           <output class="inv-url num" id="inviteFullUrl" title="Guest green-room link">—</output>
           <button type="button" class="btn primary inv-cta" id="copyLink">
             <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg>
-            <span>Copy invite link</span>
+            <span>Copy guest link</span>
           </button>
         </div>
 
@@ -2041,6 +2041,7 @@
       </section>
 
       <section class="inv-col" aria-label="QR code and audience watch page">
+        <div class="inv-sec-h"><b>2. Scan to join</b><span>Phone or second camera</span></div>
         <div class="inv-qr-top">
           <div class="inv-qr-tabs" role="tablist" aria-label="QR code target">
             <button type="button" role="tab" id="invQrGuest" aria-selected="true" data-qr="guest">Guest QR</button>
@@ -2060,7 +2061,7 @@
         </div>
 
         <div class="inv-watch-box">
-          <div class="inv-sec-h"><b>Watch Party</b><span>Public stream &amp; chat</span></div>
+          <div class="inv-sec-h"><b>3. Share with viewers</b><span>Watch page &amp; chat</span></div>
           <output class="inv-url num" id="inviteWatch">—</output>
           <div class="inv-watch-acts">
             <button type="button" class="btn sm inv-watch-copy" id="copyWatch"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span>Copy watch link</span></button>

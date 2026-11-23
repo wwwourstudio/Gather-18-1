@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     await p.click('#userBtn'); await snap(p, w, '02-account'); await p.keyboard.press('Escape');
     await p.click('#enterStage'); await p.fill('#enterName', 'Alex Morgan'); await p.waitForTimeout(700);
     await snap(p, w, '03-green-room');
-    await p.click('#enterGo'); await p.waitForSelector('#inviteDlg[open]', { timeout: 12000 });
+    await p.click('#enterGo'); await p.waitForFunction(() => !!(window as unknown as { __gather?: { studio?: string } }).__gather?.studio && !(document.querySelector('#enterDlg') as HTMLDialogElement | null)?.open, null, { timeout: 12000 });
     await snap(p, w, '04-invite');
     await p.keyboard.press('Escape');
     await snap(p, w, '05-studio');

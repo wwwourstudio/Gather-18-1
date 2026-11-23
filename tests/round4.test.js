@@ -19,7 +19,7 @@ const fakeSR = () => {
   // settings live inside a studio: change them there (same browser, same account), then leave
   const a0 = await a.context().newPage();
   await a0.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a0.click('#enterStage'); await a0.click('#wGo'); await a0.waitForSelector('#enterDlg[open]'); await a0.fill('#enterName', 'Alex Morgan'); await a0.click('#enterGo');
-  await a0.waitForSelector('#inviteDlg[open]'); await a0.keyboard.press('Escape');
+  await a0.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); await a0.keyboard.press('Escape');
   await a0.click('[data-tab="look"]'); await a0.click('.look-seg:visible [data-look="brand"]'); await a0.click('#fontCardGrid [data-font="playfair"]'); await a0.click('#bannerStyleSeg [data-bs="glass"]');
   await a0.click('#settingsTop'); await a0.check('#aiNoiseChk').catch(() => {}); await a0.keyboard.press('Escape');
   await a0.waitForTimeout(2200); await a0.close();

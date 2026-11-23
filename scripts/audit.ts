@@ -320,9 +320,9 @@ async function signUpAndCreate(s: Session): Promise<string> {
   await p.click('#enterDlg [data-mode="create"]').catch(() => undefined);
   await p.fill('#enterName', 'Audit Host');
   await p.click('#enterGo');
-  await p.waitForSelector('#inviteDlg[open]', { timeout: 12000 });
+  await p.waitForFunction(() => !!(window as unknown as { __gather?: { studio?: string } }).__gather?.studio && !(document.querySelector('#enterDlg') as HTMLDialogElement | null)?.open, null, { timeout: 12000 });
   await shot(s, 'invite'); await checkLayout(s, 'Invite dialog');
-  const code = (await p.textContent('#inviteCode')) ?? '';
+  const code = (await p.evaluate(() => (window as unknown as { __gather: { studio: string } }).__gather.studio)) ?? '';
   await p.keyboard.press('Escape');
   await p.waitForTimeout(500);
   await shot(s, 'studio'); await checkLayout(s, 'Studio (host)');

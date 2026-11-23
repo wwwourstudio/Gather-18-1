@@ -15,10 +15,12 @@ const wait = (p, fn, arg, ms = 10000) => p.waitForFunction(fn, arg, { timeout: m
   try {
     const a = await mk(bh);
     await a.goto(B + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Maya Host'); await a.click('#enterGo');
-    await a.waitForSelector('#inviteDlg[open]'); const code = (await a.textContent('#inviteCode')).trim();
+    await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = (await a.evaluate(() => window.__gather.studio)).trim();
     const short = await a.evaluate(() => window.__gather.short);
     check('the studio has a short watch link', /^[a-z2-9]{5}$/.test(short || ''), short);
+    await a.click('#enterTop'); await a.waitForSelector('#inviteDlg[open]');
     check('invite dialog shows the short watch link', (await a.textContent('#inviteWatch')).endsWith('/w/' + short));
+    await a.keyboard.press('Escape');
     await a.keyboard.press('Escape');
     check('the header has a Watch page button', await a.isVisible('#watchTop'));
     check('the call-in section is gone', !(await a.$('#callinCard')) && !(await a.$('#callinUrl')));

@@ -10,8 +10,7 @@ const SP = process.argv[2];
   console.log('0 green room quick background chip:', await a.evaluate(() => window.__gather.videoFx.effect));
   await a.screenshot({ path: SP + '/r5-greenroom.png' });
   await a.click('#grFx [data-fx="none"]');
-  await a.click('#enterGo'); await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.click('#inviteDlg .modal-close');
-  // guest with a camera-off background
+  await a.click('#enterGo'); await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = await a.evaluate(() => window.__gather.studio); // guest with a camera-off background
   await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Jordan Lee'); await b.click('#enterGo');
   await b.waitForFunction(() => [...window.__gather.peers.values()].some(p => p.conn === 'connected'), null, { timeout: 15000 });
   await b.click('#settingsTop'); await b.setInputFiles('#offBgFile', SP + '/logo.png');

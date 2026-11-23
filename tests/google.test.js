@@ -43,7 +43,7 @@ const BASE = process.env.GATHER_URL || 'http://localhost:8080';
   });
 
   await a.goto(BASE + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Host'); await a.click('#enterGo');
-  await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.keyboard.press('Escape');
+  await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = await a.evaluate(() => window.__gather.studio); await a.keyboard.press('Escape');
   await b.goto(BASE + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Guest'); await b.click('#enterGo');
   await b.waitForFunction(() => !!window.__gather.studio, null, { timeout: 12000 });
 

@@ -22,8 +22,7 @@ const fakeTwitch = () => {
   const mk = async () => { const c = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); await c.addInitScript(fakeTwitch); const p = await c.newPage(); p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); return p; };
   const a = await mk(), b = await mk();
   await a.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Morgan'); await a.click('#enterGo');
-  await a.waitForSelector('#inviteDlg[open]'); const code = await a.textContent('#inviteCode'); await a.click('#inviteDlg .modal-close');
-  await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Jordan Lee'); await b.click('#enterGo');
+  await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 }); const code = await a.evaluate(() => window.__gather.studio); await b.goto((process.env.GATHER_URL || 'http://localhost:8080') + '/s/' + code); await b.waitForSelector('#enterDlg[open]'); await b.fill('#enterName', 'Jordan Lee'); await b.click('#enterGo');
   await b.waitForFunction(() => window.__gather.studio, null, { timeout: 10000 });
   await a.click('#settingsTop'); await a.fill('#twitchInput', 'somechannel'); await a.click('#twitchGo'); await a.keyboard.press('Escape'); await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="stage"]');
   await b.waitForFunction(() => window.__gather.feed.length >= 3, null, { timeout: 8000 });
