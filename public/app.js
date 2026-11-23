@@ -15,7 +15,7 @@ import { createDesigner } from './designer.js';
 import { createBroadcast } from './broadcast.js';
 import { createAccount } from './account.js';
 import { createAssistant } from './assistant.js';
-import { createMoodMeter } from './mood.js';
+import { createLiveChat } from './livechat.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
@@ -1973,23 +1973,23 @@ function addExternal(m) {
 }
 function setMsgData(li, m) { li.dataset.fid = m.id; li.dataset.src = m.src; li.dataset.user = String(m.name || '').toLowerCase(); }
 
-// ---------------------------------------------------------------- live chat real-time sentiment mood meter → ./mood.js
-const mood = createMoodMeter({
+// ---------------------------------------------------------------- live chat: mood meter, moderation, YouTube and Rumble → ./livechat.js
+const liveChat = createLiveChat({
   $, $$, store, S, isHost, toast, api, creds, wsSend, setStage, seenFeed, addExternal, renderAIPanel,
   syncWizAiBar, renderLive, renderDriveButton, renderProducerUI, renderVoiceNames
 });
-const { rumble } = mood;
-function renderChatMood(...args) { return mood.renderChatMood(...args); }
-function isModerated(...args) { return mood.isModerated(...args); }
-function setLikes(...args) { return mood.setLikes(...args); }
-function chatShell(...args) { return mood.chatShell(...args); }
-function msgActions(...args) { return mood.msgActions(...args); }
-function applyModeration(...args) { return mood.applyModeration(...args); }
-function applyModerationAll(...args) { return mood.applyModerationAll(...args); }
-function stopYouTube(...args) { return mood.stopYouTube(...args); }
-function renderGoogle(...args) { return mood.renderGoogle(...args); }
-function syncRumble(...args) { return mood.syncRumble(...args); }
-function setRumbleStatus(...args) { return mood.setRumbleStatus(...args); }
+const { rumble } = liveChat;
+function renderChatMood(...args) { return liveChat.renderChatMood(...args); }
+function isModerated(...args) { return liveChat.isModerated(...args); }
+function setLikes(...args) { return liveChat.setLikes(...args); }
+function chatShell(...args) { return liveChat.chatShell(...args); }
+function msgActions(...args) { return liveChat.msgActions(...args); }
+function applyModeration(...args) { return liveChat.applyModeration(...args); }
+function applyModerationAll(...args) { return liveChat.applyModerationAll(...args); }
+function stopYouTube(...args) { return liveChat.stopYouTube(...args); }
+function renderGoogle(...args) { return liveChat.renderGoogle(...args); }
+function syncRumble(...args) { return liveChat.syncRumble(...args); }
+function setRumbleStatus(...args) { return liveChat.setRumbleStatus(...args); }
 
 // ---------------------------------------------------------------- stage elements: custom layouts + overlays
 // Every element is a rectangle in stage units (0..1), drawn on the canvas, so it shows for every

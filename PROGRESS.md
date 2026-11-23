@@ -1,5 +1,25 @@
 # gather: progress
 
+## Module split
+
+`public/app.js` was 9,346 lines and `public/watch.js` 3,229. Both are now split by feature. The moved code is unchanged.
+
+- **How it's wired:** each module exports `createX(app)`. `app` hands over the state and helpers the module uses, with getters for anything that gets reassigned. The module returns what the rest of the page calls, and `app.js`/`watch.js` keep one-line forwarders, so call order is the same as before.
+- **Studio (`app.js`, now about 5,800 lines):**
+  - `audience.js`: watch page settings, bounties, Stripe card payments, shop, polls, play-with-me queue, emotes, voice questions
+  - `livechat.js`: mood meter, moderation, message chrome, YouTube and Rumble chat
+  - `golive.js`: recording and going live
+  - `account.js`, `designer.js` (AI designer), `broadcast.js` (stream tab and launchpad), `invite.js`
+  - `assistant.js` (the AI panel) and `producer.js` (the AI producer and speech recogniser)
+- **Watch page (`watch.js`, now about 2,080 lines):** `watch-stats.js`, `watch-superchat.js`, `watch-deck.js`, `watch-party.js`, `watch-clip.js`, `watch-hub.js`.
+- **Still in `app.js`:** stage drawing, signaling and peers. Stage drawing is the next candidate.
+
+### Removed
+- Unused functions and imports: `generateLookAsset`, `drawGoal`/`goalRaised` (the goal shows on the watch page only), `chooseLayout`, `revealSide`, `AI_COLOR`, `callinLink`, `syncThemeSelection`, `syncMoodState`, `withBusy`.
+- Code for elements that no longer exist: the old watch-page mood meter, `wJoinBtn`, `wCntNext`, `moreLayoutsBtn`, `knockNote`, `wAiProv`, `wpJoin`, `chatMoodMeta`.
+- The "Moderation & AI Guard" drawer in studio chat. Its button had no code behind it. The markup and about 140 lines of CSS are in git history if it gets built.
+- `_pw_verify/`: one-off verification scripts nothing referenced.
+
 The stack is plain ES modules in the browser plus Node serverless functions on Vercel (`api/`, `lib/`). There is no TypeScript, no bundler and no lint config, so verification is `node --check` on every file plus Playwright end-to-end suites.
 
 ## Round 5 (this round)

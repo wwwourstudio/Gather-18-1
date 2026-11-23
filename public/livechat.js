@@ -1,9 +1,9 @@
 import { busy, togglePopover, cssEsc } from './ui.js';
 import { configureGoogle, googleConfigured, googleSignedIn, googleToken, googleSignOut, findLiveChat, pollLiveChat, ytModerate } from './google.js';
 
-// Live chat sentiment: the real-time crowd mood meter in the studio chat.
-// Created by app.js through createMoodMeter(app): `app` carries the studio state and helpers this part uses.
-export function createMoodMeter(app) {
+// Live chat in the studio: the crowd mood meter, moderation, message chrome, and YouTube and Rumble chat.
+// Created by app.js through createLiveChat(app): `app` carries the studio state and helpers this part uses.
+export function createLiveChat(app) {
   const {
     $, $$, store, S, isHost, toast, api, creds, wsSend, setStage, seenFeed, addExternal, renderAIPanel,
     syncWizAiBar, renderLive, renderDriveButton, renderProducerUI, renderVoiceNames
