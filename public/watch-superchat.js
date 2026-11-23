@@ -6,7 +6,6 @@ export function createSuperChat(app) {
   const { $, $$, ACCT, W, api, creds, toast, ensureSession, poll, showErr, awardXp, joinSigned, openSignIn } = app;
   // ---------------------------------------------------------------- super chats (single unified inline tray)
   const SC = { amount: 5 };
-  $('#wSuperBtn').onclick = () => openTipDock();
 
   // ---------------------------------------------------------------- super chat in the chat input
   // Paid by card, Apple Pay or Google Pay in Stripe's embedded checkout, on the streamer's own Stripe account. Nobody
@@ -57,7 +56,10 @@ export function createSuperChat(app) {
     $('#wTipDock').hidden = true; $('#wTipBtn').setAttribute('aria-expanded', 'false'); $('#wTipBtn').classList.remove('on');
     checkoutClose(); if (TV.rec?.state === 'recording') TV.rec.stop();
   }
-  $('#wTipBtn').onclick = () => ($('#wTipDock').hidden ? openTipDock() : closeTipDock());
+  $('#wTipBtn').onclick = () => {
+    if (!W.info?.watch?.supers) return toast('Tips aren’t on for this show yet.');
+    return $('#wTipDock').hidden ? openTipDock() : closeTipDock();
+  };
   $('#wTipX').onclick = closeTipDock;
   $('#wBounty').addEventListener('change', () => { $('#wTipDock').classList.toggle('bounty', $('#wBounty').checked); tipSync(); });
   $('#wTipMsg').addEventListener('input', () => tipSync());

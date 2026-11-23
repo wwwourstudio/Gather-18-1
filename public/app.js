@@ -16,6 +16,7 @@ import { createBroadcast } from './broadcast.js';
 import { createAccount } from './account.js';
 import { createAssistant } from './assistant.js';
 import { createLiveChat } from './livechat.js';
+import { createViewerCount } from './viewers.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
@@ -5583,6 +5584,9 @@ function gotVoice(...args) { return audience.gotVoice(...args); }
 function dropVoice(...args) { return audience.dropVoice(...args); }
 function refreshVoice(...args) { return audience.refreshVoice(...args); }
 function drawWatchBadge(...args) { return audience.drawWatchBadge(...args); }
+
+// ---------------------------------------------------------------- live viewers on every platform → ./viewers.js
+const viewerCount = createViewerCount({ S, isHost });
 
 // ---------------------------------------------------------------- boot
 document.fonts?.ready.then(() => S.banner.key = '');

@@ -157,12 +157,18 @@ export async function findLiveChat(videoLink = '') {
     const v = await gfetch(`${API}/youtube/v3/videos?part=snippet,liveStreamingDetails&id=${id}`);
     const it = v.items?.[0];
     if (!it?.liveStreamingDetails?.activeLiveChatId) throw new Error('That video has no live chat right now. Is it live?');
-    return { liveChatId: it.liveStreamingDetails.activeLiveChatId, title: it.snippet.title };
+    return { liveChatId: it.liveStreamingDetails.activeLiveChatId, title: it.snippet.title, videoId: id };
   }
   const b = await gfetch(`${API}/youtube/v3/liveBroadcasts?part=snippet&broadcastStatus=active&broadcastType=all&maxResults=5`);
   const live = b.items?.find((x) => x.snippet?.liveChatId);
   if (!live) throw new Error('No live broadcast on your channel right now. Go live on YouTube, or paste the video link.');
-  return { liveChatId: live.snippet.liveChatId, title: live.snippet.title };
+  return { liveChatId: live.snippet.liveChatId, title: live.snippet.title, videoId: live.id };
+}
+/** How many people are watching a live YouTube video right now (null when YouTube doesn't say). */
+export async function youtubeViewers(videoId) {
+  const v = await gfetch(`${API}/youtube/v3/videos?part=liveStreamingDetails&id=${encodeURIComponent(videoId)}`);
+  const n = Number(v.items?.[0]?.liveStreamingDetails?.concurrentViewers);
+  return Number.isFinite(n) ? n : null;
 }
 /** Put a thumbnail on your YouTube live broadcast (the upcoming one, else the live one). Returns its title. */
 export async function setYouTubeThumbnail(blob) {

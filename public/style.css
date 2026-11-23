@@ -5348,21 +5348,49 @@ body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked:focus-visible { outline:
 #deck .scene-suggest { max-width: none; flex: none; flex-wrap: nowrap; height: 32px; padding: 0 4px 0 12px; }
 #deck .scene-suggest-text { overflow: visible; white-space: nowrap; }
 /* cards */
+/* Scene cards use the same design as Stage → Scene templates: a soft filled card, the preview at full brightness
+   in its dark frame, the name underneath. Selected = accent ring; hover = accent-tinted edge. */
 #deck .scene, #deck .crew-card {
-  background: none; border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: none;
-  transition: border-color 140ms var(--ease-out);
+  border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: none;
+  transition: border-color 140ms var(--ease-out), background-color 140ms var(--ease-out);
 }
-#deck .scene { cursor: pointer; }
-#deck .scene:hover, #deck .crew-card:hover { border-color: color-mix(in srgb, var(--ink) 28%, transparent); background: none; transform: none; }
-#deck .scene .sc-pv { border-radius: 8px; overflow: hidden; }
-#deck .scene .sc-name { font-weight: 600; color: var(--ink-2); }
+#deck .scene { width: 140px; padding: 8px; gap: 8px; background: var(--fill); cursor: pointer; justify-content: flex-start; }
+#deck .crew-card { background: var(--fill); }
+#deck .scene:hover, #deck .crew-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--glass-border)); background: color-mix(in srgb, var(--accent) 7%, var(--fill)); transform: none; }
+#deck .scene .sc-pv { flex: none; border-radius: 8px; overflow: hidden; filter: none; transform: none; }
+#deck .scene:hover .sc-pv { transform: none; }
+#deck .scene .sc-name { font: 600 12px/1.2 var(--font-ui); color: var(--ink); }
 #deck .scene.on, #deck .scene.on:hover {
-  border-color: var(--accent); background: none; box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--fill)); box-shadow: inset 0 0 0 1px var(--accent);
 }
-#deck .scene.on .sc-name { color: var(--ink); font-weight: 700; }
+#deck .scene.on .sc-name { font-weight: 700; }
 #deck .scene kbd { background: none; border-color: var(--glass-border); }
 #deck .crew-card.on-stage, #deck .crew-card.on-stage:hover { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: none; background: none; }
 #deck .crew-card .mic-off { background: #dc2626; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
-:root[data-theme="light"] #deck .scene, :root[data-theme="light"] #deck .crew-card { background: none; }
+:root[data-theme="light"] #deck .scene, :root[data-theme="light"] #deck .crew-card { background: #ffffff; }
 @media (prefers-reduced-motion: reduce) { #deck .scene, #deck .crew-card, #deck .deck-filter .df-btn { transition: none; } }
 
+
+/* Stage: "Mark clip" for the host, top-right of the stage on hover (studio-tools.js). Not part of the program. */
+.stage-clip { position: absolute; top: 12px; right: 12px; z-index: 6; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.stage:hover .stage-clip, .stage-clip:focus-within { opacity: 1; transform: none; pointer-events: auto; }
+body.pre .stage-clip { display: none; }
+.stage-clip-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(8, 12, 24, 0.72); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; font: 600 12.5px/1 var(--font-ui); cursor: pointer;
+}
+.stage-clip-btn:hover { border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+.stage-clip-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stage-clip-btn b { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); font: 700 11px/18px var(--font-ui); text-align: center; }
+.stage-clip-btn.done { animation: stage-clip-pop 420ms var(--ease-out); }
+@keyframes stage-clip-pop { 40% { transform: scale(1.08); border-color: #22c55e; } }
+@media (hover: none) { .stage-clip { opacity: 1; transform: none; pointer-events: auto; } }
+@media (prefers-reduced-motion: reduce) { .stage-clip, .stage-clip-btn.done { transition: none; animation: none; } }
+
+/* Stage: total live viewers across platforms (viewers.js), next to the ON/OFF AIR pill. Host only. */
+.views-pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 12, 24, 0.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); color: var(--ink-2); font: 600 11.5px/1 var(--font-ui); cursor: default; }
+.views-pill b { color: var(--ink); font-weight: 700; }
+.views-pill .i { color: var(--ink-3); }
+.views-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.pre .views-pill { display: none; }

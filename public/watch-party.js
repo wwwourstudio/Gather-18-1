@@ -62,8 +62,7 @@ export function createWatchParty(app) {
     renderPartyMe();
   }
   $('#wPtHypeIt')?.addEventListener('click', (e) => {
-    const fire = [...$$('#wReactDock button')].find((b) => b.textContent.includes('🔥')) || $('#wHeart');
-    fire?.click();
+    app.sendReact('🔥');
     const b = e.currentTarget; b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
   });
   function renderPlayExtras(info) {

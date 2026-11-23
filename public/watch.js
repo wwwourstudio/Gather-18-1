@@ -283,9 +283,14 @@ function render(info) {
   $('#wViewers').textContent = info.viewers ? `${info.viewers} watching` : '';
 
   const w = info.watch || {};
-  $('#wSuperBtn').hidden = !w.supers || w.chat === false;
-  $('#wTipBtn').hidden = !w.supers || w.chat === false;
-  if ($('#wTipBtn').hidden && !$('#wTipDock').hidden) closeTipDock();
+  // The green $ in the chat box is the one way to tip. It shows whenever chat is on, greyed out when tips aren't
+  // available (super chats off, or no card payments set up), and says why when tapped.
+  const tip = $('#wTipBtn');
+  tip.hidden = w.chat === false;
+  tip.classList.toggle('off', !w.supers);
+  tip.setAttribute('aria-disabled', String(!w.supers));
+  tip.dataset.tip = w.supers ? 'Super chat' : 'Tips aren’t on for this show';
+  if (!w.supers && !$('#wTipDock').hidden) closeTipDock();
   $('#wMic').hidden = w.voice === false || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
   $('#wChatState').textContent = !info.found ? '' : w.chat === false ? 'Chat off' : w.slow ? `Slow · ${w.slow}s` : '';
   $('#wCompose').hidden = !info.found || w.chat === false;
@@ -716,22 +721,7 @@ function toggleStatsPop(...args) { return statsHud.toggleStatsPop(...args); }
 function updateHudUptime(...args) { return statsHud.updateHudUptime(...args); }
 function syncHudShell(...args) { return statsHud.syncHudShell(...args); }
 
-// ---------------------------------------------------------------- One-tap Reaction Dock & Live Hype Pulse
-function initReactionDock() {
-  const dock = $('#wReactDock');
-  if (!dock) return;
-  replaceKids(dock, ...REACTS.map((e) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'wv-react-btn';
-    b.textContent = e;
-    b.setAttribute('aria-label', `React with ${e}`);
-    b.title = `Send ${e}`;
-    b.onclick = () => sendReact(e);
-    return b;
-  }));
-}
-initReactionDock();
+// ---------------------------------------------------------------- reactions (the heart on the player) & live hype pulse
 
 function floatOne(e) {
   const s = document.createElement('span');
@@ -1231,7 +1221,7 @@ function renderArena(...args) { return deck.renderArena(...args); }
 const party = createWatchParty({
   $, $$, code, ACCT, W, store, get sess() { return sess; }, api, creds, toast, updateStageStatus, money,
   MODE_CFG, renderInteractive, scrollToMode, buyWithCode, skuThumb, salePriceOf, renderShopDrop, awardXp,
-  settleWagers, renderArena
+  settleWagers, renderArena, sendReact
 });
 function renderPartyMe(...args) { return party.renderPartyMe(...args); }
 function renderParty(...args) { return party.renderParty(...args); }

@@ -31,7 +31,7 @@ body { background: var(--bg, #080c16); color: var(--ink); }
   width: 120%;
   height: 120%;
   object-fit: cover;
-  filter: blur(70px) saturate(1.6) brightness(0.62);
+  filter: blur(80px) saturate(1.7) brightness(0.8);
   opacity: 0;
   transition: opacity 1.1s ease;
 }
@@ -41,8 +41,8 @@ body { background: var(--bg, #080c16); color: var(--ink); }
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(120% 90% at 50% 45%, transparent 32%, rgba(8, 12, 22, 0.72) 100%),
-    linear-gradient(rgba(8, 12, 22, 0.3), rgba(8, 12, 22, 0.56));
+    radial-gradient(120% 90% at 50% 40%, transparent 38%, rgba(8, 12, 22, 0.6) 100%),
+    linear-gradient(rgba(8, 12, 22, 0.18), rgba(8, 12, 22, 0.45));
 }
 
 .wv-backdrop {
@@ -646,16 +646,6 @@ body { background: var(--bg, #080c16); color: var(--ink); }
 .wv-c.wv-txt[aria-pressed="true"] { background: #fff; color: #000; }
 .wv-ctrls input.wv-vol { flex: none; width: 80px; accent-color: #fff; }
 .wv-sp { flex: 1; min-width: 4px; }
-.wv-badge {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: rgba(22, 163, 74, 0.88);
-  color: #fff;
-  font: 600 11px var(--font-mono);
-  white-space: nowrap;
-}
-.wv-badge.slow { background: rgba(217, 119, 6, 0.92); }
 
 /* ---------------------------------------------------------------- Lower Bento Hub (33.33% Streamer Card + 66.67% Showcase) */
 .wv-below {
@@ -945,31 +935,6 @@ body { background: var(--bg, #080c16); color: var(--ink); }
   min-width: 0;
   padding-bottom: 4px;
 }
-.wv-reactdock {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.wv-reactdock::-webkit-scrollbar { display: none; }
-.wv-react-btn {
-  width: 30px;
-  height: 30px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(148, 175, 255, 0.12);
-  font-size: 15px;
-  line-height: 1;
-  transition: transform 140ms var(--ease-out), background 140ms var(--ease-out), border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
-}
-.wv-react-btn:hover { background: color-mix(in srgb, var(--accent) 22%, rgba(255, 255, 255, 0.08)); border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-2px) scale(1.08); }
-.wv-react-btn:active { transform: scale(0.9); }
 
 .wv-hype {
   flex: none;
@@ -1412,8 +1377,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-tool:hover { background: var(--fill-hover); color: var(--ink); }
 .wv-tool .i { width: 16px; height: 16px; }
 .wv-tool[aria-pressed="true"] { background: rgba(250, 204, 21, 0.16); color: #facc15; }
-.wv-tool.tip { margin-left: 2px; padding: 0 10px 0 8px; background: rgba(22, 163, 74, 0.16); color: #4ade80; border: 1px solid rgba(22, 163, 74, 0.42); }
-.wv-tool.tip:hover { background: rgba(22, 163, 74, 0.26); color: #86efac; }
 .wv-me {
   flex: none;
   display: inline-flex;
@@ -1625,7 +1588,7 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv.native916 .wv-video video { object-fit: contain; }
 .wv.vertical .wv-player { width: min(100cqw, calc(100cqh * 9 / 16)); aspect-ratio: 9 / 16; }
 .wv.vertical .wv-video video { object-fit: cover; transition: object-position 0.8s var(--ease-out); }
-.wv.vertical #wDelay, .wv.vertical #wQual { display: none; }
+.wv.vertical #wQual { display: none; }
 
 /* Theater / Fullscreen mode */
 .wv.theater { grid-template-rows: minmax(0, 1fr); background: #000; }
@@ -1745,7 +1708,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-own, .wv-info-name { display: none; }
   .wv-infobtn { padding: 0 7px; }
   .wv-below { grid-template-columns: minmax(0, 38%) minmax(0, 62%); }
-  .wv-react-btn { width: 28px; height: 28px; font-size: 14px; }
   .wv-hype i { width: 30px; }
 }
 
@@ -1815,7 +1777,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
   .wv-rail-strip { padding: 4px 10px; min-height: 34px; }
   .wv-msgs { padding: 6px 8px; }
   .wv-compose { padding: 6px 8px 10px; }
-  .wv-react-btn { width: 40px; height: 44px; font-size: 17px; }
   .wv-composer .input { height: 44px; font-size: 15px; padding-right: 48px; }
   .wv-send { width: 38px; height: 38px; top: 3px; right: 3px; }
   .wv-tool { height: 44px; min-width: 44px; }
@@ -2391,7 +2352,6 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 
 /* Remove duplicate toolbar Tip button on small screens (composer $ opens the same tray) */
 @media (max-width: 720px) {
-  #wSuperBtn { display: none !important; }
 }
 
 /* V7 Moment Share Button, Inline Checkout, Catch-up List & Private Watch Room */
@@ -2494,10 +2454,11 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-player { isolation: isolate; }
 #wAmbient.wv-ambient { z-index: 0; }
 #wPlayer { z-index: 1; }
-.wv-ambient { position: absolute; inset: -8%; width: 116%; height: 116%; pointer-events: none; filter: blur(42px) saturate(1.35) brightness(.72); opacity: 0; transition: opacity .6s ease; }
-.wv-ambient.on { opacity: .9; }
-.wv-player.fill .wv-ambient { opacity: 0; }
-@media (prefers-reduced-motion: reduce) { .wv-ambient { display: none; } }
+/* (scoped to the canvas: the page-wide blurred video below the whole page shares the .wv-ambient class) */
+canvas.wv-ambient { position: absolute; inset: -8%; width: 116%; height: 116%; pointer-events: none; filter: blur(42px) saturate(1.35) brightness(.72); opacity: 0; transition: opacity .6s ease; }
+canvas.wv-ambient.on { opacity: .9; }
+.wv-player.fill canvas.wv-ambient { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { canvas.wv-ambient { display: none; } }
 
 /* Rounded video player: no sharp 90° corners. The stage box gets a small inset so the rounded corners show
    against the dark surround; the player clips the video, ambient glow, controls and empty state to its radius.
@@ -2524,3 +2485,6 @@ html.chat-only, html.chat-only body { height: 100%; overflow: hidden; }
 html.chat-only .wv { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; grid-template-columns: minmax(0, 1fr); }
 html.chat-only .wv .wv-chat { grid-row: auto; }
 html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer):not(.toast):not([popover]) { display: none; }
+
+/* The green $ in the chat box: greyed out when tips aren't available (still focusable, says why on tap). */
+.wv-tipbtn.off, .wv-tipbtn.off:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink-3); box-shadow: none; cursor: not-allowed; }

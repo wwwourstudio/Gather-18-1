@@ -24,7 +24,7 @@ export function createStatsHud(app) {
   function syncHudShell() {
     const wrap = $('#wHudWrap'), btn = $('#wStatsHud');
     if (!wrap || !btn) return;
-    if (!W.info?.found) { wrap.hidden = true; $('#wDelay').hidden = true; return; }
+    if (!W.info?.found) { wrap.hidden = true; return; }
     wrap.hidden = false;
     updateHudUptime();
     if (W.source === 'direct' && (!W.direct.pc || W.direct.state !== 'live')) {
@@ -36,12 +36,11 @@ export function createStatsHud(app) {
 
   setInterval(async () => {
     const wrap = $('#wHudWrap'), btn = $('#wStatsHud');
-    if (!W.info?.found) { wrap.hidden = true; $('#wDelay').hidden = true; return; }
+    if (!W.info?.found) { wrap.hidden = true; return; }
     wrap.hidden = false;
     updateHudUptime();
 
     if (W.source !== 'direct') {
-      $('#wDelay').hidden = true;
       btn.classList.remove('warn', 'off');
       const srcLabel = $('#wTabs [aria-selected="true"]')?.textContent || 'Embed';
       $('#wHudSummary').textContent = `${srcLabel} · Live`;
@@ -56,7 +55,6 @@ export function createStatsHud(app) {
 
     const pc = W.direct.pc;
     if (!pc || W.direct.state !== 'live') {
-      $('#wDelay').hidden = true;
       btn.classList.add('off');
       btn.classList.remove('warn');
       $('#wHudSummary').textContent = '';
@@ -100,9 +98,6 @@ export function createStatsHud(app) {
       W.statsPrev = { bytes: totalBytes, ts };
 
       const d = rtt / 2 + buf + 0.05;
-      $('#wDelay').hidden = false;
-      $('#wDelay').textContent = `Direct · ${d.toFixed(1)} s`;
-      $('#wDelay').classList.toggle('slow', d > 1.5);
 
       const bitrateTxt = bps >= 1_000_000 ? `${(bps / 1_000_000).toFixed(1)} Mbps` : bps > 0 ? `${Math.round(bps / 1000)} kbps` : 'Syncing…';
       const resTxt = vh ? `${vh}p${fps ? Math.round(fps) : ''}` : vw ? `${vw}px` : 'Live';

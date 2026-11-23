@@ -904,6 +904,7 @@ function initShowPowerTools(api) {
   }
 
   function renderMoments() {
+    const cnt = document.getElementById('stageClipN'); if (cnt) { cnt.textContent = String(moments.length); cnt.hidden = !moments.length; }
     const ul = $('#momentList', clipSec);
     if (!moments.length) {
       ul.innerHTML = '<li class="hint">No moments marked yet. Press M during a highlight or click Auto shorts.</li>';
@@ -920,6 +921,16 @@ function initShowPowerTools(api) {
   }
   renderMoments();
 
+  // On the stage (host only, shows on hover): mark a clip without leaving the chat. A DOM control over the stage,
+  // never drawn into the program, so it isn't recorded or streamed.
+  const stageClip = document.getElementById('stageClipBtn');
+  if (stageClip) {
+    stageClip.onclick = () => {
+      window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'stage');
+      stageClip.classList.remove('done'); void stageClip.offsetWidth; stageClip.classList.add('done');
+      api.toast('Clip marked. Export it from Studio → Clip & post.', { ms: 2500 });
+    };
+  }
   $('#markMomentBtn', clipSec).onclick = () => {
     window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'manual');
     api.toast('Moment marked! Click 9:16 Clip to export vertical video.');

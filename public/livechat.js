@@ -223,7 +223,7 @@ export function createLiveChat(app) {
     el.textContent = { live: `Reading “${yt.title}”`, connecting: 'Connecting…', error: detail || 'Something went wrong', ended: detail || 'The live chat has ended', off: googleConfigured() ? 'Not connected' : 'Needs Google sign-in set up on the server' }[state] || detail;
     $('#ytGo').textContent = yt.liveChatId ? 'Disconnect' : 'Connect';
   }
-  function stopYouTube() { yt.stop?.(); Object.assign(yt, { liveChatId: '', title: '', stop: null }); setYtStatus('off'); }
+  function stopYouTube() { yt.stop?.(); Object.assign(yt, { liveChatId: '', title: '', stop: null }); S.ytVideoId = ''; setYtStatus('off'); }
   $('#ytForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     if (!isHost()) return toast('Only the host can connect platform chat.', { err: true });
@@ -233,6 +233,7 @@ export function createLiveChat(app) {
     try {
       const chat = await findLiveChat($('#ytInput').value);
       Object.assign(yt, chat);
+      S.ytVideoId = chat.videoId || ''; // viewers.js reads its live viewer count
       yt.stop = pollLiveChat(chat.liveChatId, (items) => {
         const fresh = items.filter((m) => !seenFeed.has(m.id));
         fresh.forEach(addExternal);
@@ -285,6 +286,7 @@ export function createLiveChat(app) {
       const r = await api('rumble', { ...creds(), url: rumble.url });
       rumble.fails = 0;
       setRumbleStatus(r.live ? 'live' : 'idle', r.title);
+      (S.platViewers ||= {}).rumble = r.live && Number.isFinite(r.viewers) ? r.viewers : undefined;
       const fresh = r.msgs.filter((m) => !seenFeed.has(m.id));
       fresh.forEach(addExternal);
       if (fresh.length) wsSend({ type: 'feed', items: fresh });
