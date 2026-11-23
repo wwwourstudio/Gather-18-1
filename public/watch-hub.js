@@ -88,13 +88,14 @@ export function createWatchHub(app) {
 
   function setShowcaseTab(tab) {
     const mapped = (tab === 'notices' || tab === 'next' || tab === 'spotlight') ? 'about' : tab;
+    // About this show now lives in the Show & Host drawer.
+    if (mapped === 'about') { if ($('#wDrawerWrap')?.hidden) $('#wInfoBtn')?.click(); return; }
     W.scTab = mapped;
     $$('[data-sc-tab]').forEach((b) => {
       const on = b.dataset.scTab === mapped;
       b.setAttribute('aria-selected', String(on));
     });
     if ($('#wPaneParty')) $('#wPaneParty').hidden = mapped !== 'party';
-    if ($('#wPaneAbout')) $('#wPaneAbout').hidden = mapped !== 'about';
     if ($('#wPaneCatchup')) $('#wPaneCatchup').hidden = mapped !== 'catchup';
     if ($('#wPaneRoom')) $('#wPaneRoom').hidden = mapped !== 'room';
     moveScInd();
@@ -134,7 +135,8 @@ export function createWatchHub(app) {
           b.innerHTML = `<span class="wv-sc-act-ic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#${icon}"/></svg></span><span class="wv-sc-act-txt"><b></b><span></span></span>`;
           b.querySelector('b').textContent = title;
           b.querySelector('.wv-sc-act-txt span').textContent = sub;
-          b.onclick = fn;
+          // these sit in the Show & Host drawer: close it, then go where the action leads
+          b.onclick = () => { if (!$('#wDrawerWrap')?.hidden) openHostDrawer(false); fn(); };
           return b;
         };
         const items = [
@@ -146,7 +148,6 @@ export function createWatchHub(app) {
         if (canMic) items.push(mkAct('i-mic', 'Ask by Voice', 'Record a 45s voice question for the host', () => voiceOpen()));
         if (canTip) items.push(mkAct('i-tip', 'Send a Super Chat', 'Tip the streamer directly, right in chat', () => openTipDock()));
         if (items.length < 4) items.push(mkAct('i-share-2', 'Invite Friends', 'Share this Watch Party link', () => $('#wShareTop').click()));
-        if (items.length < 4) items.push(mkAct('i-info', 'Show Details', 'View links, platforms, and host bio', () => openHostDrawer(true)));
         replaceKids(deck, ...items.slice(0, 4));
         replaceKids(nBox, deck);
       } else {

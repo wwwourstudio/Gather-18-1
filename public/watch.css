@@ -2270,6 +2270,9 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 :root[data-theme="light"] .wv-show-bar { border-bottom-color: rgba(15, 23, 42, 0.09); }
 .wv-show-left { display: flex; align-items: flex-start; gap: 13px; flex: 1 1 360px; min-width: 0; }
 .wv-show-left .wv-creator-ring { width: 46px; height: 46px; flex: none; margin-top: 2px; }
+/* the photo fits inside the ring (it was 52px in a 46px ring, so the ring showed behind it like a second avatar) */
+.wv-show-left .wv-creator-ring { border-radius: 14px; padding: 2px; }
+.wv-show-left .wv-creator-ring .wv-creator-logo { width: 42px; height: 42px; border-radius: 12px; }
 .wv-show-meta { display: grid; gap: 5px; min-width: 0; flex: 1; }
 .wv-show-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .wv-show-title { margin: 0; font: 800 clamp(16px, 1.45vw, 19px)/1.25 var(--font-display, var(--font-ui)); letter-spacing: -0.02em; color: var(--ink); overflow-wrap: anywhere; }
@@ -2488,3 +2491,83 @@ html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer
 
 /* The green $ in the chat box: greyed out when tips aren't available (still focusable, says why on tap). */
 .wv-tipbtn.off, .wv-tipbtn.off:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink-3); box-shadow: none; cursor: not-allowed; }
+
+/* ================================================================ Show & Host drawer (redesign)
+   Flush to the right edge, full height, rounded on the inside edge only. A real show card at the top (cover band,
+   big avatar with the live ring, title, host, status, one wide Subscribe), then everything "about this show":
+   about, notices & links, what's next, AI spotlight, share, other places to watch. */
+#wHostDrawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); height: auto;
+  border: 0; border-left: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px 0 0 18px;
+  background: linear-gradient(180deg, rgba(14, 20, 38, 0.97), rgba(9, 13, 26, 0.98));
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.6); overflow: hidden; grid-template-rows: 52px minmax(0, 1fr);
+}
+#wHostDrawer .wv-drawer-head { padding: 0 12px 0 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+#wHostDrawer .wv-drawer-kicker { font: 700 11px/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+#wHostDrawer .wv-drawer-body { padding: 0 0 28px; display: grid; align-content: start; gap: 0; }
+/* show card */
+#wHostDrawer .wv-showcard { position: relative; display: grid; gap: 10px; padding: 0 20px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+#wHostDrawer .wv-showcard-cover {
+  height: 96px; margin: 0 -20px; border-radius: 0;
+  background:
+    radial-gradient(70% 120% at 15% 0%, color-mix(in srgb, var(--accent) 70%, transparent), transparent 70%),
+    radial-gradient(60% 120% at 95% 10%, rgba(168, 85, 247, 0.55), transparent 70%),
+    linear-gradient(135deg, #0f1a3a, #1b1240);
+}
+#wHostDrawer .wv-host-top { display: flex; align-items: flex-end; gap: 10px; margin-top: -40px; }
+#wHostDrawer .wv-host-av {
+  width: 76px; height: 76px; border-radius: 20px; flex: none; background-size: cover; background-position: center;
+  box-shadow: 0 0 0 4px rgba(12, 17, 32, 1), 0 10px 30px -8px rgba(0, 0, 0, 0.8);
+}
+#wHostDrawer .wv-host-live { margin-bottom: 6px; padding: 3px 8px; border-radius: 6px; background: #e11d48; color: #fff; font: 800 10.5px/1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; }
+#wHostDrawer .wv-host-title { margin: 4px 0 0; font: 800 22px/1.2 var(--font-display, inherit); letter-spacing: -0.02em; color: var(--ink); }
+#wHostDrawer .wv-host-id { display: grid; gap: 2px; }
+#wHostDrawer .wv-host-name { margin: 0; font: 700 14px/1.3 var(--font-ui); color: var(--ink); }
+#wHostDrawer .wv-host-sub { margin: 0; display: flex; gap: 8px; font-size: 12.5px; color: var(--ink-3); }
+#wHostDrawer .wv-host-sub span:empty { display: none; }
+#wHostDrawer .wv-host-meta {
+  justify-self: start; margin: 2px 0 0; padding: 6px 10px; border-radius: 999px; font: 600 12px/1.2 var(--font-ui); color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08);
+}
+#wHostDrawer .wv-host-meta:empty { display: none; }
+#wHostDrawer .wv-subscribe { width: 100%; height: 42px; justify-content: center; border-radius: 12px; font-weight: 700; }
+#wHostDrawer .wv-host-desc { display: grid; gap: 8px; padding: 0; border: 0; border-radius: 0; background: none; }
+#wHostDrawer .wv-host-about { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+#wHostDrawer .wv-host-about:empty { display: none; }
+/* sections */
+#wHostDrawer .wv-drawer-sec { display: grid; gap: 10px; padding: 18px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+#wHostDrawer .wv-drawer-sec:last-child { border-bottom: 0; }
+#wHostDrawer .wv-drawer-sec h3 { display: flex; align-items: center; gap: 8px; margin: 0; font: 700 11px/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+#wHostDrawer .wv-creator-about { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+#wHostDrawer .wv-notices-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+#wHostDrawer .wv-notice-card, #wHostDrawer .wv-next-card, #wHostDrawer .wv-spot-card { border-radius: 12px; }
+#wHostDrawer .wv-next-card, #wHostDrawer .wv-spot-card { text-align: left; align-items: start; }
+#wHostDrawer .wv-next-card h3, #wHostDrawer .wv-spot-card h3 { font-size: 14.5px; text-transform: none; letter-spacing: 0; color: var(--ink); }
+#wHostDrawer .wv-next-card p, #wHostDrawer .wv-spot-card p { font-size: 13px; }
+#wHostDrawer .wv-share { display: flex; flex-wrap: wrap; gap: 8px; }
+:root[data-theme="light"] #wHostDrawer { background: #ffffff; border-left-color: rgba(15, 23, 42, 0.1); }
+:root[data-theme="light"] #wHostDrawer .wv-host-av { box-shadow: 0 0 0 4px #ffffff, 0 10px 30px -10px rgba(15, 23, 42, 0.4); }
+@media (max-width: 520px) { #wHostDrawer { border-radius: 0; border-left: 0; } }
+#wHostDrawer .wv-sc-welcome { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+#wHostDrawer .wv-sc-act { min-height: 52px; }
+#wHostDrawer .wv-sc-act-txt span, #wHostDrawer .wv-sc-act-txt b { white-space: normal; overflow: visible; text-overflow: clip; }
+
+/* Raise your hand: the menu above the chat tools, and the status bar over the messages. */
+.wv-tools { position: relative; }
+.wv-handmenu { position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30; width: 270px; display: grid; gap: 2px; padding: 6px; border-radius: 14px;
+  background: rgba(12, 17, 32, 0.98); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55); animation: wv-pop-in 140ms var(--ease-out, ease-out); }
+.wv-handmenu[hidden] { display: none; }
+.wv-handitem { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 10px; background: none; color: var(--ink); text-align: left; cursor: pointer; }
+.wv-handitem:hover, .wv-handitem:focus-visible { background: rgba(255, 255, 255, 0.06); outline: none; }
+.wv-handitem .i { flex: none; color: var(--accent-text, #60a5fa); }
+.wv-handitem span { display: grid; gap: 2px; }
+.wv-handitem b { font: 600 13px/1.2 var(--font-ui); }
+.wv-handitem small { font-size: 11.5px; color: var(--ink-3); }
+#wAsk.raised { color: #facc15; }
+.wv-handbar { display: flex; align-items: center; gap: 8px; margin: 8px 10px 0; padding: 8px 8px 8px 12px; border-radius: 12px; font-size: 12.5px; color: var(--ink);
+  background: color-mix(in srgb, #facc15 12%, rgba(12, 17, 32, 0.9)); border: 1px solid color-mix(in srgb, #facc15 35%, transparent); }
+.wv-handbar[hidden] { display: none; }
+.wv-handbar-txt { flex: 1; min-width: 0; }
+.wv-handbar-acts { display: inline-flex; gap: 6px; flex: none; }
+@keyframes wv-pop-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .wv-handmenu { animation: none; } }

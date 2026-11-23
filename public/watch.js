@@ -1050,7 +1050,100 @@ function muteName(name) {
   toast(`You won’t see ${name}’s messages any more. Only you.`);
 }
 function setAsk(on) { $('#wAsk').setAttribute('aria-pressed', String(on)); $('#wText').placeholder = on ? 'Ask the host a question…' : 'Say something…'; }
-$('#wAsk').onclick = () => { setAsk($('#wAsk').getAttribute('aria-pressed') !== 'true'); $('#wText').focus(); };
+
+// ---------------------------------------------------------------- raise your hand: join on camera or by voice
+// The hand opens a small menu: join the show on camera, join by voice (a caller), leave a voice message, or ask in
+// chat. Joining knocks on the studio's waiting room (the host hears a chime and sees "Raised hand"); once the host
+// lets you in you get a Join now button that opens the studio with your pass, straight in, no second wait.
+const HAND = { id: '', tok: '', mode: '', timer: 0, pass: '' };
+function handDev() {
+  let d = store.get('dev', '');
+  if (!/^[a-f0-9]{24}$/.test(d)) { d = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, '0')).join(''); store.set('dev', d); }
+  return d;
+}
+function handMenu(open) {
+  let m = $('#wHandMenu');
+  if (!m) {
+    m = document.createElement('div'); m.id = 'wHandMenu'; m.className = 'wv-handmenu'; m.setAttribute('role', 'menu'); m.hidden = true;
+    const item = (icon, title, sub, fn) => {
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.className = 'wv-handitem';
+      b.innerHTML = `<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-${icon}"/></svg><span><b></b><small></small></span>`;
+      b.querySelector('b').textContent = title; b.querySelector('small').textContent = sub;
+      b.onclick = () => { handMenu(false); fn(); };
+      return b;
+    };
+    m.append(
+      item('video', 'Join on camera', 'Ask to come on the show with video', () => raiseHand('camera')),
+      item('phone', 'Join by voice', 'Call in with your mic, no camera', () => raiseHand('voice')),
+      item('mic', 'Leave a voice message', 'Record up to 45 s for the host', () => voiceOpen()),
+      item('message-square', 'Ask in chat', 'Your next message is a question', () => { setAsk(true); $('#wText').focus(); }),
+    );
+    $('#wAsk').closest('.wv-tools')?.append(m);
+    addEventListener('pointerdown', (e) => { if (!m.hidden && !m.contains(e.target) && e.target !== $('#wAsk') && !$('#wAsk').contains(e.target)) handMenu(false); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) handMenu(false); });
+  }
+  m.hidden = !open;
+  $('#wAsk').setAttribute('aria-expanded', String(!!open));
+  if (open) m.querySelector('button')?.focus();
+}
+$('#wAsk').setAttribute('aria-haspopup', 'menu');
+$('#wAsk').setAttribute('aria-label', 'Raise your hand');
+$('#wAsk').dataset.tip = 'Raise your hand';
+$('#wAsk').onclick = () => {
+  if (HAND.id) return handStatus(); // already waiting: show where things stand
+  if ($('#wAsk').getAttribute('aria-pressed') === 'true') { setAsk(false); return; }
+  handMenu($('#wHandMenu')?.hidden !== false);
+};
+function handBar(html, acts = []) {
+  let bar = $('#wHandBar');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'wHandBar'; bar.className = 'wv-handbar'; bar.setAttribute('role', 'status'); $('#wMsgs').before(bar); }
+  bar.hidden = !html;
+  if (!html) return;
+  bar.innerHTML = '<span class="wv-handbar-txt"></span><span class="wv-handbar-acts"></span>';
+  bar.querySelector('.wv-handbar-txt').textContent = html;
+  bar.querySelector('.wv-handbar-acts').append(...acts);
+}
+function handBtn(label, cls, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = label; b.onclick = fn; return b; }
+async function raiseHand(mode) {
+  try {
+    await ensureSession();
+    if (!sess?.named) { if (ACCT.user) await joinSigned(); else { ACCT.then = () => raiseHand(mode); return openSignIn(); } }
+    const r = await api('knock', { studio: code, dev: handDev(), name: sess.name, callin: mode === 'voice', note: mode === 'voice' ? 'Raised hand · voice' : 'Raised hand · camera' });
+    Object.assign(HAND, { id: r.id, tok: r.tok, mode, pass: '' });
+    $('#wAsk').classList.add('raised');
+    handStatus();
+    clearInterval(HAND.timer); HAND.timer = setInterval(handPoll, 2500);
+    toast(`Hand raised. ${W.info?.host?.name || 'The host'} sees it now.`);
+  } catch (e) { toast(e.message, true); }
+}
+function handStatus() {
+  if (HAND.pass) return handBar('You’re in! The host is bringing you on.', [handBtn('Join now', 'primary', handJoin), handBtn('Not now', 'ghost', handLower)]);
+  if (HAND.id) return handBar(`✋ Hand raised to join ${HAND.mode === 'voice' ? 'by voice' : 'on camera'}. Waiting for the host…`, [handBtn('Lower hand', 'ghost', handLower)]);
+  handBar('');
+}
+async function handPoll() {
+  if (!HAND.id) return clearInterval(HAND.timer);
+  try {
+    const st = await api('knockPoll', { studio: code, id: HAND.id, tok: HAND.tok });
+    if (st.status === 'admitted' && st.pass && !HAND.pass) {
+      HAND.pass = st.pass; clearInterval(HAND.timer); handStatus();
+      try { new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=').play().catch(() => {}); } catch {}
+      toast('You’re in! Tap Join now.');
+    } else if (st.status === 'declined') {
+      handReset(); toast('The host couldn’t take you right now. Try again later.');
+    }
+  } catch { handReset(); }
+}
+function handJoin() {
+  const as = HAND.mode === 'voice' ? 'voice' : 'camera';
+  window.open(`/c/${encodeURIComponent(code)}?pass=${encodeURIComponent(HAND.pass)}&as=${as}`, '_blank', 'noopener');
+  handReset();
+}
+async function handLower() {
+  if (HAND.id && !HAND.pass) api('knockCancel', { studio: code, id: HAND.id, tok: HAND.tok }).catch(() => {});
+  handReset();
+}
+function handReset() { clearInterval(HAND.timer); Object.assign(HAND, { id: '', tok: '', mode: '', pass: '' }); $('#wAsk').classList.remove('raised'); handStatus(); }
 
 const emoteSrc = (asset) => `/api/studio?action=wemote&studio=${encodeURIComponent(code)}&asset=${encodeURIComponent(asset)}`;
 const emoteData = new Map();

@@ -4942,7 +4942,12 @@ function renderLobby() {
     const s2 = document.createElement('span'); s2.textContent = (w.callin ? 'Calling in' : 'Wants to join') + (w.note ? ` · ${w.note}` : '');
     info.append(b, s2);
     const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn primary sm'; ok.textContent = 'Let in';
-    ok.onclick = () => wsSend({ type: 'admit', id: w.id, accept: true });
+    ok.onclick = () => {
+      wsSend({ type: 'admit', id: w.id, accept: true });
+      // A raised hand from the watch page goes on the show, not backstage.
+      if (/^Raised hand/.test(w.note || '')) (S.autoStage ||= new Map()).set(String(w.name || '').toLowerCase(), Date.now());
+    };
+    if (/^Raised hand/.test(w.note || '')) ok.textContent = 'Bring on';
     const no = document.createElement('button'); no.type = 'button'; no.className = 'btn ghost sm'; no.textContent = 'Decline';
     no.onclick = () => wsSend({ type: 'admit', id: w.id, accept: false });
     li.append(av, info, ok, no);
@@ -4952,6 +4957,17 @@ function renderLobby() {
 }
 async function refreshLobby() { if (!S.studio || !isHost()) return; try { S.lobby = (await api('lobbyList', creds())).lobby; renderLobby(); } catch {} }
 setInterval(() => { if (S.studio && isHost() && S.lobby?.length) refreshLobby(); }, 10000);
+// Raised hands the host let in go straight on stage as soon as they arrive (within 5 minutes of "Bring on").
+setInterval(() => {
+  if (!S.autoStage?.size || !isHost()) return;
+  for (const p of participants()) {
+    const t = S.autoStage.get(String(p.name || '').toLowerCase());
+    if (!t || p.me) continue;
+    S.autoStage.delete(String(p.name || '').toLowerCase());
+    if (Date.now() - t < 5 * 60_000 && !S.state.stage.includes(p.id)) { toggleStage(p.id); toast(`${p.name} is on the show.`); }
+  }
+  for (const [k, t] of S.autoStage) if (Date.now() - t > 5 * 60_000) S.autoStage.delete(k);
+}, 1500);
 // The public call-in line is gone: viewers raise a hand on the watch page and record a voice question instead.
 // The /c/ link stays only as the private way in for a "Play with me" player the host calls up.
 // Callers: knock and wait
@@ -5604,6 +5620,16 @@ applyAdaptiveAccent(S.state?.brand?.color);
 })();
 const linkCode = /^\/[sc]\//.test(location.pathname) ? parseCode(location.pathname.replace(/^\/c\//, '/s/')) : '';
 S.callin = typeof location?.pathname === 'string' && location.pathname.startsWith('/c/');
+// From the watch page's "Join now" (a raised hand the host let in): ?pass=… goes straight in, ?as=voice joins
+// with the camera off. The pass is taken out of the address so a reload or a shared link doesn't carry it.
+{
+  const q = new URLSearchParams(location.search), pass = q.get('pass');
+  if (linkCode && pass && /^[\w.-]{4,40}$/.test(pass)) {
+    (S.joinPass ||= {})[linkCode] = pass;
+    if (q.get('as') === 'voice') { S.local.camOn = false; }
+    history.replaceState(null, '', location.pathname);
+  }
+}
 if (linkCode) openEnter('join', linkCode);
 window.__gather = S; // handy for debugging in the console
 window.__acct = acct;

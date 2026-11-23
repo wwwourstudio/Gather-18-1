@@ -254,10 +254,6 @@
               <span>Party</span>
               <b class="wv-sc-cnt num" id="wCntParty" hidden></b>
             </button>
-            <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="about" aria-selected="false">
-              <span>About this show</span>
-              <b class="wv-sc-cnt num" id="wCntNotices" hidden>0</b>
-            </button>
             <button type="button" role="tab" class="wv-sc-tab" data-sc-tab="catchup" aria-selected="false">
               <span>Catch-up</span>
               <b class="wv-sc-cnt" id="wCntSpot" hidden>AI</b>
@@ -295,25 +291,6 @@
                   <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">Earn XP for priority play-with-me queue &amp; prediction stakes</small></div></div>
                   <div class="wv-pt-prog"><i id="wPtProg"></i></div>
                 </section>
-              </div>
-            </div>
-
-            <!-- Unified About this show: Description + Notices & Ads + What's Next + AI Spotlight -->
-            <div class="wv-sc-pane wv-about-v2" id="wPaneAbout" role="tabpanel" hidden>
-              <p class="wv-creator-about" id="wCreatorAbout"></p>
-              <div class="wv-about-grid">
-                <div class="wv-about-sec">
-                  <h4>Notices &amp; Links</h4>
-                  <div class="wv-notices-list" id="wNoticesList"></div>
-                </div>
-                <div class="wv-about-sec">
-                  <h4>What’s Next</h4>
-                  <div class="wv-next-box" id="wNextBox"></div>
-                </div>
-                <div class="wv-about-sec">
-                  <h4>AI Spotlight</h4>
-                  <div class="wv-spot-box" id="wSpotlightBox"></div>
-                </div>
               </div>
             </div>
 
@@ -547,36 +524,54 @@
   <!-- Slide-Over Show & Host Info Drawer (keeps desktop locked 100vh with zero page scroll) -->
   <div class="wv-drawer-wrap" id="wDrawerWrap" hidden>
     <div class="wv-drawer-back" id="wDrawerBack"></div>
-    <aside class="wv-drawer glass raised" id="wHostDrawer" role="dialog" aria-modal="true" aria-labelledby="wHostTitle">
+    <aside class="wv-drawer" id="wHostDrawer" role="dialog" aria-modal="true" aria-labelledby="wHostTitle">
       <header class="wv-drawer-head">
-        <span class="caps">Show &amp; Host</span>
+        <span class="wv-drawer-kicker">Show &amp; host</span>
         <button type="button" class="icon-btn sm" id="wDrawerClose" aria-label="Close show details"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
       </header>
       <div class="wv-drawer-body">
-        <section class="wv-host" id="wHost" aria-label="About the streamer">
-          <h2 class="wv-host-title" id="wHostTitle">Live show</h2>
+        <section class="wv-host wv-showcard" id="wHost" aria-label="About the streamer">
+          <div class="wv-showcard-cover" aria-hidden="true"></div>
           <div class="wv-host-top">
             <span class="wv-host-av" id="wHostAv" aria-hidden="true"></span>
-            <div class="wv-host-id">
-              <p class="wv-host-name"><b id="wHostName"></b><span class="wv-host-live" id="wHostLive" hidden>Live</span></p>
-              <p class="wv-host-sub"><span id="wHostHandle"></span><span id="wHostSubs"></span></p>
-            </div>
-            <button type="button" class="btn wv-subscribe" id="wSub" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg><span id="wSubText">Subscribe</span></button>
+            <span class="wv-host-live" id="wHostLive" hidden>Live</span>
           </div>
+          <h2 class="wv-host-title" id="wHostTitle">Live show</h2>
+          <div class="wv-host-id">
+            <p class="wv-host-name"><b id="wHostName"></b></p>
+            <p class="wv-host-sub"><span id="wHostHandle"></span><span id="wHostSubs"></span></p>
+          </div>
+          <p class="wv-host-meta num" id="wHostMeta"></p>
+          <button type="button" class="btn wv-subscribe" id="wSub" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg><span id="wSubText">Subscribe</span></button>
           <div class="wv-host-desc" id="wHostDesc">
-            <p class="wv-host-meta num" id="wHostMeta"></p>
             <p class="wv-host-about" id="wHostAbout"></p>
             <button type="button" class="wv-more" id="wHostMore" hidden>Show more</button>
             <ul class="wv-host-links" id="wHostLinks"></ul>
           </div>
-          <div class="wv-drawer-sec">
-            <span class="caps">Share show</span>
-            <div class="wv-share" role="group" aria-label="Share this show"><button type="button" class="wv-sh" data-share="x" aria-label="Share on X" data-tip="X"><svg aria-hidden="true"><use href="/brands.svg#b-x"/></svg></button><button type="button" class="wv-sh" data-share="facebook" aria-label="Share on Facebook" data-tip="Facebook"><svg aria-hidden="true"><use href="/brands.svg#b-facebook"/></svg></button><button type="button" class="wv-sh" data-share="linkedin" aria-label="Share on LinkedIn" data-tip="LinkedIn"><svg aria-hidden="true"><use href="/brands.svg#b-linkedin"/></svg></button><button type="button" class="wv-sh" data-share="reddit" aria-label="Share on Reddit" data-tip="Reddit"><svg aria-hidden="true"><use href="/brands.svg#b-reddit"/></svg></button><button type="button" class="wv-sh" data-share="whatsapp" aria-label="Share on WhatsApp" data-tip="WhatsApp"><svg aria-hidden="true"><use href="/brands.svg#b-whatsapp"/></svg></button><button type="button" class="wv-sh copy" id="wShare" aria-label="Copy this page’s link" data-tip="Copy link"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-link"/></svg></button></div>
-          </div>
-          <div class="wv-drawer-sec">
-            <span class="caps">Other places to watch</span>
-            <div class="wv-links" id="wLinks"></div>
-          </div>
+        </section>
+        <section class="wv-drawer-sec" aria-labelledby="wDrAboutH">
+          <h3 id="wDrAboutH">About this show</h3>
+          <p class="wv-creator-about" id="wCreatorAbout"></p>
+        </section>
+        <section class="wv-drawer-sec" aria-labelledby="wDrNoticesH">
+          <h3 id="wDrNoticesH">Notices &amp; links <b class="wv-sc-cnt num" id="wCntNotices" hidden>0</b></h3>
+          <div class="wv-notices-list" id="wNoticesList"></div>
+        </section>
+        <section class="wv-drawer-sec" aria-labelledby="wDrNextH">
+          <h3 id="wDrNextH">What’s next</h3>
+          <div class="wv-next-box" id="wNextBox"></div>
+        </section>
+        <section class="wv-drawer-sec" aria-labelledby="wDrSpotH">
+          <h3 id="wDrSpotH">AI spotlight</h3>
+          <div class="wv-spot-box" id="wSpotlightBox"></div>
+        </section>
+        <section class="wv-drawer-sec" aria-labelledby="wDrShareH">
+          <h3 id="wDrShareH">Share this show</h3>
+          <div class="wv-share" role="group" aria-label="Share this show"><button type="button" class="wv-sh" data-share="x" aria-label="Share on X" data-tip="X"><svg aria-hidden="true"><use href="/brands.svg#b-x"/></svg></button><button type="button" class="wv-sh" data-share="facebook" aria-label="Share on Facebook" data-tip="Facebook"><svg aria-hidden="true"><use href="/brands.svg#b-facebook"/></svg></button><button type="button" class="wv-sh" data-share="linkedin" aria-label="Share on LinkedIn" data-tip="LinkedIn"><svg aria-hidden="true"><use href="/brands.svg#b-linkedin"/></svg></button><button type="button" class="wv-sh" data-share="reddit" aria-label="Share on Reddit" data-tip="Reddit"><svg aria-hidden="true"><use href="/brands.svg#b-reddit"/></svg></button><button type="button" class="wv-sh" data-share="whatsapp" aria-label="Share on WhatsApp" data-tip="WhatsApp"><svg aria-hidden="true"><use href="/brands.svg#b-whatsapp"/></svg></button><button type="button" class="wv-sh copy" id="wShare" aria-label="Copy this page’s link" data-tip="Copy link"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-link"/></svg></button></div>
+        </section>
+        <section class="wv-drawer-sec" aria-labelledby="wDrLinksH">
+          <h3 id="wDrLinksH">Other places to watch</h3>
+          <div class="wv-links" id="wLinks"></div>
         </section>
       </div>
     </aside>
