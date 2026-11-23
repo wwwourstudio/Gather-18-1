@@ -178,20 +178,7 @@ function scoreMessageSentiment(text, meta = {}) {
   return Math.tanh(raw * 0.65);
 }
 
-const MOOD_ICONS = { idle: 'activity', hype: 'flame', warm: 'smile', steady: 'activity', mixed: 'meh', tense: 'frown' };
-
 function syncMoodUI(state, label, pct, metaText) {
-  const box = $('#wMoodBox');
-  if (box) box.dataset.mood = state;
-  if ($('#wMoodLabel')) $('#wMoodLabel').textContent = label;
-  if ($('#wMoodPct')) $('#wMoodPct').textContent = `${pct}%`;
-  if ($('#wMoodBar')) $('#wMoodBar').style.width = `${pct}%`;
-  $('#wMoodMeter')?.setAttribute('aria-valuenow', String(pct));
-  if ($('#wMoodMeta')) $('#wMoodMeta').textContent = metaText;
-  const iconHref = `/icons.svg#i-${MOOD_ICONS[state] || 'activity'}`;
-  $('#wMoodMiniIconUse')?.setAttribute('href', iconHref);
-  $('#wMoodBoxIconUse')?.setAttribute('href', iconHref);
-
   const shortLbl = state === 'idle' ? 'Calm' : label;
   const rm = $('#wRoomMeter');
   if (rm) rm.dataset.mood = state;
@@ -1229,7 +1216,6 @@ $('#wTabAbout').onclick = () => setTab('about');
 $('#wAboutShare').onclick = () => $('#wShare').click();
 $('#wStageAlertGo').onclick = () => setTab('stage');
 $('#wStageAlertX').onclick = () => { W.dismissedAlertKey = $('#wStageAlert').dataset.key || ''; $('#wStageAlert').hidden = true; syncRailStrip(); };
-if ($('#wMoodMiniBtn')) $('#wMoodMiniBtn').onclick = () => setTab('pulse');
 if ($('#wPinMiniBtn')) $('#wPinMiniBtn').onclick = () => setTab('pulse');
 if ($('#wHereMiniBtn')) $('#wHereMiniBtn').onclick = () => setTab('pulse');
 
@@ -2588,11 +2574,9 @@ $$('[data-sc-tab]').forEach((b) => b.addEventListener('click', () => setShowcase
 
 function renderShowcase(info) {
   const notices = Array.isArray(info.notices) ? info.notices : [];
-  const next = info.whatNext || info.next || null;
   const spot = info.aiSpotlight || null;
 
   if ($('#wCntNotices')) { $('#wCntNotices').hidden = !notices.length; $('#wCntNotices').textContent = String(notices.length); }
-  if ($('#wCntNext')) $('#wCntNext').hidden = !next;
   if ($('#wCntSpot')) $('#wCntSpot').hidden = !spot;
 
   const nBox = $('#wNoticesList');
@@ -3222,7 +3206,6 @@ $('#wHotSeatBtn')?.addEventListener('click', async () => {
     await ensureSession();
     const r = await api('whotseat', { ...creds() });
     toast(`Hot Seat claimed! Get ready — you have ${r.sec || 60}s on camera when the host pulls you in.`);
-    if ($('#wJoinBtn') && !$('#wJoinBtn').hidden) $('#wJoinBtn').click();
   } catch (e) {
     toast(e.message || 'Send a Hot Seat super chat to unlock the 60-second camera slot.');
   }

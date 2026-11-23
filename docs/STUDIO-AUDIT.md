@@ -39,7 +39,7 @@ This audit comes from going through every side panel and the stage itself, with 
 8. **AI keys are confusing.** There are four providers, each with its own key and model. Default to the house Gemini key, and tuck "Use my own key" under Advanced.
 9. **Many settings are only for the host, but you can't tell.** Co-hosts see controls they can't use. Hide them, or show a lock with "Ask the host".
 10. **The studio is hard to use on phones.** The rail and panel squeeze the stage. Switch to bottom tabs and a sheet-style panel below 720 px wide.
-11. **The code is too big.** `app.js` is now about 8,400 lines. Move panels, stage drawing, payments and the AI tools into their own modules; `panels.js` is the first step.
+11. ~~**The code is too big.**~~ Done: `app.js` and `watch.js` are split into feature modules (see PROGRESS.md, "Module split"). Stage drawing is still in `app.js` and is the next candidate.
 12. **Light mode.** Every panel still needs a pass in light mode. Several cards still use dark-only fills.
 
 ## 10 features to add

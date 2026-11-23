@@ -370,10 +370,6 @@
             </div>
             <span class="mood-pct num" id="chatMoodPct">50%</span>
           </div>
-          <button type="button" class="icon-btn sm host-only chat-mod-btn" id="chatModBtn" aria-expanded="false" aria-controls="chatModDrawer" aria-label="Moderation &amp; AI guard" data-tip="Moderators &amp; AI Auto-Mod">
-            <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg>
-            <span class="mod-dot" id="modPendingBadge" hidden>0</span>
-          </button>
           <button type="button" class="icon-btn sm host-only chat-opts-btn" id="chatOptsBtn" aria-haspopup="true" aria-expanded="false" aria-controls="chatOptsPop" aria-label="Chat options" data-tip="Chat options"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
           <div class="popover glass raised chat-opts-pop" id="chatOptsPop" popover="auto" role="dialog" aria-label="Live chat options">
             <div class="chat-opts-head"><b>Live chat options</b><span>Host controls</span></div>
@@ -396,44 +392,6 @@
           </div>
         </header>
         <div class="panel-body chat-body">
-          <section class="chat-mod-drawer host-only" id="chatModDrawer" hidden aria-label="Chat moderation &amp; AI guard">
-            <div class="cmdw-head">
-              <span class="cmdw-title"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-shield-check"/></svg><b>Moderation &amp; AI Guard</b></span>
-              <span class="cmdw-status" id="aiModStatusPill">AI Mod off</span>
-              <button type="button" class="icon-btn sm" id="chatModClose" aria-label="Close moderation drawer"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
-            </div>
-            <div class="cmdw-sec">
-              <label class="toggle-inline cmdw-toggle">
-                <span><b>AI Auto-Moderator</b><small>Warns spammers or heated chatters first, then times them out for your review.</small></span>
-                <input type="checkbox" class="toggle sm" id="aiModSwitch" role="switch">
-              </label>
-              <div class="cmdw-rules" id="aiModRules">
-                <label class="cmdw-rule"><span>Timeout</span>
-                  <select class="input sm" id="aiModTimeout">
-                    <option value="60">1 min</option>
-                    <option value="300" selected>5 min</option>
-                    <option value="900">15 min</option>
-                    <option value="3600">1 hour</option>
-                  </select>
-                </label>
-                <label class="cmdw-chk"><input type="checkbox" id="aiModCalm" checked><span>Calm hostility</span></label>
-                <label class="cmdw-chk"><input type="checkbox" id="aiModLinks"><span>Block links</span></label>
-              </div>
-            </div>
-            <div class="cmdw-sec" id="modPendingSec" hidden>
-              <div class="cmdw-sub"><b>Waiting for owner decision</b><span class="num" id="modPendingCount">0</span></div>
-              <ul class="mod-pending-list" id="modPendingList"></ul>
-            </div>
-            <div class="cmdw-sec">
-              <div class="cmdw-sub"><b>Chat moderators</b><span class="num" id="modListCount">0</span></div>
-              <ul class="mod-user-list" id="modList"></ul>
-              <p class="hint cmdw-empty" id="modListEmpty">No moderators yet. Click any chat message → Make mod, or add a username below.</p>
-              <form class="cmdw-add" id="modAddForm" autocomplete="off">
-                <input class="input sm" id="modAddInput" maxlength="40" placeholder="Add username as moderator…">
-                <button type="submit" class="btn sm primary" id="modAddBtn">Make mod</button>
-              </form>
-            </div>
-          </section>
           <section class="guest-brief" id="guestBriefBar" hidden aria-label="Guest-only brief"></section>
           <div class="feat-bar" id="featBar" hidden>
             <span class="feat-label">On stage</span>

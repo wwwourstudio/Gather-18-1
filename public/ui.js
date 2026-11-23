@@ -54,10 +54,6 @@ export function busy(el, on = true) {
   else { el.removeAttribute('aria-busy'); el.disabled = el.dataset.wasDisabled === '1'; delete el.dataset.wasDisabled; }
 }
 /** Run an async action with the control in its loading state. */
-export async function withBusy(el, fn) {
-  busy(el, true);
-  try { return await fn(); } finally { busy(el, false); }
-}
 
 // ------------------------------------------------------------------ Popover
 // Popovers use the native [popover] attribute: top layer (never clipped by a scrolling parent),

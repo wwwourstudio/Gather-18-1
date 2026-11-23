@@ -204,28 +204,6 @@ function themeCard(t) {
   return b;
 }
 
-export function syncThemeSelection(brand = {}) {
-  const col = String(brand.color || '').toLowerCase();
-  for (const c of $$('#brandThemes .bt-card')) {
-    const t = THEMES.find((x) => x.id === c.dataset.theme);
-    const match = !!t && !brand.bgImage
-      && col === t.color.toLowerCase()
-      && (brand.bg || 'dusk') === t.bg
-      && (brand.font || 'jakarta') === t.font
-      && (brand.tag || 'solid') === t.tag
-      && (brand.bannerStyle || 'classic') === t.bannerStyle
-      && (brand.anim || 'slide') === t.anim
-      && (brand.frame || 'none') === t.frame
-      && (brand.panel || 'glass') === t.panel;
-    c.classList.toggle('on', match);
-    c.setAttribute('aria-pressed', String(match));
-  }
-  for (const sw of $$('#btPal .bt-sw')) {
-    const match = (sw.dataset.color || '').toLowerCase() === col;
-    sw.classList.toggle('on', match);
-    sw.setAttribute('aria-pressed', String(match));
-  }
-}
 
 // ---------------------------------------------------------------- brand from your logo: pull its colours
 export async function paletteFrom(file) {
@@ -317,14 +295,6 @@ function wav(buf) {
   return out.buffer;
 }
 
-export function syncMoodState(trackName, playing) {
-  for (const b of $$('#moodGrid .mood')) {
-    const isThis = !!trackName && trackName === moodTrackName(b.dataset.mood);
-    b.classList.toggle('on', isThis && !!playing);
-    b.classList.toggle('paused', isThis && !playing);
-    b.setAttribute('aria-pressed', String(isThis && !!playing));
-  }
-}
 
 // ---------------------------------------------------------------- wiring
 export function initPanels(api) {
