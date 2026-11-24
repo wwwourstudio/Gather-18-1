@@ -1039,6 +1039,15 @@ function syncRailStrip() {
   }
 }
 
+// Touch screens have no hover: tap a message to show its reply / report / mute buttons; tap again to close.
+$('#wMsgs')?.addEventListener('click', (e) => {
+  if (!matchMedia('(hover: none)').matches || e.target.closest('button, a, input, audio, video')) return;
+  const li = e.target.closest('li.row'); if (!li) return;
+  const was = li.classList.contains('acts-open');
+  document.querySelectorAll('#wMsgs li.acts-open').forEach((x) => x.classList.remove('acts-open'));
+  li.classList.toggle('acts-open', !was);
+});
+
 function setTab(tab) {
   tab = tab === true ? 'about' : tab === false ? 'chat' : tab;
   W.tab = tab;

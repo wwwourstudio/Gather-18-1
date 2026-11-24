@@ -3243,6 +3243,14 @@ $('#rumbleForm').addEventListener('submit', (ev) => {
   toast(S.studio ? 'Rumble connected.' : 'Saved. Rumble chat connects when you enter a studio.');
 });
 $('#featHide').onclick = () => setStage({ featured: null });
+// Touch screens have no hover: tap a message to show its actions (put on stage, hide, time out, block); tap again to close.
+$('#msgs')?.addEventListener('click', (e) => {
+  if (!matchMedia('(hover: none)').matches || e.target.closest('button, a, input, audio, video')) return;
+  const li = e.target.closest('li.msg'); if (!li) return;
+  const was = li.classList.contains('acts-open');
+  document.querySelectorAll('#msgs li.acts-open').forEach((x) => x.classList.remove('acts-open'));
+  li.classList.toggle('acts-open', !was);
+});
 function renderFeedUI() {
   const host = isHost();
   $('#twitchInput').disabled = !host;

@@ -270,7 +270,7 @@ body.pre .top.glass {
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
 .mact { display: none; flex-wrap: wrap; gap: var(--sp-1); align-items: center; margin-top: 2px; }
 #msgs.is-host .msg:hover .mact, #msgs.is-host .msg:focus-within .mact { display: flex; }
-@media (hover: none) { #msgs.is-host .mact { display: flex; } }
+@media (hover: none) { #msgs.is-host .msg.acts-open .mact { display: flex; } } /* touch: tap a message to moderate it */
 .mact .mod-restore { display: none; }
 .msg.me .mact { justify-content: flex-end; }
 .msg.modded { display: none; }
@@ -5763,4 +5763,27 @@ body.pre .app > .dock { display: none !important; }
   body:not(.pre) .main > .side .chat-scope { display: inline-flex; gap: 4px; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
   body:not(.pre) .main > .side .chat-scope button { border: 1px solid var(--glass-border) !important; border-radius: 999px !important; background: none !important; box-shadow: none !important; color: var(--ink-3); }
   body:not(.pre) .main > .side .chat-scope button.on { border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important; background: color-mix(in srgb, var(--accent) 16%, transparent) !important; color: var(--ink); }
+}
+/* Phone chat rows: smaller avatars and quieter labels, a clear gap between messages, a plain input. */
+@media (max-width: 720px) {
+  body:not(.pre) #msgs { display: grid; gap: 4px; }
+  body:not(.pre) #msgs .msg.has-av { padding: 8px 6px; border-radius: 12px; }
+  body:not(.pre) #msgs .msg.has-av > .cav, body:not(.pre) #msgs .msg.has-av > .chat-av { width: 28px !important; height: 28px !important; font-size: 12px !important; }
+  body:not(.pre) #msgs .msg .who .pill.caps, body:not(.pre) #msgs .msg .msg-scope { height: 18px; padding: 0 6px; font-size: 9.5px; letter-spacing: .04em; border-radius: 6px; }
+  body:not(.pre) #msgs .msg .who time { font-size: 11px; color: var(--ink-3); }
+  body:not(.pre) #msgs .msg .txt { font-size: 14.5px; line-height: 1.45; margin-top: 2px; }
+  body:not(.pre) #msgs .msg.acts-open { background: var(--fill); }
+  body:not(.pre) #msgs .msg .mact { margin-top: 6px; gap: 6px; }
+  body:not(.pre) #msgs .msg .mact .pill { height: 28px; padding: 0 10px; font-size: 12px; }
+  body:not(.pre) .main > .side .composer-box textarea { border: 0 !important; background: transparent !important; box-shadow: none !important; outline: none !important; padding: 10px 4px !important; }
+}
+
+/* Touch screens: a message's actions appear only on the message you tapped (an older rule showed them on every one). */
+@media (hover: none) {
+  #msgs .msg:not(.acts-open) .mact { display: none !important; }
+  #msgs .msg.acts-open .mact { display: flex !important; position: static; opacity: 1; pointer-events: auto; }
+}
+@media (max-width: 720px) {
+  body:not(.pre) #msgs .msg.ai-msg.sam-note .txt { font-size: 13.5px; line-height: 1.45; }
+  body:not(.pre) #msgs .msg.ai-msg.sam-note .msg-tools .btn { height: 30px; font-size: 12.5px; }
 }

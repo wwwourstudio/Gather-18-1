@@ -540,3 +540,10 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - The video sits pinned under a slim header (no stats readout, no options bar on phones).
   - The chat fills exactly the rest of the screen, with the message box at the bottom.
   - The show card and party panel follow below, and the header and video stay pinned while scrolling. That pinning was already broken on phones: the body was its own scroll box. `overflow-x: clip` fixes it.
+
+## Phone polish: chat that reads cleanly (V15)
+- **Watch page chat fixed (desktop too).** The auction/giveaway box under the video and each message's reply/report/mute icons shared the class `wv-acts`. The box's grid rules stacked every message's icons vertically, about 290 px per message. The box's rules now apply to `#wActs` only.
+- **Touch screens.**
+  - A message's actions (studio: Show on stage, Hide, Time out, Block; watch page: reply, report, mute) appear only on the message you tap.
+  - An older rule showed them under every message.
+- **Phone chat.** Smaller avatars, quieter source and audience pills, a clear gap between messages, a plain message input, and more compact pinned welcome cards, Sam notes and starter chips.
