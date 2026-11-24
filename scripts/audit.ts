@@ -388,15 +388,15 @@ async function featureChecks(s: Session, browser: Browser, code: string): Promis
     await p.click('#aiProv [data-prov="claude"]');
     await p.fill('#aiKey', ''); await p.locator('#aiKey').dispatchEvent('change');
     // Asking Sam happens in the Chat panel's composer (Chat | Ask Sam switch).
-    await p.click('.rail-btn[data-tab="chat"]'); await p.click('[data-to="ai"]:visible');
-    await p.fill('#aiInput', 'Who won the 1966 World Cup?'); await p.click('#aiAsk'); await p.waitForTimeout(500);
+    await p.click('.rail-btn[data-tab="chat"]');
+    await p.fill('#chatInput', '@Sam Who won the 1966 World Cup?'); await p.press('#chatInput', 'Enter'); await p.waitForTimeout(500);
     const t = await lastToast(p);
     if (!/key/i.test(t)) add('Feature: AI chat', 'Asking with no key gives no clear “add your key” message', 'P1', 'Validate before sending and point at the key field.', W, t);
     else passes.push('AI chat: asking without a key explains what to do');
     await p.click('.rail-btn[data-tab="ai"]');
     await p.fill('#aiKey', 'sk-ant-audit-invalid'); await p.locator('#aiKey').dispatchEvent('change');
-    await p.click('.rail-btn[data-tab="chat"]'); await p.click('[data-to="ai"]:visible');
-    await p.fill('#aiInput', 'Who won the 1966 World Cup?'); await p.click('#aiAsk');
+    await p.click('.rail-btn[data-tab="chat"]');
+    await p.fill('#chatInput', '@Sam Who won the 1966 World Cup?'); await p.press('#chatInput', 'Enter');
     await p.waitForFunction(() => { const g = (window as unknown as GatherWindow).__gather; const it = g.ai.items[g.ai.items.length - 1]; return !!it && it.role === 'assistant' && it.done; }, null, { timeout: 25000 });
     const last = await p.evaluate(() => { const g = (window as unknown as GatherWindow).__gather; return g.ai.items[g.ai.items.length - 1]; });
     if (!last.error) add('Feature: AI chat', 'An invalid key did not produce an error state', 'P1', 'Surface provider auth errors as errors.', W, last.text.slice(0, 80));

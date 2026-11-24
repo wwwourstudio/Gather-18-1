@@ -5604,3 +5604,101 @@ body.pre .views-pill { display: none; }
   body:not(.pre) .main > .side, body.panel-closed:not(.pre) .main > .side { transition: none !important; }
   body:not(.pre):not(.panel-closed) .studio::after { animation: none; }
 }
+
+/* ================================================================ Studio dock (V12)
+   Three zones: the getting-started guide or status on the left, the controls centred, Leave on the right.
+   Each control is an icon tile with its word underneath; the tile carries the state (red when muted or
+   recording, accent when on), so you can read the studio at a glance. */
+.app > .dock { display: grid !important; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 16px; min-height: 76px; padding: 6px 18px !important; }
+.app > .dock > .dock-tools { grid-column: 2; grid-row: 1; gap: 6px; overflow: visible; }
+.app > .dock > .guide, .app > .dock > .dock-note { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; max-width: 100%; }
+.app > .dock > #leaveBtn { grid-column: 3; grid-row: 1; justify-self: end; }
+.dock .icon-btn.stacked {
+  --tile: var(--fill); --tile-ink: var(--ink); --tile-ring: transparent;
+  display: inline-flex; flex-direction: column; align-items: center; gap: 5px; min-width: 64px; min-height: 0; padding: 2px 4px !important;
+  background: none !important; border: 0; box-shadow: none !important; color: var(--ink-3);
+}
+.dock .icon-btn.stacked > .i, .dock .icon-btn.stacked > .swap {
+  box-sizing: border-box; display: grid; place-items: center; width: 44px; height: 40px; padding: 10px; border-radius: 13px;
+  background: var(--tile); color: var(--tile-ink); box-shadow: inset 0 0 0 1px var(--tile-ring);
+  transition: background-color .18s, color .18s, box-shadow .18s, transform .18s cubic-bezier(.3, 1.4, .5, 1);
+}
+.dock .icon-btn.stacked > .swap .i { width: 20px; height: 20px; }
+.dock .icon-btn.stacked > .i { width: 44px; height: 40px; }
+/* Sam: the spinning orb sits on a tile drawn behind it */
+.dock .ai-dock.icon-btn.stacked { position: relative; }
+.dock .ai-dock.icon-btn.stacked::before { content: ""; position: absolute; top: 2px; left: 50%; width: 44px; height: 40px; margin-left: -22px; border-radius: 13px; background: var(--tile); box-shadow: inset 0 0 0 1px var(--tile-ring); transition: background-color .18s; }
+.dock .ai-dock.icon-btn.stacked > .orb-i { position: relative; width: 22px; height: 22px; margin: 9px 0; }
+.dock #leaveBtn .wide-only { margin-left: 0; }
+.dock .icon-btn.stacked .caption { font: 600 11px/1 var(--font-ui); letter-spacing: -0.005em; color: var(--ink-3); transition: color .18s; white-space: nowrap; }
+.dock .icon-btn.stacked:hover { --tile: var(--fill-hover); }
+.dock .icon-btn.stacked:hover .caption { color: var(--ink); }
+.dock .icon-btn.stacked:hover > :first-child { transform: translateY(-2px); }
+.dock .icon-btn.stacked:active > :first-child { transform: scale(.92); transition-duration: .08s; }
+.dock .icon-btn.stacked:focus-visible { outline: none; }
+.dock .icon-btn.stacked:focus-visible > :first-child { box-shadow: 0 0 0 2px var(--accent); }
+/* states */
+.dock .icon-btn.stacked.mutes[aria-pressed="true"] { --tile: rgba(220, 38, 38, 0.16); --tile-ink: #f87171; --tile-ring: rgba(248, 113, 113, 0.35); color: var(--ink-3) !important; }
+.dock .icon-btn.stacked.mutes[aria-pressed="true"] .caption { color: #fca5a5; }
+.dock .icon-btn.stacked.mutes[aria-pressed="true"]:hover { --tile: rgba(220, 38, 38, 0.26); }
+.dock .icon-btn.stacked.active, .dock .icon-btn.stacked[aria-expanded="true"] { --tile: color-mix(in srgb, var(--accent) 22%, transparent); --tile-ink: var(--accent-text); --tile-ring: color-mix(in srgb, var(--accent) 45%, transparent); background: none !important; }
+.dock .icon-btn.stacked.hand-tool.active { --tile: color-mix(in srgb, var(--warn) 20%, transparent); --tile-ink: var(--warn); --tile-ring: color-mix(in srgb, var(--warn) 45%, transparent); }
+.dock .rec-tool.icon-btn.stacked { --tile-ink: #f87171; }
+.dock .rec-tool.recording.icon-btn.stacked { --tile: var(--live); --tile-ink: #fff; --tile-ring: transparent; color: var(--ink-3) !important; }
+.dock .rec-tool.recording.icon-btn.stacked > .i { animation: rec-tile 1.6s ease-in-out infinite; }
+.dock .rec-tool.recording .caption { color: #fca5a5; font-variant-numeric: tabular-nums; }
+@keyframes rec-tile { 50% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.18); } }
+.dock .dock-sep { height: 30px; margin: 0 4px 16px; background: var(--glass-border); }
+/* Leave */
+.dock #leaveBtn.btn.danger { height: 38px; padding: 0 16px 0 13px; gap: 0; border-radius: 999px; font: 700 13px/1 var(--font-ui);
+  --btn-bg: rgba(220, 38, 38, 0.12); border: 1px solid rgba(248, 113, 113, 0.32); color: #f87171; transition: background-color .18s, color .18s, transform .12s; }
+.dock #leaveBtn.btn.danger:hover { --btn-bg: #dc2626; background: #dc2626; color: #fff; border-color: #dc2626; }
+.dock #leaveBtn.btn.danger:active { transform: scale(.96); }
+.dock #leaveBtn > .i { margin-right: 8px; }
+/* the guide on the left reads as a quiet card */
+.app > .dock > .guide { gap: 10px; }
+@media (prefers-reduced-motion: reduce) { .dock .icon-btn.stacked > :first-child, .dock .rec-tool.recording.icon-btn.stacked > .i { transition: none; animation: none; } }
+
+/* Phone: the same tiles, smaller; Leave is a red round button. */
+@media (max-width: 720px) {
+  body:not(.pre) .app > .dock { grid-template-columns: minmax(0, 1fr) auto; min-height: 0; padding: 4px 8px !important; column-gap: 6px; }
+  body:not(.pre) .app > .dock > .dock-tools { grid-column: 1; justify-content: space-between; gap: 0; width: 100%; }
+  body:not(.pre) .app > .dock > #leaveBtn { grid-column: 2; }
+  body:not(.pre) .app > .dock > .dock-note { display: none !important; }
+  body:not(.pre) .app > .dock .icon-btn.stacked { min-width: 52px; min-height: 0; gap: 3px; padding: 2px 0 !important; }
+  body:not(.pre) .app > .dock .icon-btn.stacked > .i, body:not(.pre) .app > .dock .icon-btn.stacked > .swap { width: 40px; height: 34px; padding: 8px; border-radius: 11px; }
+  body:not(.pre) .dock .ai-dock.icon-btn.stacked::before { width: 40px; height: 34px; margin-left: -20px; border-radius: 11px; }
+  body:not(.pre) .dock .ai-dock.icon-btn.stacked > .orb-i { width: 20px; height: 20px; margin: 7px 0; }
+  body:not(.pre) .app > .dock .icon-btn.stacked > .swap .i { width: 18px; height: 18px; }
+  body:not(.pre) .app > .dock .icon-btn.stacked .caption { font-size: 10px; }
+  body:not(.pre) .app > .dock .dock-sep { display: none; }
+  body:not(.pre) .dock #leaveBtn.btn.danger { width: 40px; height: 40px; min-height: 40px; min-width: 40px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  body:not(.pre) .dock #leaveBtn .wide-only { display: none; }
+}
+
+/* ================================================================ Sam in the studio chat
+   One conversation: starter prompts above the composer, the Sam orb inside it, and Sam's notes in the feed. */
+.sam-starters { display: flex; gap: 6px; margin: 0 var(--sp-3) 6px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+.sam-starters::-webkit-scrollbar { display: none; }
+.sam-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--glass-border)); background: color-mix(in srgb, var(--accent) 9%, var(--fill));
+  color: var(--ink-2); font: 600 12px/1 var(--font-ui); cursor: pointer; white-space: nowrap;
+  transition: background-color .16s, color .16s, border-color .16s, transform .12s; animation: sam-chip-in .4s cubic-bezier(.2, .9, .3, 1.2) both; }
+.sam-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: conic-gradient(from 0deg, #60a5fa, var(--accent), #1d4ed8, #60a5fa); }
+.sam-chip:hover { color: var(--ink); background: color-mix(in srgb, var(--accent) 18%, var(--fill)); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.sam-chip:active { transform: scale(.95); }
+.sam-chip:nth-child(2) { animation-delay: .04s; } .sam-chip:nth-child(3) { animation-delay: .08s; } .sam-chip:nth-child(4) { animation-delay: .12s; }
+.sam-chip:nth-child(5) { animation-delay: .16s; } .sam-chip:nth-child(6) { animation-delay: .2s; } .sam-chip:nth-child(7) { animation-delay: .24s; }
+@keyframes sam-chip-in { from { opacity: 0; transform: translateY(6px) scale(.96); } }
+.composer-box .sam-btn { flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; transition: transform .15s, background-color .15s; }
+.composer-box .sam-btn:hover { background: var(--fill-hover); transform: scale(1.06); }
+.composer-box .sam-btn:active { transform: scale(.92); }
+.composer-box .sam-btn .orb { width: 18px; height: 18px; }
+/* Sam's own notes: a quiet accent card with action buttons */
+#msgs .msg.ai-msg.sam-note { border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 12px; padding: 8px 10px; margin: 4px 0;
+  animation: sam-note-in .45s cubic-bezier(.2, .9, .3, 1.15) both; }
+#msgs .msg.ai-msg.sam-note .who span { color: var(--accent-text); }
+#msgs .msg.ai-msg.sam-note .msg-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+@keyframes sam-note-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .sam-chip, #msgs .msg.ai-msg.sam-note { animation: none; } }

@@ -388,21 +388,7 @@
           <ol class="sk-stack" id="chatSk" aria-hidden="true"><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:38%"></span><span class="sk sk-line sm" style="--w:82%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:30%"></span><span class="sk sk-line sm" style="--w:64%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:44%"></span><span class="sk sk-line sm" style="--w:90%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:26%"></span><span class="sk sk-line sm" style="--w:52%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:36%"></span><span class="sk sk-line sm" style="--w:74%"></span></li><li class="sk-row" aria-hidden="true"><span class="sk sk-circle"></span><span class="sk sk-line" style="--w:32%"></span><span class="sk sk-line sm" style="--w:60%"></span></li></ol>
           <ol class="msgs" id="msgs" aria-live="polite"></ol>
         </div>
-        <div class="chat-tools host-only">
-        <div class="chat-to host-only" id="chatTo" role="radiogroup" aria-label="Send to">
-          <button type="button" role="radio" data-to="chat" class="on" aria-checked="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg>Chat</button>
-          <button type="button" role="radio" data-to="ai" aria-checked="false"><i class="orb" aria-hidden="true"></i><span id="chatToAi">Ask Sam</span></button>
-        </div>
-        <div class="ai-empty host-only" id="aiEmpty" hidden>
-          <div class="ai-sugg" id="aiSugg">
-            <button type="button" class="chip" data-q="Fact-check: ">Fact-check</button>
-            <button type="button" class="chip" data-q="Switch to Solo">Switch to Solo</button>
-            <button type="button" class="chip" data-q="Show a banner: Q&amp;A time">Show a banner</button>
-            <button type="button" class="chip" data-q="Start a 5 minute countdown">5-min countdown</button>
-            <button type="button" class="chip" data-q="Find a video of ">Find a video</button>
-          </div>
-        </div>
-        </div>
+        <div class="sam-starters host-only" id="samStarters" role="group" aria-label="Ask Sam"></div>
         <form class="composer" id="chatForm" autocomplete="off">
           <div class="chat-composer-top" id="chatComposerTop" hidden>
             <div class="seg sm chat-scope host-only" id="chatScopeSeg" role="radiogroup" aria-label="Message audience">
@@ -414,6 +400,7 @@
           <div class="composer-box">
             <button type="button" class="icon-btn sm comp-file" id="chatFileBtn" aria-label="Attach a file for the studio" data-tip="Attach studio file"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-paperclip"/></svg></button>
             <input type="file" id="chatFileInput" accept="image/*,application/pdf,.txt,.csv,.json,.zip,audio/*" hidden>
+            <button type="button" class="sam-btn host-only" id="samBtn" aria-label="Ask Sam" data-tip="Ask Sam"><i class="orb" aria-hidden="true"></i></button>
             <textarea id="chatInput" rows="1" maxlength="1000" placeholder="Message the studio" aria-label="Message everyone in the studio"></textarea>
             <button class="send-btn" id="chatSend" aria-label="Send message"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-arrow-up"/></svg></button>
           </div>
@@ -443,6 +430,7 @@
             <div class="fld"><span>Voice</span><div class="seg block" id="aiVoiceSeg"><button type="button" data-voice="browser">Me</button><button type="button" data-voice="openai">Stream</button><button type="button" data-voice="off">Off</button></div></div>
             <div class="row2" id="aiVoiceNameRow" hidden><label class="fld"><span>Stream voice</span><select id="aiVoiceName"><option value="alloy">Alloy</option><option value="ash">Ash</option><option value="ballad">Ballad</option><option value="coral">Coral</option><option value="echo">Echo</option><option value="fable">Fable</option><option value="nova">Nova</option><option value="onyx">Onyx</option><option value="sage">Sage</option><option value="shimmer">Shimmer</option></select></label></div>
             <div class="row" id="aiVoiceTestRow"><button type="button" class="btn sm" id="aiVoiceTest">Test voice</button><p class="hint" id="aiVoiceNote" style="margin:0"></p></div>
+            <label class="toggle-row"><span><b>Notes in the chat</b><small>Sam flags viewer questions and suggests a next step as the show goes.</small></span><input type="checkbox" class="toggle" id="samNotes" role="switch" checked></label>
             <label class="toggle-row"><span><b>Wake word</b><small id="aiWakeHint">Say “Hey Sam, …” and it acts. Chrome or Edge.</small></span><input type="checkbox" class="toggle" id="aiWake" role="switch"></label>
             <button type="button" class="btn primary block" id="aiSetupDone">Talk to your AI in the chat</button>
             <details class="psec" data-sec="ai-advanced"><summary><b>Advanced · Use my own key</b><span class="hint">optional</span></summary><div class="psec-body form">
@@ -1037,7 +1025,7 @@
     <p class="dock-note" id="dockNote" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-activity"/></svg><span id="dockNoteText"></span>
       <span class="note-invite host-only" id="noteInvite" hidden><button type="button" class="btn sm ghost" id="noteLink" data-tip="Copy the invite link"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-link"/></svg>Copy link</button><button type="button" class="btn sm ghost note-code" id="noteCode" data-tip="Copy the studio code"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-copy"/></svg><span id="noteCodeText"></span></button></span>
     </p>
-    <button class="btn danger" id="leaveBtn" disabled aria-label="Leave studio">Leave<span class="wide-only">&nbsp;studio</span></button>
+    <button class="btn danger" id="leaveBtn" disabled aria-label="Leave studio"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-log-out"/></svg>Leave<span class="wide-only">&nbsp;studio</span></button>
   </footer>
 </div>
 

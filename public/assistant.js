@@ -5,7 +5,7 @@ import { cssEsc } from './ui.js';
 export function createAssistant(app) {
   const {
     $, $$, store, S, isHost, toast, wsSend, setStage, stageElements, withDefaults, AI_NAME, plainMd,
-    elementsCopy, freeSpot, patchEl, autoGrow, appendLog, setTab, offerOpen, askProducer
+    elementsCopy, freeSpot, patchEl, autoGrow, appendLog, setTab, offerOpen, askProducer, noteActions
   } = app;
   // ---------------------------------------------------------------- AI: one assistant that answers and runs the studio
   // The host's own Claude, ChatGPT, Gemini or Grok key. Answers stream into the AI panel; any answer can be put on
@@ -60,12 +60,18 @@ export function createAssistant(app) {
     const who = document.createElement('div'); who.className = 'who';
     const orb = document.createElement('i'); orb.className = 'orb'; orb.setAttribute('aria-hidden', 'true');
     const nm = document.createElement('b'); nm.textContent = S.aiName;
-    const via = document.createElement('span'); via.textContent = AI_NAME[it.provider] ? 'AI · ' + AI_NAME[it.provider] : 'AI';
+    const via = document.createElement('span'); via.textContent = it.note ? 'Producer note' : AI_NAME[it.provider] ? 'AI · ' + AI_NAME[it.provider] : 'AI';
+    if (it.note) li.classList.add('sam-note');
     who.append(orb, nm, via);
     const txt = document.createElement('div'); txt.className = 'txt'; txt.textContent = plainMd(it.text || '') || (it.done ? '' : ' ');
     if (!it.done) txt.classList.add('streaming');
     li.append(who, txt);
     if (it.actions?.length) { const ul = document.createElement('ul'); ul.className = 'act-chips'; ul.append(...it.actions.map(actChip)); li.append(ul); }
+    if (it.note) {
+      const acts = noteActions?.(it.id) || [];
+      if (acts.length) { const row = document.createElement('div'); row.className = 'msg-tools'; row.append(...acts); li.append(row); }
+      return li;
+    }
     if (host && it.done && !it.error && it.text) {
       const row = document.createElement('div'); row.className = 'msg-tools';
       const on = shown?.id === it.id;
@@ -132,10 +138,10 @@ export function createAssistant(app) {
     $('#aiInput').disabled = !host; $('#aiAsk').disabled = !host || S.ai.busy;
     if (S.ai.busy) $('#aiAsk').setAttribute('aria-busy', 'true'); else $('#aiAsk').removeAttribute('aria-busy');
     $('#aiHostNote').hidden = host;
-    $('#chatToAi').textContent = 'Ask ' + S.aiName; $('#chatFilterAi').textContent = S.aiName;
+    $('#chatFilterAi').textContent = S.aiName;
+    $('#samBtn')?.setAttribute('aria-label', 'Ask ' + S.aiName); $('#samBtn')?.setAttribute('data-tip', 'Ask ' + S.aiName);
     $('#aiInput').placeholder = `Ask ${S.aiName} or tell it what to do…`;
     $('#chatHint').textContent = host ? `Studio only · @${S.aiName} asks your AI` : 'Only people in the studio see this';
-    if (!host && S.chatTo === 'ai') setChatTo('chat', false);
     renderAILog();
   }
   // The AI tab is its settings; talking to it happens in the live chat.
@@ -144,17 +150,9 @@ export function createAssistant(app) {
     if (focus) { setTab('ai'); (store.get('aiKey:' + S.aiProv, '') ? $('#aiName') : $('#aiKey')).focus(); }
   }
   $('#aiSetupBtn').onclick = () => setTab('ai');
-  $('#aiSetupDone').onclick = () => { setTab('chat'); setChatTo('ai'); };
-  /** Who the composer sends to: the studio chat or your AI. */
-  function setChatTo(to, focus = true) {
-    if (to === 'ai' && !isHost()) to = 'chat';
-    S.chatTo = to;
-    $$('#chatTo [data-to]').forEach((b) => { const on = b.dataset.to === to; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
-    $('#chatForm').hidden = to === 'ai'; $('#aiForm').hidden = to !== 'ai'; $('#aiEmpty').hidden = to !== 'ai';
-    document.querySelector('[data-panel="chat"]').classList.toggle('to-ai', to === 'ai');
-    if (focus) (to === 'ai' ? $('#aiInput') : $('#chatInput')).focus();
-  }
-  $$('#chatTo [data-to]').forEach((b) => b.addEventListener('click', () => setChatTo(b.dataset.to)));
+  $('#aiSetupDone').onclick = () => { setTab('chat'); const t = $('#chatInput'); t.value = '@' + (S.aiName || 'Sam') + ' '; t.focus(); };
+  const notesSw = $('#samNotes');
+  if (notesSw) { notesSw.checked = store.get('samNotes', true); notesSw.onchange = () => store.set('samNotes', notesSw.checked); }
   // Filters: everything, or just viewers, questions, super chats or the AI.
   $$('#chatFilter [data-f]').forEach((b) => b.addEventListener('click', () => {
     $$('#chatFilter [data-f]').forEach((x) => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-selected', on); });
@@ -165,7 +163,6 @@ export function createAssistant(app) {
   $('#aiKey').addEventListener('change', (e) => { store.set('aiKey:' + S.aiProv, e.target.value.trim()); toast(e.target.value.trim() ? `${AI_NAME[S.aiProv]} key saved in this browser.` : 'Key removed.'); renderAIPanel(); });
   $('#aiModel').addEventListener('change', (e) => store.set('aiModel:' + S.aiProv, e.target.value.trim()));
   $('#aiClear').onclick = () => { S.ai.items = []; renderAILog(); if (S.studio && isHost()) wsSend({ type: 'ai', item: { id: 'clear', role: 'system', text: '', done: true } }); };
-  $$('#aiSugg .chip').forEach((b) => b.addEventListener('click', () => { const t = $('#aiInput'); t.value = b.dataset.q; autoGrow(t); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }));
   $('#aiForm').addEventListener('submit', (ev) => { ev.preventDefault(); const t = $('#aiInput'); const v = t.value; t.value = ''; autoGrow(t); askProducer(v); });
 
   return { upsertAI, stageAnswer, actChip, renderAILog, renderAIPanel, setAiSetup };

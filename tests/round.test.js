@@ -32,7 +32,7 @@ const SP = process.argv[2];
   await a.evaluate(() => localStorage.setItem('gather:aiVoice', '"off"'));
   await a.click('[data-tab="ai"]');
   await a.evaluate(() => { document.querySelector('details[data-sec="ai-advanced"]').open = true; }); await a.fill('#aiKey', 'sk-ant-test-key-for-ui'); await a.press('#aiKey', 'Tab'); await a.click('#aiSetupDone');
-  await a.fill('#aiInput', 'Who won the 1966 World Cup final and what was the score?'); await a.press('#aiInput', 'Enter');
+  await a.fill('#chatInput', '@Sam Who won the 1966 World Cup final and what was the score?'); await a.press('#chatInput', 'Enter');
   await b.waitForFunction(() => window.__gather.ai.items.some(i => i.role === 'assistant' && i.done && i.text.includes('Hurst')), null, { timeout: 8000 });
   const scene0 = await b.evaluate(() => window.__gather.state.scene);
   await a.click('.ai-msg.assistant [data-stage]');
