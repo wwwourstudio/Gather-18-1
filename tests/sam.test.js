@@ -52,6 +52,16 @@ const signUp = async (page, name) => {
     global.fetch = realFetch;
     check('with a key, Sam answers from the show’s facts (system prompt carries them)', /building in public/i.test(text) && /Building in public/.test(seen.body.messages[0].content) && /Alex Host/.test(seen.body.messages[0].content), text);
 
+    // @Sam recap: the last 10 minutes and an instruction to sum them up.
+    const ai = require(path.join(__dirname, '../lib/ai.js'));
+    check('recap questions are recognised', ['@Sam recap', 'what did I miss?', 'catch me up', 'can you sum it up'].every(ai.isRecap) && !ai.isRecap('what is this show?'));
+    global.fetch = async (url, opts) => { seen = { url, body: JSON.parse(opts.body) }; return { ok: true, json: async () => ({ choices: [{ message: { content: 'They talked about the launch, then took questions.' } }] }) }; };
+    const caps = Array.from({ length: 30 }, (_, i) => `caption line ${i}`);
+    await ai.viewerAnswer({ question: 'what did I miss?', ctx: { title: 'Launch day', host: 'Alex Host', recap: true, captions: caps, chat: ['Jordan (super chat $5): congrats!'] } });
+    global.fetch = realFetch;
+    const sys = seen.body.messages[0].content;
+    check('a recap prompt asks for a summary of the last 10 minutes, with all of it', /asked for a recap/.test(sys) && /caption line 29/.test(sys) && /super chat \$5/.test(sys) && seen.body.max_tokens === 450, sys.slice(-300));
+
     check('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   } catch (e) { check('suite ran', false, e.stack || e.message); }
   await browser.close();

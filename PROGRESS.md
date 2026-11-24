@@ -465,3 +465,10 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - The host and moderators, with Host / Mod tags.
   - The feed carries moderators' names only, never their platform user ids.
 - **Tests.** `auction` checks the Live tab card. `watch` checks the moderators in the feed.
+
+## R3: @Sam recap
+- "@Sam recap", "What did I miss?" (the chip in the watch chat), "catch me up" and "sum it up" switch Sam into recap mode.
+- Sam gets the last 10 minutes of captions (up to 50 lines) and chat (up to 40 messages, super chats marked).
+- It answers in two to four sentences, ending with what's happening now. With nothing recorded, it says so and gives what the show is about and what's next.
+- Recaps get a slightly longer answer allowance.
+- **Tests.** `sam` checks recap detection and that the prompt carries the whole window.
