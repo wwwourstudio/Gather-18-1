@@ -2660,3 +2660,36 @@ html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer
 #wMsgs li.row.song { background: linear-gradient(90deg, rgba(168, 85, 247, 0.18), rgba(168, 85, 247, 0.04)); box-shadow: inset 3px 0 0 #a855f7; }
 @keyframes wv-hl-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { #wMsgs li.row.hl { animation: none; } }
+
+/* ================================================================ Phones (≤720px): video on top, chat fills the rest
+   The page opens as one screen: a slim header, the video edge to edge and pinned under it, then the chat filling
+   exactly what's left with the message box at the bottom. The show card and party panel follow for anyone who
+   scrolls, and the video stays pinned while they do. */
+@media (max-width: 720px) {
+  .wv { grid-template-rows: 48px 0 auto auto auto auto; }
+  .wv-opts { display: none !important; }
+  .wv-hud-wrap { display: none !important; }
+  .wv-top { padding: 0 6px 0 12px; }
+  .wv-title { min-width: 0; flex: 1 1 auto; }
+  .wv-title h1 { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wv-stagebox { position: sticky; top: 48px; padding: 0 !important; max-height: none; aspect-ratio: 16 / 9; z-index: 19; }
+  .wv-player { max-height: none; border-radius: 0 !important; box-shadow: none !important; }
+  .wv-chat {
+    height: calc(100dvh - 48px - 56.25vw); min-height: 300px; max-height: none;
+    grid-template-rows: 44px auto minmax(0, 1fr) auto; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .wv-chat-head { padding: 0 4px 0 8px; }
+  .wv-tabs button { padding: 0 12px; font-size: 13.5px; font-weight: 600; }
+  .wv-lang-sel { height: 30px; font-size: 12px; max-width: 96px; }
+  .wv-rail-strip { min-height: 28px; padding: 2px 10px; }
+  .wv-msgs { padding: 6px 10px; }
+  .wv-compose { padding: 6px 10px max(10px, env(safe-area-inset-bottom, 0px)); box-shadow: 0 -10px 24px -18px rgba(0, 0, 0, 0.8); }
+  .wv-below { padding: 14px 12px 24px; }
+  .wv.nofeed .wv-stagebox { top: 0; }
+}
+@media (max-width: 900px) {
+  /* clip, not hidden/auto: no sideways scroll, and the body doesn't become its own scroll box, so the header and the
+     video can stay pinned while the page scrolls */
+  html { overflow-x: clip; overflow-y: visible; }
+  body { overflow: visible; overflow-x: clip; }
+}

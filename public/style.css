@@ -5714,3 +5714,53 @@ body.pre .app > .dock { display: none !important; }
   body.deck-closed:not(.pre) #deck { padding-bottom: 2px !important; }
   body:not(.pre) .main > .side .chat-composer-top { margin-bottom: 2px; }
 }
+
+/* ================================================================ Phone studio, calm (V14)
+   The live chat is the most important thing after the picture, so everything else gets out of its way: icon-only
+   controls in one slim row, a slim folded scenes row, short tabs, no filter row or starter chips (Sam is the orb in
+   the message box), a small audience switch, and quieter messages. */
+@media (max-width: 720px) {
+  /* video: icon-only clip buttons */
+  body:not(.pre) .stage-clip-btn { width: 32px; height: 32px; padding: 0 !important; justify-content: center; border-radius: 50%; }
+  body:not(.pre) .stage-clip-btn > span, body:not(.pre) .stage-clip-btn > b { display: none !important; }
+  /* controls: icons only, one slim row */
+  body:not(.pre) .studio > .dock { padding: 6px 12px !important; border-bottom: 1px solid var(--glass-border) !important; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked .caption { display: none !important; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked { min-width: 44px; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked > .i, body:not(.pre) .studio > .dock .icon-btn.stacked > .swap { width: 42px; height: 36px; border-radius: 12px; }
+  body:not(.pre) .studio > .dock .ai-dock.icon-btn.stacked::before { width: 42px; height: 36px; margin-left: -21px; top: 0; }
+  body:not(.pre) .studio > .dock .ai-dock.icon-btn.stacked > .orb-i { margin: 8px 0; }
+  body:not(.pre) .dock #leaveBtn.btn.danger { width: 36px; height: 36px; min-height: 36px; min-width: 36px; }
+  /* scenes: a slim row */
+  body:not(.pre) #deck { padding: 2px 12px 4px !important; border-top: 0 !important; }
+  body:not(.pre) #deck .deck-tabs.seg > button { height: 30px; padding: 0 8px; font-size: 12px; }
+  body:not(.pre) #deck .deck-tabs.seg > button.on::after { left: 8px; right: 8px; }
+  body:not(.pre) #deck .deck-toggle { top: 0; }
+  /* tabs */
+  body:not(.pre) .main > .rail { height: 40px !important; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked .caption { font-size: 12.5px; }
+  /* chat: messages first */
+  body:not(.pre) [data-panel="chat"] .chat-head { display: none !important; }
+  body:not(.pre) .sam-starters { display: none !important; }
+  body:not(.pre) [data-panel="chat"] .chat-body { padding: 8px 12px 4px !important; }
+  body:not(.pre) #msgs .msg { padding: 6px 8px; margin: 0 0 4px; font-size: 14px; line-height: 1.4; }
+  body:not(.pre) #msgs .msg .who { font-size: 12px; gap: 6px; }
+  body:not(.pre) #msgs .msg.ai-msg.sam-note { padding: 8px 10px; }
+  body:not(.pre) #msgs .msg.ai-msg .txt, body:not(.pre) #msgs .msg.ai-msg .bubble { padding: 0; border: 0; background: none; font-size: 13.5px; }
+  body:not(.pre) .chat-empty { padding: 16px 8px; font-size: 13px; }
+  /* message box: a small audience switch above one input row */
+  body:not(.pre) .main > .side .composer { padding: 4px 10px max(8px, env(safe-area-inset-bottom, 0px)) !important; border-top: 1px solid var(--glass-border); gap: 4px; }
+  body:not(.pre) .main > .side .chat-scope { padding: 2px; }
+  body:not(.pre) .main > .side .chat-scope button { height: 24px; padding: 0 8px; font-size: 11px; gap: 4px; }
+  body:not(.pre) .main > .side .chat-scope button .i { width: 12px; height: 12px; }
+  body:not(.pre) .main > .side .composer-box { min-height: 44px; padding: 4px 4px 4px 6px; }
+  /* the notification bar, smaller */
+  body:not(.pre) .app > .toasts .toast { min-height: 32px; padding: 4px 40px 4px 12px; font-size: 12.5px; }
+}
+@media (max-width: 720px) {
+  body.deck-closed:not(.pre) #deck { row-gap: 0 !important; gap: 0 !important; padding-bottom: 0 !important; }
+  body.deck-closed:not(.pre) #deck > :not(.deck-head) { margin: 0 !important; }
+  body:not(.pre) .main > .side .chat-scope { display: inline-flex; gap: 4px; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
+  body:not(.pre) .main > .side .chat-scope button { border: 1px solid var(--glass-border) !important; border-radius: 999px !important; background: none !important; box-shadow: none !important; color: var(--ink-3); }
+  body:not(.pre) .main > .side .chat-scope button.on { border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important; background: color-mix(in srgb, var(--accent) 16%, transparent) !important; color: var(--ink); }
+}

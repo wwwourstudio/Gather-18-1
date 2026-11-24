@@ -529,3 +529,14 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
 - Scenes and guests remember their folded state separately on phones (`deckClosedPhone`).
 - **Bug fixed (phones and desktop).** Folding the strip turned the stage black. The camera previews in the strip used the `autoplay` attribute, and browsers pause muted autoplay videos out of view. They now start from code and are kept running, and the folded strip collapses to zero height instead of `display: none`.
 - **Tests.** `feat` gives every guest-sync wait 10 s; it passed alone and failed only under full-suite load.
+
+## Phones: calm studio, chat-first watch page (V14)
+- **Studio.**
+  - Icon-only controls in one slim row, Mark clip and Replay as round icons on the video, a slim folded scenes row and short tabs.
+  - No filter row or Sam starter chips on phones; Sam is the orb in the message box.
+  - A small Guests only / Every chat switch and quieter messages.
+  - The chat gets about 330 px instead of about 190.
+- **Watch page.**
+  - The video sits pinned under a slim header (no stats readout, no options bar on phones).
+  - The chat fills exactly the rest of the screen, with the message box at the bottom.
+  - The show card and party panel follow below, and the header and video stay pinned while scrolling. That pinning was already broken on phones: the body was its own scroll box. `overflow-x: clip` fixes it.

@@ -68,7 +68,7 @@ export function createSamChat(app) {
   // ---------------------------------------------------------------- moments Sam speaks up
   function onJoin() {
     if (!isHost()) return;
-    setTimeout(() => note(`Hi ${hostName()}, I'm ${name()}, your producer. I'll drop tips here as the show goes. Ask me anything with @${name()}, or tap a starter below the chat.`,
+    setTimeout(() => note(`Hi ${hostName()}, I'm ${name()}, your producer. I'll drop tips here as the show goes. Ask me anything: type @${name()} or tap my orb in the message box.`,
       [{ label: 'Write my intro', run: ask(STARTERS[0][1]) }], { key: 'hello', gap: 0 }), 1800);
   }
 
