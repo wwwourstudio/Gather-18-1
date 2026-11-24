@@ -5506,3 +5506,101 @@ body.pre .views-pill { display: none; }
     gap: 8px; height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 8px; scroll-snap-type: none; }
   body:not(.pre) #deck #sceneStrip .scene { width: auto; height: auto; min-height: 0; }
 }
+
+/* ================================================================ Scene previews, calm (V11)
+   One quiet palette for the deck and the sidebar templates: dark glass tiles tinted by what each block is, a soft
+   head-and-shoulders mark, and a real gap between blocks (a transparent border clipped from the fill). Bright
+   colour is kept for the selected scene's ring only. */
+.sc-pv { --pv-base: #1a2033; --pv-mark: rgba(255, 255, 255, 0.34); --pv-mark-2: rgba(255, 255, 255, 0.22); }
+:root[data-theme="light"] .sc-pv { --pv-base: #d6deec; --pv-mark: rgba(255, 255, 255, 0.95); --pv-mark-2: rgba(255, 255, 255, 0.75); }
+.scene .sc-pv, #tplList .tpl .sc-pv, .sc-pv {
+  background: linear-gradient(160deg, #0f1526, #0a0e1b) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important; border-radius: 8px !important;
+  filter: none !important;
+}
+:root[data-theme="light"] .scene .sc-pv, :root[data-theme="light"] #tplList .tpl .sc-pv { background: linear-gradient(160deg, #eef2f9, #e3e9f4) !important; border-color: rgba(15, 23, 42, 0.08) !important; }
+.sc-pv.sc-pv i { border: 2px solid transparent !important; background-clip: padding-box !important; border-radius: 5px !important; box-shadow: none !important;
+  transition: background-color .2s, filter .2s; }
+.sc-pv.sc-pv i.pv-slot, .sc-pv.sc-pv i.pv-slot:nth-of-type(n) {
+  background:
+    radial-gradient(circle at 50% 40%, var(--pv-mark) 0 12%, transparent 13%) padding-box,
+    radial-gradient(58% 44% at 50% 100%, var(--pv-mark-2) 0 70%, transparent 71%) padding-box,
+    linear-gradient(165deg, color-mix(in srgb, var(--pv-tint, var(--accent)) 42%, var(--pv-base)), color-mix(in srgb, var(--pv-tint, var(--accent)) 22%, var(--pv-base))) padding-box !important;
+}
+.sc-pv.sc-pv i.pv-slot:nth-of-type(2) { --pv-tint: #22a3c4; }
+.sc-pv.sc-pv i.pv-slot:nth-of-type(3) { --pv-tint: #b0508f; }
+.sc-pv.sc-pv i.pv-slot:nth-of-type(4) { --pv-tint: #b98035; }
+.sc-pv.sc-pv i.pv-media, .sc-pv.sc-pv i.pv-screen { background: linear-gradient(165deg, color-mix(in srgb, #38bdf8 34%, var(--pv-base)), color-mix(in srgb, #2563eb 22%, var(--pv-base))) padding-box !important; }
+.sc-pv.sc-pv i.pv-chat { background: linear-gradient(170deg, color-mix(in srgb, #f472b6 30%, var(--pv-base)), color-mix(in srgb, #7c3aed 22%, var(--pv-base))) padding-box !important; }
+.sc-pv.sc-pv i.pv-ai { background: linear-gradient(165deg, color-mix(in srgb, #fbbf24 30%, var(--pv-base)), color-mix(in srgb, #a855f7 20%, var(--pv-base))) padding-box !important; }
+.sc-pv.sc-pv i.pv-banner, .sc-pv.sc-pv i.pv-ticker { background: color-mix(in srgb, var(--accent) 48%, var(--pv-base)) padding-box !important; }
+.sc-pv.sc-pv i.pv-tip, .sc-pv.sc-pv i.pv-callin, .sc-pv.sc-pv i.pv-logo { background: color-mix(in srgb, #34d399 40%, var(--pv-base)) padding-box !important; }
+.sc-pv.sc-pv i.pv-text, .sc-pv.sc-pv i.pv-timer, .sc-pv.sc-pv i.pv-image { background: color-mix(in srgb, #fff 16%, var(--pv-base)) padding-box !important; }
+.sc-pv.sc-pv i.pv-score { background: linear-gradient(90deg, color-mix(in srgb, #16a34a 45%, var(--pv-base)), var(--pv-base) 45%, var(--pv-base) 55%, color-mix(in srgb, #dc2626 45%, var(--pv-base))) padding-box !important; }
+
+/* Cards: the same airy card in the deck and the sidebar, with a gentle lift. */
+#deck .scene, #tplList .tpl { padding: 10px !important; gap: 10px !important; border-radius: 14px !important;
+  transition: transform .22s cubic-bezier(.2, .8, .2, 1), border-color .18s, background-color .18s, box-shadow .22s !important; }
+#deck .scene .sc-name, #tplList .tpl .sc-name { font: 600 12px/1.25 var(--font-ui) !important; color: var(--ink-2) !important; padding: 0 2px; }
+#deck .scene:hover, #tplList .tpl:hover { transform: translateY(-2px) !important; box-shadow: 0 12px 24px -16px rgba(0, 0, 0, 0.8) !important; }
+#deck .scene:hover .sc-pv i, #tplList .tpl:hover .sc-pv i { filter: brightness(1.18); }
+#deck .scene:active, #tplList .tpl:active { transform: translateY(0) scale(.98) !important; transition-duration: .08s !important; }
+#deck .scene.on, #deck .scene.on:hover { box-shadow: inset 0 0 0 1px var(--accent), 0 10px 26px -14px color-mix(in srgb, var(--accent) 80%, transparent) !important; }
+#deck .scene.on .sc-name { color: var(--ink) !important; }
+#deck .scene.on .sc-pv i { filter: brightness(1.22); }
+.scene.on .sc-pv { box-shadow: none !important; border-color: rgba(255, 255, 255, 0.1) !important; }
+@media (max-width: 720px) { body:not(.pre) #deck .scene { padding: 7px !important; gap: 7px !important; border-radius: 12px !important; } body:not(.pre) #deck .scene .sc-name { font-size: 11.5px !important; } }
+@media (prefers-reduced-motion: reduce) { #deck .scene, #tplList .tpl, .sc-pv.sc-pv i { transition: none !important; } #deck .scene:hover, #tplList .tpl:hover { transform: none !important; } }
+
+/* ================================================================ Phone header (studio)
+   Logo on the left; on the right four even 36px controls with room between them: Watch page, Invite, Go live,
+   and your account (which also holds Help and Settings). */
+@media (max-width: 720px) {
+  body:not(.pre) .app > .top { height: 52px; padding: 0 10px 0 14px; gap: 8px; }
+  body:not(.pre) .app > .top .top-actions { gap: 8px; margin-left: auto; }
+  body:not(.pre) .top-actions > #helpTop, body:not(.pre) .top-actions > #settingsTop { display: none !important; }
+  body:not(.pre) #watchTop { order: 1; } body:not(.pre) #enterTop { order: 2; } body:not(.pre) #liveTop { order: 3; } body:not(.pre) #userMenuWrap { order: 4; }
+  body:not(.pre) #watchTop, body:not(.pre) #enterTop {
+    width: 36px; height: 36px !important; min-height: 36px !important; padding: 0 !important; border-radius: 10px;
+    border: 1px solid transparent !important; background: var(--fill) !important; color: var(--ink-2);
+  }
+  body:not(.pre) #watchTop:active, body:not(.pre) #enterTop:active { transform: scale(.94); }
+  body:not(.pre) #liveTop { height: 36px !important; min-height: 36px !important; padding: 0 14px 0 12px !important; border-radius: 999px; font-size: 13.5px; font-weight: 700; }
+  body:not(.pre) #userBtn { width: 36px; height: 36px !important; min-height: 36px !important; padding: 0 !important; border-radius: 50%; justify-content: center; }
+  body:not(.pre) #userBtn .user-label, body:not(.pre) #userBtn .user-chev { display: none; }
+  body:not(.pre) .app > .top .logo-word { font-size: 21px; }
+  body:not(.pre) #topTitle { display: none !important; }
+}
+@media (min-width: 721px) { #umHelp { display: none; } }
+@media (max-width: 720px) {
+  body:not(.pre) .studio { padding-bottom: 54px; }
+  body:not(.pre) #deck #sceneStrip { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); padding-bottom: 24px; }
+}
+
+/* ================================================================ Phone motion
+   The panel sheet slides up from the tab bar and back down (no pop), a dim scrim sits behind it, and every
+   control answers a tap with a small press. */
+@media (max-width: 720px) {
+  body:not(.pre) .main > .side {
+    display: flex !important; transform: translateY(0); opacity: 1; visibility: visible;
+    transition: transform .34s cubic-bezier(.2, .9, .25, 1), opacity .2s ease, visibility 0s linear 0s;
+    box-shadow: 0 -24px 60px -20px rgba(0, 0, 0, 0.7);
+  }
+  body.panel-closed:not(.pre) .main > .side {
+    transform: translateY(calc(100% + 60px)); opacity: 0; visibility: hidden; pointer-events: none;
+    transition: transform .28s cubic-bezier(.4, 0, .9, .4), opacity .2s ease .08s, visibility 0s linear .3s;
+  }
+  body:not(.pre):not(.panel-closed) .studio::after {
+    content: ""; position: fixed; inset: 0; z-index: 60; background: rgba(2, 6, 16, 0.42); pointer-events: none;
+    animation: scrim-in .3s ease both;
+  }
+  body:not(.pre) .rail-btn, body:not(.pre) .app > .dock .icon-btn, body:not(.pre) #liveTop, body:not(.pre) #userBtn { transition: transform .12s ease, color .15s, background-color .15s; }
+  body:not(.pre) .rail-btn:active, body:not(.pre) .app > .dock .icon-btn:active, body:not(.pre) #liveTop:active, body:not(.pre) #userBtn:active { transform: scale(.92); }
+  body:not(.pre) .main > .rail .rail-btn .i { transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); }
+  body:not(.pre) .main > .rail .rail-btn.on .i { transform: translateY(-1px) scale(1.08); }
+}
+@keyframes scrim-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  body:not(.pre) .main > .side, body.panel-closed:not(.pre) .main > .side { transition: none !important; }
+  body:not(.pre):not(.panel-closed) .studio::after { animation: none; }
+}

@@ -51,10 +51,10 @@ const URL0 = process.env.GATHER_URL || 'http://localhost:8080';
     const onTop = await a.waitForFunction(() => {
       const t = [...document.querySelectorAll('#toasts .toast')].find((x) => /Riley Fourth joined/.test(x.textContent));
       if (!t) return false;
-      // In the top layer (a popover re-shown after the dialog), and on screen. elementFromPoint can't be used:
+      // In the top layer (a popover re-shown after the dialog), floating at the top of the screen. elementFromPoint can't be used:
       // browsers skip everything outside a modal dialog when hit-testing, even what's painted above it.
       const r = t.getBoundingClientRect();
-      return document.querySelector('#toasts').matches(':popover-open') && r.x >= 0 && r.y > innerHeight / 2 && r.bottom <= innerHeight;
+      return document.querySelector('#toasts').matches(':popover-open') && r.x >= 0 && r.y >= 0 && r.bottom <= innerHeight / 2;
     }, null, { timeout: 30000 }).then(() => true).catch(() => false);
     check('toasts show above an open dialog', onTop);
     await a.keyboard.press('Escape');

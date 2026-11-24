@@ -417,3 +417,15 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - A voice join keeps the camera off after joining.
 - **B6.** The profile hint's "Use a photo" and "Remove" no longer overlap.
 - **B7.** The audit's banner, Present menu, share and AI chat steps use the current UI.
+
+## Polish round: scene previews, phone header and motion, watch page glow
+- **Scene previews (deck and sidebar).**
+  - One calm palette: dark glass tiles tinted by what each block is, a soft person mark, and a 4px gap between blocks so nothing butts together.
+  - Cards have more room inside (10px), a gentle lift on hover and a press on tap.
+  - Only the selected scene gets a bright accent ring.
+- **Phone header.** The logo on the left, then four even 36px controls: Watch page, Invite, a Go live pill and your account. Help joins Settings in the account menu.
+- **Phone layout.**
+  - The scenes fill the space under the video as a grid with a soft fade at the bottom.
+  - The panel sheet slides up over a dimmed stage and slides away.
+  - Tab icons spring when chosen, and every control presses on tap.
+- **Watch page glow.** With the direct video the whole page glows with the blurred picture, like the studio. Before the picture arrives, or when the show plays on another platform, a slow wash of the host's brand colour keeps the page from going flat.

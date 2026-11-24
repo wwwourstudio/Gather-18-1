@@ -334,6 +334,7 @@ export function createAccount(app) {
   }));
   $('#umStartShow')?.addEventListener('click', () => { closeUserMenu(); openWizard('now'); });
   $('#umStudioSettings')?.addEventListener('click', () => { closeUserMenu(); $('#settingsTop')?.click(); });
+  $('#umHelp')?.addEventListener('click', () => { closeUserMenu(); $('#helpTop')?.click(); });
   $$('#umThemeSeg [data-um-theme]').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.umTheme)));
   $('#umSignOut')?.addEventListener('click', () => { closeUserMenu(); $('#acSignOut')?.click(); });
 
