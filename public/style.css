@@ -275,7 +275,7 @@ body.pre .top.glass {
 .msg.me .mact { justify-content: flex-end; }
 .msg.modded { display: none; }
 #msgs.is-host .msg.modded { display: grid; opacity: 0.45; }
-#msgs.is-host .msg.modded::before { content: "Hidden · " attr(data-why); font-size: var(--fs-11); font-weight: 600; text-transform: uppercase; letter-spacing: var(--tracking-caps); color: var(--danger); }
+#msgs.is-host .msg.modded::before { content: "Hidden · " attr(data-why); font-size: var(--fs-11); font-weight: 600; text-transform: uppercase; letter-spacing: var(--tracking-caps); color: var(--danger); pointer-events: none; }
 #msgs.is-host .msg.modded .mact { display: flex; }
 #msgs.is-host .msg.modded .mact > :not(.mod-restore) { display: none; }
 #msgs.is-host .msg.modded .mod-restore { display: inline-flex; }
@@ -1942,7 +1942,40 @@ body.editing .badge-hit { pointer-events: none; }
 .msg.has-av { transition: background 120ms var(--ease-out); }
 .msg.has-av, .msg.ai-msg { animation-duration: 160ms; }
 @media (hover: none) { #msgs.is-host .msg.has-av .mact { position: static; opacity: 1; pointer-events: auto; transform: none; background: none; border: 0; box-shadow: none; padding: 0; margin-top: 4px; } }
-#msgs.is-host .msg.has-av .mact { top: -14px; right: 8px; }
+/* The floating pill was unworkable: inside the row it covered the Like button, and at top:-14px most of its
+   height hung over the row above, so reaching for it left the row that reveals it and the pill vanished. The
+   host bar is in flow under the message, which is what the later rule at the end of this file already does for
+   rows without an avatar — this just lets avatar rows agree with it. */
+#msgs.is-host .msg.has-av .mact {
+  position: static;
+  top: auto;
+  right: auto;
+  opacity: 0.84;
+  pointer-events: auto;
+  transform: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+#msgs.is-host .msg.has-av:hover .mact,
+#msgs.is-host .msg.has-av:focus-within .mact { opacity: 1; }
+/* A moderated row always shows its Restore button (see .modded rules above), but on an avatar row .mact is the
+   floating hover pill: absolute, 14px above the row, opacity 0 and pointer-events none until hover. That left
+   Restore hanging over the row above, invisible and all but unclickable. On a moderated row it belongs in flow. */
+#msgs.is-host .msg.has-av.modded .mact {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  margin-top: 4px;
+  justify-self: start;
+}
 #msgs.is-host { padding-top: 14px; }
 
 /* The stage keeps its shape: on desktop it's sized from the space it actually has (the stage card's height and
