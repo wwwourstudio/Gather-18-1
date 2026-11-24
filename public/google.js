@@ -10,8 +10,22 @@ export const SCOPES = {
 const API = 'https://www.googleapis.com';
 let clientId = '', gis = null, tokenClient = null;
 const auth = { token: '', exp: 0, scopes: new Set() };
+// The server's client ID arrives from /api config, which lands after the first paint. Anything whose UI depends on
+// "is Google set up?" subscribes here instead of reading googleConfigured() once and never looking again.
+const configWatchers = new Set();
 
-export function configureGoogle(id) { clientId = String(id || ''); }
+export function configureGoogle(id) {
+  const next = String(id || '');
+  if (next === clientId) return;
+  clientId = next;
+  for (const cb of [...configWatchers]) { try { cb(!!clientId); } catch {} }
+}
+/** Run cb when the server's Google client ID is known — now if it already is, else the moment it lands. */
+export function onGoogleConfig(cb) {
+  configWatchers.add(cb);
+  if (clientId) { try { cb(true); } catch {} }
+  return () => configWatchers.delete(cb);
+}
 export const googleConfigured = () => !!clientId;
 export const googleSignedIn = (key) => !!auth.token && Date.now() < auth.exp && (!key || auth.scopes.has(SCOPES[key]));
 
@@ -27,6 +41,16 @@ function loadGis() {
   return gis;
 }
 
+/**
+ * What actually went wrong in Google's popup. A closed popup is usually Google refusing the origin — its own error
+ * page says "Access blocked", people close it, and GIS reports it exactly like a cancelled sign-in. Name both.
+ */
+function gisErrorText(e) {
+  if (e?.type === 'popup_failed_to_open') return 'Your browser blocked the Google window. Allow pop-ups for this site and try again.';
+  if (e?.type === 'popup_closed') return `The Google window closed before sign-in finished. If it showed an error instead of an account picker, add ${location.origin} to this project's OAuth client under "Authorised JavaScript origins" in the Google Cloud console.`;
+  return 'Google sign-in didn’t finish. Try again, or check this site is an allowed origin on the Google OAuth client.';
+}
+
 /** "Continue with Google" from gather's own button: Google's account picker opens in a popup and hands back a
  *  short-lived access token for the basic profile, which the server checks with Google before signing you in. */
 export async function googleSignInToken() {
@@ -35,7 +59,7 @@ export async function googleSignInToken() {
     const c = oauth2.initTokenClient({
       client_id: clientId, scope: 'openid email profile', prompt: 'select_account',
       callback: (r) => (r?.access_token ? res(r.access_token) : rej(new Error(r?.error_description || 'Google sign-in didn’t finish.'))),
-      error_callback: (e) => rej(new Error(e?.type === 'popup_closed' ? 'Google sign-in was closed before it finished.' : e?.type === 'popup_failed_to_open' ? 'Your browser blocked the Google window. Allow pop-ups for this site and try again.' : 'Google sign-in didn’t finish.')),
+      error_callback: (e) => rej(new Error(gisErrorText(e))),
     });
     c.requestAccessToken();
   });
@@ -59,7 +83,7 @@ export async function googleToken(keys) {
         if (missing.length) return rej(new Error('Google sign-in finished without the permission gather needs. Try again and tick every box.'));
         res(auth.token);
       },
-      error_callback: (e) => rej(new Error(e?.type === 'popup_closed' ? 'The Google sign-in window was closed.' : e?.type === 'popup_failed_to_open' ? 'Your browser blocked the Google sign-in window. Allow pop-ups for this site.' : 'Google sign-in failed.')),
+      error_callback: (e) => rej(new Error(gisErrorText(e))),
     });
     tokenClient.requestAccessToken({ prompt: '' });
   });

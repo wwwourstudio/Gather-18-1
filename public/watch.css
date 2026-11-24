@@ -2065,6 +2065,10 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-lobby .btn.sm { height: 28px; }
 .wv-clipit { height: 36px; gap: 6px; }
 .wv-q-sels { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* The lobby code only the accepted challenger sees. */
+.wv-q-lobby { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.wv-q-lobby span { font-size: 11.5px; color: var(--ink-2); }
+.wv-q-lobby b { flex: 1; min-width: 0; font-size: 15px; letter-spacing: 0.04em; word-break: break-all; }
 .wv-q-sel { height: 34px; font-size: 12.5px; }
 .wv-wager { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-3); }
 .wv-wager:empty { display: none; }
@@ -2323,6 +2327,43 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-pt-clean { display: grid; gap: 6px; padding: 11px 13px; border-radius: 12px; background: rgba(255, 255, 255, 0.025); border: 1px solid rgba(148, 163, 184, 0.11); align-content: start; min-width: 0; }
 :root[data-theme="light"] .wv-pt-clean { background: #ffffff; border-color: rgba(15, 23, 42, 0.08); }
 @media (max-width: 820px) { .wv-party-v2 { grid-template-columns: 1fr; } }
+
+/* Party row, compact: the three cards have to finish inside the dock, not push it into a vertical scroll.
+   Everything here only tightens the existing cards — smaller padding, one shared row height, the fan board
+   scrolling inside its own card, and Spend XP as two chips instead of two stacked full-width buttons. */
+.wv-party-v2 { --wv-party-h: 124px; align-items: start; }
+.wv-party-v2 > .wv-room-meter,
+.wv-party-v2 .wv-pt-clean { padding: 9px 11px; gap: 5px; height: var(--wv-party-h); align-content: start; overflow: hidden; }
+.wv-party-v2 .wv-rm-meta { font-size: 11px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wv-party-v2 .wv-pt-hypeit { height: 26px; padding: 0 10px; font-size: 11.5px; }
+/* Top fans: the list takes the leftover height and scrolls inside the card. */
+.wv-party-v2 .wv-pt-clean:has(> .wv-pt-board) { grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
+.wv-party-v2 .wv-pt-board { overflow-y: auto; scrollbar-width: thin; padding-right: 2px; }
+.wv-party-v2 .wv-pt-board::-webkit-scrollbar { width: 4px; }
+.wv-party-v2 .wv-pt-board::-webkit-scrollbar-thumb { border-radius: 4px; background: rgba(148, 163, 184, 0.3); }
+/* Your status: badge, a thin bar, then the rewards as a chip row. The card header already carries the XP
+   figure, so the duplicate "Spend XP" heading goes; #wRewards keeps its own aria-label. */
+.wv-party-v2 .wv-rewards > .wv-pt-h { display: none; }
+.wv-party-v2 .wv-pt-badge { gap: 7px; }
+.wv-party-v2 .wv-pt-badge > span { width: 28px; height: 28px; font-size: 15px; border-radius: 8px; }
+.wv-party-v2 .wv-pt-badge b { font-size: 12px; }
+.wv-party-v2 .wv-pt-badge small { font-size: 10.5px; }
+.wv-party-v2 .wv-pt-prog { height: 4px; }
+.wv-party-v2 .wv-rewards { margin-top: 4px; grid-template-columns: 1fr 1fr; gap: 5px; align-items: stretch; }
+.wv-party-v2 .wv-rewards > .wv-pt-h { grid-column: 1 / -1; }
+.wv-party-v2 .wv-reward { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 9px; min-height: 0; border-radius: 9px; font-size: 11px; line-height: 1.25; }
+.wv-party-v2 .wv-reward > span { display: none; }
+.wv-party-v2 .wv-reward b { flex: 1 1 auto; min-width: 0; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wv-party-v2 .wv-reward em { flex: none; }
+.wv-party-v2 .wv-reward em { font-size: 10.5px; }
+@media (max-width: 1100px) { .wv-party-v2 { --wv-party-h: 128px; } }
+@media (max-width: 900px) {
+  /* Stacked on narrow screens the pane is not capped, so each card is its own height again. */
+  .wv-party-v2 > .wv-room-meter,
+  .wv-party-v2 .wv-pt-clean { height: auto; }
+  .wv-party-v2 .wv-pt-board { max-height: 132px; }
+  .wv-party-v2 .wv-rewards > .wv-pt-h { display: flex; }
+}
 
 /* Unified About this show */
 .wv-about-v2 { display: grid; gap: 14px; }

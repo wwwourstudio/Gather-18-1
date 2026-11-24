@@ -253,9 +253,12 @@ export function createLiveChat(app) {
       const on = S.state.featured?.id === m.id;
       setStage({ featured: on ? null : { id: m.id, src: m.src, name: m.name, text: m.text, color: m.color || '' } });
     }, 'Show or hide this message on stage'));
+    // Hide takes the message off the overlay and the viewers' feed but keeps it in the host's log;
+    // Delete removes it outright. moderate() has always had the 'hide' verb — the button was missing.
+    bar.append(mk('Hide', 'mact-btn mod-hide', () => moderate('hide', m), 'Hide this message from the overlay and viewers'));
     bar.append(mk('Delete', 'mact-btn danger mod-del', () => moderate('delete', m), 'Delete message'));
     if (!isSelf) {
-      const tm = mk('Timeout', 'mact-btn mod-to', (ev) => { timeoutFor = m; togglePopover(timeoutMenu(), ev.currentTarget, 'bottom'); }, 'Time out sender');
+      const tm = mk('Time out', 'mact-btn mod-to', (ev) => { timeoutFor = m; togglePopover(timeoutMenu(), ev.currentTarget, 'bottom'); }, 'Time out sender');
       tm.setAttribute('aria-haspopup', 'menu');
       bar.append(tm);
       bar.append(mk('Block', 'mact-btn danger mod-block', () => moderate('block', m), 'Block sender from chatting'));

@@ -6051,6 +6051,7 @@ S.callin = typeof location?.pathname === 'string' && location.pathname.startsWit
 }
 if (linkCode) openEnter('join', linkCode);
 window.__gather = S; // handy for debugging in the console
+window.__gatherAudience = audience; // super chats, bounties, queue & shop, for the console and tests
 window.__acct = acct;
 window.__cap = cap;
 $('#liveOffRec').onclick = () => { $('#liveDlg').close(); if (!S.rec) toggleRecord(); };
