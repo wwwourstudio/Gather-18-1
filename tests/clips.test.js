@@ -40,6 +40,13 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     }, fs.readFileSync(file).toString('base64'));
     check('the clip is 540x960', meta.w === 540 && meta.h === 960, JSON.stringify(meta));
 
+    // Instant replay: the last 30 s play on stage, then the scene comes back by itself.
+    await a.evaluate(() => document.querySelector('#stageReplayBtn').click());
+    const started = await a.waitForFunction(() => window.__gather.local.pres?.kind === 'replay', null, { timeout: 5000 }).then(() => true).catch(() => false);
+    const scene = await a.evaluate(() => window.__gather.state.elements.some((e) => e.type === 'media'));
+    check('Replay plays the last 30 s on stage', started && scene);
+    const ended = await a.waitForFunction(() => !window.__gather.local.pres, null, { timeout: 60000 }).then(() => true).catch(() => false);
+    check('…and hands the stage back by itself', ended && !(await a.evaluate(() => window.__gather.state.elements.some((e) => e.type === 'media' && !e.hidden))));
     check('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
   } catch (e) { check('suite ran', false, e.stack || e.message); }
   await browser.close();

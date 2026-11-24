@@ -5728,3 +5728,6 @@ body.pre .views-pill { display: none; }
 .tall-prev figcaption b { font-size: 13px; color: var(--ink); }
 .tall-prev figcaption span { font-size: 12px; font-weight: 600; color: var(--accent-text); }
 .tall-prev figcaption small { font-size: 12px; line-height: 1.4; color: var(--ink-3); }
+
+/* Mark clip and Replay side by side on the stage */
+#stageClip { display: flex; gap: 6px; }

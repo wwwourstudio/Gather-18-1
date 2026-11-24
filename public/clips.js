@@ -117,5 +117,7 @@ export function createClipBuffer({ getCanvas, getMixStream, inStudio, isHost, ge
 
   // run while the host is in the studio
   setInterval(() => { const want = inStudio() && isHost() && !document.hidden; if (want && !running) start(); else if (!want && running) stop(); settle(); }, 2000);
-  return { mark, exportClip, moments, get running() { return running; }, start, stop };
+  /** The segments covering the last `ms` (instant replay), oldest first. */
+  const recent = (ms = 30000) => { const from = Date.now() - ms; return segs.filter((s) => s.t1 >= from).map((s) => s.blob); };
+  return { mark, exportClip, moments, recent, get running() { return running; }, start, stop };
 }

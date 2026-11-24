@@ -920,6 +920,15 @@ function initShowPowerTools(api) {
     api.toast('Capturing now. Your short will save in a few seconds.');
     const wait = setInterval(() => { if (m.state !== 'capturing') { clearInterval(wait); if (m.state === 'ready') exportMoment(m, '9:16'); } }, 1000);
   };
+  const replayBtn = document.getElementById('stageReplayBtn');
+  if (replayBtn) replayBtn.onclick = () => window.__gatherReplay?.();
+  // I: instant replay of the last 30 s (when not typing)
+  document.addEventListener('keydown', (e) => {
+    if (String(e.key || '').toLowerCase() !== 'i' || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable) return;
+    if (!api.isHost?.()) return;
+    window.__gatherReplay?.();
+  });
   // M marks a moment (when not typing)
   document.addEventListener('keydown', (e) => {
     if (String(e.key || '').toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey) return;

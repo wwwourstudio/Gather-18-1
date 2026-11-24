@@ -472,3 +472,10 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
 - It answers in two to four sentences, ending with what's happening now. With nothing recorded, it says so and gives what the show is about and what's next.
 - Recaps get a slightly longer answer allowance.
 - **Tests.** `sam` checks recap detection and that the prompt carries the whole window.
+
+## R4: instant replay
+- **Replay** sits next to Mark clip on the stage (host only), as "Instant replay" in the Present menu, and on the I key.
+- It plays the last 30 s from the clip buffer on stage as a presentation, with a REPLAY badge and a progress line, then hands the stage back by itself.
+- The replay is muted, so voices from a moment ago don't talk over the host.
+- **Tests.** `clips` checks that Replay goes on stage and ends by itself.
+- **Note.** M is listed in Help for both "Mute" and "Mark highlight". That clash was already there; I is used for replay so it doesn't add another.

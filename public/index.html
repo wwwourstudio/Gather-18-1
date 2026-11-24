@@ -260,6 +260,7 @@
             <div class="drop-hint" aria-hidden="true"><b>Drop to present</b><span>PDF, video or image</span></div>
             <div class="stage-clip host-only" id="stageClip" role="group" aria-label="Clips">
               <button type="button" class="stage-clip-btn" id="stageClipBtn" aria-label="Mark a clip here (M)" data-tip="Mark a clip here · M"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg><span>Mark clip</span><b class="num" id="stageClipN" hidden>0</b></button>
+              <button type="button" class="stage-clip-btn" id="stageReplayBtn" aria-label="Instant replay: the last 30 seconds (I)" data-tip="Replay the last 30 s · I"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg><span>Replay</span></button>
             </div>
         <div class="pres-bar glass on-media" id="presBar" hidden>
               <span class="pill live caps" id="presKind">Slides</span>
@@ -1004,6 +1005,7 @@
         <div class="popover glass raised present-menu" id="presentMenu" popover role="menu" aria-label="Present"><div class="menu">
           <button class="menu-item" role="menuitem" data-present="screen"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-up"/></svg><b>Share screen</b><span>A window, tab or full screen, with sound</span></button>
           <button class="menu-item" role="menuitem" data-present="game"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg><b>Share a game</b><span>60 fps, tuned for fast motion, with game sound</span></button>
+          <button class="menu-item host-only" role="menuitem" data-present="replay"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg><b>Instant replay</b><span>The last 30 seconds again, then back to the show</span></button>
           <button class="menu-item" role="menuitem" data-present="video"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-video"/></svg><b>Play a video</b><span>MP4, WebM or MOV from your computer</span></button>
           <button class="menu-item host-only" role="menuitem" data-present="music"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg><b>Background music</b><span>Play an audio track that ducks when people speak</span></button>
           <button class="menu-item" role="menuitem" data-present="pdf"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-file-text"/></svg><b>Present slides</b><span>A PDF deck, page by page</span></button>

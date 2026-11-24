@@ -709,6 +709,53 @@ async function presentVideo(file) {
   });
   v.onended = () => renderPresBar();
 }
+/**
+ * Instant replay: the last 30 s of the program (from the clip buffer's 5-second segments) plays on stage as a
+ * presentation, with a REPLAY badge and a progress line, then the scene comes back by itself. Muted, so voices from
+ * a moment ago don't talk over the host.
+ */
+async function presentReplay(sec = 30) {
+  if (!isHost()) return;
+  const clips = window.__gatherClips;
+  const blobs = clips?.recent?.(sec * 1000) || [];
+  if (!blobs.length) return toast(clips?.running ? 'Replay is warming up: it has the last 30 s after you’ve been here a few seconds.' : 'Replay works while you’re in your studio as host.', { err: true });
+  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto';
+  const c = presCanvas(), cg = c.getContext('2d');
+  const track = c.captureStream(30).getVideoTracks()[0];
+  track.contentHint = 'motion';
+  const urls = blobs.map((b) => URL.createObjectURL(b));
+  let i = 0, over = false;
+  const accent = accentOf();
+  const pres = {
+    kind: 'replay', name: `Replay · last ${sec} s`, track, source: c, video: v, replay: true,
+    draw() {
+      fitDraw(cg, v, v.videoWidth, v.videoHeight);
+      // REPLAY badge and how far through we are
+      cg.save();
+      cg.font = '800 34px Inter, sans-serif'; cg.textBaseline = 'middle';
+      const label = '↺  REPLAY', w = cg.measureText(label).width + 44;
+      const by = PRES_H - 112; // bottom-left: the top-left belongs to the "is presenting" label
+      cg.fillStyle = 'rgba(6,10,22,.72)'; cg.beginPath(); cg.roundRect(40, by, w, 64, 32); cg.fill();
+      cg.fillStyle = accent; cg.beginPath(); cg.arc(72, by + 32, 9, 0, Math.PI * 2); cg.fill();
+      cg.fillStyle = '#fff'; cg.fillText(label, 92, by + 33);
+      const seg = Math.min(1, (v.currentTime || 0) / 5), p = Math.min(1, (Math.max(0, i - 1) + seg) / urls.length);
+      cg.fillStyle = 'rgba(255,255,255,.18)'; cg.fillRect(0, PRES_H - 8, PRES_W, 8);
+      cg.fillStyle = accent; cg.fillRect(0, PRES_H - 8, PRES_W * p, 8);
+      cg.restore();
+    },
+    stop() { over = true; v.pause(); v.removeAttribute('src'); urls.forEach((u) => URL.revokeObjectURL(u)); track.stop(); },
+  };
+  const playNext = () => {
+    if (over) return;
+    if (i >= urls.length) { if (S.local.pres === pres) { stopPresentation(); toast('Replay done: back to the show.'); } return; }
+    v.src = urls[i++]; v.play().catch(() => {});
+  };
+  v.onended = playNext; v.onerror = playNext;
+  playNext();
+  startPresentation(pres);
+  toast(`Replaying the last ${sec} seconds.`, { ms: 2200 });
+}
+window.__gatherReplay = presentReplay;
 let pdfLib = null;
 function loadPdfJs() {
   if (pdfLib) return pdfLib;
@@ -865,6 +912,7 @@ $('#presentMenu').addEventListener('click', (ev) => {
   if (kind === 'screen') presentScreen();
   if (kind === 'game') presentScreen(true);
   if (kind === 'video') $('#videoFile').click();
+  if (kind === 'replay') presentReplay();
   if (kind === 'music') {
     if (bgMusic.name) { setTab('music'); if ($('#musicSec')) { $('#musicSec').open = true; $('#musicSec').scrollIntoView({ behavior: smooth(), block: 'nearest' }); } }
     else $('#musicFile').click();
@@ -880,7 +928,7 @@ function renderPresBar() {
   bar.hidden = !pres;
   if (!pres) return;
   bar.dataset.kind = pres.kind;
-  $('#presKind').textContent = { screen: 'Screen', video: 'Video', pdf: 'Slides' }[pres.kind];
+  $('#presKind').textContent = { screen: 'Screen', video: 'Video', pdf: 'Slides', replay: 'Replay' }[pres.kind];
   $('#presName').textContent = pres.name;
   $('#presPdf').hidden = pres.kind !== 'pdf';
   $('#presVid').hidden = pres.kind !== 'video';
@@ -5338,6 +5386,7 @@ const SHORTCUT_GROUPS = [
       { keys: ['S'], action: 'Share or stop screen presentation', single: true },
       { keys: ['R'], action: 'Start or stop recording', note: 'Host', single: true },
       { keys: ['M'], action: 'Mark highlight moment', note: 'Clip & Post', single: true },
+      { keys: ['I'], action: 'Instant replay of the last 30 seconds', note: 'Host', single: true },
     ],
   },
   {
