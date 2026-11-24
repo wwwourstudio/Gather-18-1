@@ -115,7 +115,7 @@ export function createAudience(app) {
     S.supers.set(item.id, item);
     if (fresh && item.auto && item.status === 'confirmed' && was !== 'confirmed') { // paid by card on the watch page: on screen right away
       toast(`💳 ${money(item.amount)} super chat from ${item.name}, paid by card.`, { ms: 8000 });
-      if (item.bounty) acceptBounty(item);
+      if (item.bounty) offerBounty(item);
       else setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || (item.voice ? 'Voice super chat' : 'Sent a super chat'), paid: money(item.amount) } });
       superAlert(item);
       window.__gatherAuto?.onSuper(item);
@@ -129,63 +129,285 @@ export function createAudience(app) {
     if ((act === 'answered' || act === 'dismiss') && S.state.featured?.id === 'w-' + item.id) setStage({ featured: null });
     renderSupers();
   }
-  // ---------------------------------------------------------------- bounties: viewer-funded challenges on the stream
-  function acceptBounty(item) {
-    const list = (S.state.bounties || []).filter((b) => b.id !== item.id);
-    list.push({ id: item.id, name: item.name, text: item.text, amount: money(item.amount), status: 'active', ts: Date.now(), endedAt: 0 });
-    const patch = { bounties: list };
-    if (!(S.state.elements || []).some((e) => e.type === 'bounty')) {
-      const e = withDefaults({ type: 'bounty' }), els = stageElements(), spot = freeSpot(e, els);
-      if (spot) Object.assign(e, spot); else e.stack = true;
-      e.home = [e.x, e.y, e.w, e.h]; patch.elements = [...els, e];
+  // ---------------------------------------------------------------- bounties: challenges that run on the stream
+  // A bounty is one promise to the audience: do this thing. The host can write one directly, or a viewer can pay
+  // for one from the watch page's super chat tray. Paid ones can land straight on the board or wait for a yes.
+  const BTY_PREFS = 'bountyRules';
+  const btyRules = () => ({ auto: true, min: 0, ...(store.get(BTY_PREFS, {}) || {}) });
+  const BTY_CFG_DEFAULT = { title: 'BOUNTIES', max: 3, accent: '#fbbf24', showProgress: true, showWho: true };
+  const bountyCfg = () => ({ ...BTY_CFG_DEFAULT, ...(S.state.bountyCfg || {}) });
+  const bountyList = () => S.state.bounties || [];
+  const amountOf = (b) => Number(String(b?.amount || '').replace(/[^0-9.]/g, '')) || 0;
+
+  function putBounties(list, extra = {}) {
+    setStage({ bounties: list.slice(-12), ...extra });
+  }
+
+  /** Make sure the board is on stage, returning the element patch needed (if any). */
+  function bountyBoardPatch() {
+    if ((S.state.elements || []).some((e) => e.type === 'bounty')) return {};
+    const e = withDefaults({ type: 'bounty' }), els = stageElements(), spot = freeSpot(e, els);
+    if (spot) Object.assign(e, spot); else e.stack = true;
+    e.home = [e.x, e.y, e.w, e.h];
+    return { elements: [...els, e] };
+  }
+
+  /** A paid bounty arrived: take it on now, or park it until the host says yes. */
+  function offerBounty(item) {
+    const rules = btyRules();
+    const pending = !rules.auto || item.amount < Number(rules.min || 0);
+    const list = bountyList().filter((b) => b.id !== item.id);
+    list.push({
+      id: item.id, name: item.name, text: item.text, amount: money(item.amount),
+      status: pending ? 'pending' : 'active', ts: Date.now(), endedAt: 0, goal: 0, raised: item.amount, by: 'viewer',
+    });
+    putBounties(list, pending ? {} : bountyBoardPatch());
+    renderBountyPanel();
+    if (pending) {
+      toast(`\u{1F3AF} ${money(item.amount)} bounty from ${item.name} is waiting for you in Gaming \u2192 Bounties.`, { ms: 7000 });
+      notifier?.show?.({ id: 'bty-' + item.id, title: 'Bounty waiting', body: item.text });
+    } else {
+      toast(`\u{1F3AF} Bounty accepted: \u201C${item.text}\u201D. It's on stream until you mark it done.`, { ms: 6000 });
     }
-    setStage(patch);
-    toast(`🎯 Bounty accepted: “${item.text}”. It’s on stream until you mark it done.`, { ms: 6000 });
   }
+
+  /** The host writes a bounty themselves — no payment needed for the board to do its job. */
+  function addHostBounty({ text, reward, goal, who }) {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    const list = bountyList().filter((b) => b.status !== 'pending' || b.text !== t);
+    list.push({
+      id: 'bty-' + uid(), name: String(who || '').trim() || 'You', text: t.slice(0, 120),
+      amount: String(reward || '').trim().slice(0, 16) || (Number(goal) > 0 ? money(Number(goal)) : 'Challenge'),
+      status: 'active', ts: Date.now(), endedAt: 0, goal: Math.max(0, Number(goal) || 0), raised: 0, by: 'host',
+    });
+    putBounties(list, bountyBoardPatch());
+    renderBountyPanel();
+    return true;
+  }
+
+  function acceptPending(id) {
+    const list = bountyList().map((b) => (b.id === id ? { ...b, status: 'active', ts: Date.now() } : b));
+    putBounties(list, bountyBoardPatch());
+    notifier?.dismiss?.('bty-' + id);
+    renderBountyPanel();
+    toast('Bounty taken on \u2014 it\u2019s on stream now.');
+  }
+
   function endBounty(id, status) {
-    setStage({ bounties: (S.state.bounties || []).map((b) => (b.id === id ? { ...b, status, endedAt: Date.now() } : b)) });
+    putBounties(bountyList().map((b) => (b.id === id ? { ...b, status, endedAt: Date.now() } : b)));
+    notifier?.dismiss?.('bty-' + id);
+    renderBountyPanel();
     if (status === 'done') toast('Bounty completed. It flashes on stream, then clears.');
+    if (status === 'failed') toast('Bounty marked failed.');
   }
+
+  function dropBounty(id) {
+    putBounties(bountyList().filter((b) => b.id !== id));
+    notifier?.dismiss?.('bty-' + id);
+    renderBountyPanel();
+  }
+
+  function clearSettledBounties() {
+    putBounties(bountyList().filter((b) => b.status === 'active' || b.status === 'pending'));
+    renderBountyPanel();
+  }
+
+  /** Move an active bounty up or down the board. */
+  function moveBounty(id, delta) {
+    const list = [...bountyList()];
+    const order = list.filter((b) => b.status === 'active');
+    const i = order.findIndex((b) => b.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    const ai = list.indexOf(order[i]), bi = list.indexOf(order[j]);
+    [list[ai], list[bi]] = [list[bi], list[ai]];
+    putBounties(list);
+    renderBountyPanel();
+  }
+
+  /** Credit a funding goal from the super chats that landed after the bounty went up. */
+  function fundBounties() {
+    const open = bountyList().filter((b) => b.status === 'active' && b.goal > 0);
+    if (!open.length) return;
+    const paid = [...S.supers.values()].filter((x) => x.status === 'confirmed' || x.status === 'answered');
+    let changed = false;
+    const next = bountyList().map((b) => {
+      if (b.status !== 'active' || !b.goal) return b;
+      const raised = Math.round(paid.filter((x) => x.ts >= b.ts && !x.bounty).reduce((n, x) => n + x.amount, 0) * 100) / 100;
+      if (raised === b.raised) return b;
+      changed = true;
+      return { ...b, raised };
+    });
+    if (changed) putBounties(next);
+  }
+
+  function bountyRow(b, kind) {
+    const li = document.createElement('li');
+    li.className = 'bounty-item ' + kind + (b.by === 'host' ? ' host' : '');
+    const t = document.createElement('div');
+    t.className = 'bty-text';
+    t.append(Object.assign(document.createElement('b'), { textContent: b.text }));
+    const metaBits = [b.amount, b.by === 'host' ? 'you' : `from ${b.name}`];
+    if (b.goal > 0) metaBits.push(`${money(Math.min(b.raised, b.goal))} of ${money(b.goal)}`);
+    t.append(Object.assign(document.createElement('small'), { textContent: metaBits.filter(Boolean).join(' \u00B7 ') }));
+    if (b.goal > 0 && kind === 'active') {
+      const bar = document.createElement('div'); bar.className = 'bty-bar';
+      const fill = document.createElement('i');
+      fill.style.width = `${Math.min(100, Math.round((b.raised / b.goal) * 100))}%`;
+      bar.append(fill); t.append(bar);
+    }
+    li.append(t);
+
+    const acts = document.createElement('div');
+    acts.className = 'bty-acts';
+    const btn = (cls, label, tip, fn) => {
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'btn sm ' + cls; x.textContent = label;
+      if (tip) { x.dataset.tip = tip; x.setAttribute('aria-label', tip); }
+      x.onclick = fn; return x;
+    };
+    if (kind === 'pending') {
+      acts.append(btn('primary', 'Take it on', 'Accept this bounty', () => acceptPending(b.id)));
+      acts.append(btn('ghost', 'Decline', 'Remove without going on stream', () => dropBounty(b.id)));
+    } else if (kind === 'active') {
+      acts.append(btn('ghost bty-mv', '\u2191', 'Move up', () => moveBounty(b.id, -1)));
+      acts.append(btn('ghost bty-mv', '\u2193', 'Move down', () => moveBounty(b.id, 1)));
+      acts.append(btn('primary', '\u2713 Done', 'Mark completed', () => endBounty(b.id, 'done')));
+      acts.append(btn('ghost', '\u2717 Failed', 'Mark failed', () => endBounty(b.id, 'failed')));
+    } else {
+      acts.append(btn('ghost', 'Remove', 'Remove from the list', () => dropBounty(b.id)));
+    }
+    li.append(acts);
+    return li;
+  }
+
   function renderBountyPanel() {
     const box = $('#bountyList'); if (!box) return;
-    const list = (S.state.bounties || []).filter((b) => b.status === 'active');
-    $('#bountyEmpty').hidden = !!list.length;
-    replaceKids(box, ...list.map((b) => {
-      const li = document.createElement('li'); li.className = 'bounty-item';
-      const t = document.createElement('div');
-      t.append(Object.assign(document.createElement('b'), { textContent: b.text }), Object.assign(document.createElement('small'), { textContent: `${b.amount} from ${b.name}` }));
-      const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn sm primary'; ok.textContent = '✓ Done'; ok.onclick = () => endBounty(b.id, 'done');
-      const no = document.createElement('button'); no.type = 'button'; no.className = 'btn sm ghost'; no.textContent = '✗ Failed'; no.onclick = () => endBounty(b.id, 'failed');
-      li.append(t, ok, no);
-      return li;
-    }));
+    fundBounties();
+    const all = bountyList();
+    const active = all.filter((b) => b.status === 'active');
+    const pending = all.filter((b) => b.status === 'pending');
+    const settled = all.filter((b) => b.status === 'done' || b.status === 'failed');
+
+    $('#bountyEmpty').hidden = !!(active.length || pending.length);
+    replaceKids(box, ...active.map((b) => bountyRow(b, 'active')));
+
+    const pw = $('#btyPendingWrap');
+    if (pw) {
+      pw.hidden = !pending.length;
+      $('#btyPendingCount').textContent = String(pending.length);
+      replaceKids($('#btyPendingList'), ...pending.map((b) => bountyRow(b, 'pending')));
+    }
+    const dw = $('#btyDoneWrap');
+    if (dw) {
+      dw.hidden = !settled.length;
+      $('#btyDoneCount').textContent = String(settled.length);
+      replaceKids($('#btyDoneList'), ...settled.slice(-6).reverse().map((b) => bountyRow(b, 'settled')));
+    }
+
+    // settings reflect current state
+    const cfg = bountyCfg(), rules = btyRules();
+    if ($('#btyAuto')) $('#btyAuto').checked = rules.auto !== false;
+    if ($('#btyMin')) $('#btyMin').value = String(rules.min || 0);
+    if ($('#btyMinVal')) $('#btyMinVal').textContent = money(Number(rules.min) || 0);
+    if ($('#btyMinRow')) $('#btyMinRow').hidden = rules.auto === false;
+    if ($('#btyTitle') && document.activeElement !== $('#btyTitle')) $('#btyTitle').value = cfg.title;
+    if ($('#btyMax')) $('#btyMax').value = String(cfg.max);
+    if ($('#btyAccent')) $('#btyAccent').value = cfg.accent;
+    if ($('#btyProg')) $('#btyProg').checked = cfg.showProgress !== false;
+    if ($('#btyWhoOn')) $('#btyWhoOn').checked = cfg.showWho !== false;
   }
-  /** The bounty board on stage: the active challenges, and a completed one flashing for a few seconds. */
+
+  function wireBountyPanel() {
+    if (!$('#btyAdd')) return;
+    const submit = () => {
+      if (!isHost()) return toast('Only the host can set bounties.', { err: true });
+      const ok = addHostBounty({
+        text: $('#btyText').value, reward: $('#btyReward').value,
+        goal: Number($('#btyGoal').value) || 0, who: $('#btyWho').value,
+      });
+      if (!ok) { $('#btyText').focus(); return toast('Write the challenge first.', { err: true }); }
+      $('#btyText').value = ''; $('#btyGoal').value = '';
+      toast('Bounty is on stream.');
+    };
+    $('#btyAdd').onclick = submit;
+    $('#btyText').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    $('#btyClearDone').onclick = clearSettledBounties;
+
+    const saveRules = (patch) => { store.set(BTY_PREFS, { ...btyRules(), ...patch }); renderBountyPanel(); };
+    $('#btyAuto').onchange = (e) => saveRules({ auto: e.target.checked });
+    $('#btyMin').oninput = (e) => {
+      $('#btyMinVal').textContent = money(Number(e.target.value) || 0);
+      saveRules({ min: Number(e.target.value) || 0 });
+    };
+    const saveCfg = (patch) => { setStage({ bountyCfg: { ...bountyCfg(), ...patch } }); renderBountyPanel(); };
+    $('#btyTitle').oninput = (e) => saveCfg({ title: e.target.value.trim().slice(0, 24) || 'BOUNTIES' });
+    $('#btyMax').onchange = (e) => saveCfg({ max: Number(e.target.value) || 3 });
+    $('#btyAccent').oninput = (e) => saveCfg({ accent: e.target.value });
+    $('#btyProg').onchange = (e) => saveCfg({ showProgress: e.target.checked });
+    $('#btyWhoOn').onchange = (e) => saveCfg({ showWho: e.target.checked });
+  }
+  wireBountyPanel();
+
+  /** The bounty board on stage: active challenges, their funding, and a completed one flashing for a few seconds. */
   function drawBountyEl(e) {
     const now = Date.now();
-    const list = (S.state.bounties || []).filter((b) => b.status === 'active' || (b.status === 'done' && now - b.endedAt < 8000)).slice(-3);
+    const cfg = bountyCfg();
+    const list = (S.state.bounties || [])
+      .filter((b) => b.status === 'active' || (b.status === 'done' && now - b.endedAt < 8000))
+      .slice(-Math.max(1, Math.min(5, cfg.max || 3)));
     if (!list.length) return;
-    // The board is as tall as its rows (one to three), never a half-empty box.
-    const r0 = px(e), rowH = Math.min(r0.w * .1, r0.h / 4.2), pad = rowH * .35, headH = rowH * .8;
+    const accent = normalizeHex(cfg.accent) || '#fbbf24';
+    const tint = (a) => {
+      const n = parseInt(accent.slice(1), 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+    };
+    // The board is as tall as its rows, never a half-empty box; a funding bar adds a little to each row.
+    const r0 = px(e);
+    const hasBars = cfg.showProgress !== false && list.some((b) => b.goal > 0);
+    const rowH = Math.min(r0.w * (hasBars ? 0.125 : 0.1), r0.h / 4.2), pad = rowH * 0.35, headH = rowH * 0.8;
     const r = { x: r0.x, y: r0.y, w: r0.w, h: Math.min(r0.h, pad * 2 + headH + list.length * rowH) };
     g.save();
     rr(r.x, r.y, r.w, r.h, 14); g.fillStyle = 'rgba(8,12,26,.86)'; g.fill();
-    const glow = g.createLinearGradient(r.x, r.y, r.x + r.w, r.y); glow.addColorStop(0, 'rgba(251,191,36,.18)'); glow.addColorStop(1, 'rgba(251,191,36,0)');
+    const glow = g.createLinearGradient(r.x, r.y, r.x + r.w, r.y);
+    glow.addColorStop(0, tint(0.18)); glow.addColorStop(1, tint(0));
     rr(r.x, r.y, r.w, r.h, 14); g.fillStyle = glow; g.fill();
-    rr(r.x + .5, r.y + .5, r.w - 1, r.h - 1, 14); g.strokeStyle = 'rgba(251,191,36,.5)'; g.lineWidth = 1.5; g.stroke();
+    rr(r.x + .5, r.y + .5, r.w - 1, r.h - 1, 14); g.strokeStyle = tint(0.5); g.lineWidth = 1.5; g.stroke();
     g.textBaseline = 'middle'; g.textAlign = 'left';
-    g.font = `800 ${headH * .5}px Inter, sans-serif`; g.fillStyle = '#fbbf24'; g.fillText('🎯 BOUNTIES', r.x + pad * 1.2, r.y + pad + headH / 2);
+    g.font = `800 ${headH * .5}px Inter, sans-serif`; g.fillStyle = accent;
+    g.fillText(`\u{1F3AF} ${String(cfg.title || 'BOUNTIES').toUpperCase()}`, r.x + pad * 1.2, r.y + pad + headH / 2);
     list.forEach((b, i) => {
-      const y = r.y + pad + headH + i * rowH + rowH / 2;
+      const top = r.y + pad + headH + i * rowH;
+      const showBar = cfg.showProgress !== false && b.goal > 0 && b.status === 'active';
+      const y = top + (showBar ? rowH * 0.38 : rowH / 2);
       const done = b.status === 'done';
-      if (done) { const a = Math.max(0, 1 - (now - b.endedAt) / 8000); g.fillStyle = `rgba(34,197,94,${.25 * a + .1})`; rr(r.x + pad * .6, y - rowH * .44, r.w - pad * 1.2, rowH * .88, 8); g.fill(); }
-      g.font = `900 ${rowH * .42}px Inter, sans-serif`; g.fillStyle = done ? '#4ade80' : '#fde68a';
-      const amt = done ? '✓ DONE' : b.amount; g.fillText(amt, r.x + pad * 1.2, y);
+      if (done) {
+        const a = Math.max(0, 1 - (now - b.endedAt) / 8000);
+        g.fillStyle = `rgba(34,197,94,${.25 * a + .1})`;
+        rr(r.x + pad * .6, top + rowH * 0.06, r.w - pad * 1.2, rowH * .88, 8); g.fill();
+      }
+      g.font = `900 ${rowH * .4}px Inter, sans-serif`; g.fillStyle = done ? '#4ade80' : accent;
+      const amt = done ? '\u2713 DONE' : (b.amount || 'BOUNTY');
+      g.fillText(amt, r.x + pad * 1.2, y);
       const aw = g.measureText(amt).width + pad * .9;
-      g.font = `700 ${rowH * .38}px Inter, sans-serif`; g.fillStyle = '#ffffff';
-      let t = b.text; const maxW = r.w - pad * 2.4 - aw;
-      while (t.length > 1 && g.measureText(t).width > maxW) t = t.slice(0, -2) + '…';
+      g.font = `700 ${rowH * .36}px Inter, sans-serif`; g.fillStyle = '#ffffff';
+      const who = cfg.showWho !== false && b.by !== 'host' && b.name ? `  \u2014 ${b.name}` : '';
+      let t = b.text + who;
+      const maxW = r.w - pad * 2.4 - aw;
+      while (t.length > 1 && g.measureText(t).width > maxW) t = t.slice(0, -2) + '\u2026';
       g.fillText(t, r.x + pad * 1.2 + aw, y);
+      if (showBar) {
+        const barY = top + rowH * 0.74, barH = Math.max(3, rowH * 0.1);
+        const barX = r.x + pad * 1.2, barW = r.w - pad * 2.4;
+        const frac = Math.max(0, Math.min(1, b.raised / b.goal));
+        rr(barX, barY, barW, barH, barH / 2); g.fillStyle = 'rgba(255,255,255,.16)'; g.fill();
+        if (frac > 0) { rr(barX, barY, Math.max(barH, barW * frac), barH, barH / 2); g.fillStyle = accent; g.fill(); }
+        g.font = `700 ${rowH * .26}px Inter, sans-serif`;
+        g.fillStyle = 'rgba(255,255,255,.72)'; g.textAlign = 'right';
+        g.fillText(`${money(Math.min(b.raised, b.goal))} / ${money(b.goal)}`, barX + barW, barY - rowH * 0.16);
+        g.textAlign = 'left';
+      }
     });
     g.restore();
   }

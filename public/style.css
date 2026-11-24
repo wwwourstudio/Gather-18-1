@@ -2815,6 +2815,34 @@ html:not(.booting) body.pre .land-callout.c2 { animation: land-pop 0.6s cubic-be
 .bounty-item div { display: grid; min-width: 0; }
 .bounty-item b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bounty-item small { font-size: 11px; color: var(--ink-3); }
+
+/* Bounties: write one yourself, take on the paid ones, and settle them. */
+.bounty-item { grid-template-columns: minmax(0, 1fr) auto; }
+.bounty-item.host { box-shadow: inset 3px 0 0 var(--accent); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%); }
+.bounty-item.pending { box-shadow: inset 3px 0 0 #38bdf8; background: linear-gradient(90deg, rgba(56, 189, 248, 0.16), transparent 70%); }
+.bounty-item.settled { box-shadow: inset 3px 0 0 var(--line-2); background: none; opacity: 0.72; }
+.bounty-item b { white-space: normal; }
+.bty-text { display: grid; gap: 2px; min-width: 0; }
+.bty-acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.bty-acts .btn.sm { padding: 0 7px; }
+.bty-acts .bty-mv { padding: 0 6px; font-size: 12px; line-height: 1; }
+.bty-bar { position: relative; height: 5px; margin-top: 4px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.bty-bar i { position: absolute; inset: 0 auto 0 0; display: block; border-radius: 3px; background: #fbbf24; transition: width 240ms var(--ease-out); }
+
+.bty-new { display: grid; gap: 6px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: var(--fill); }
+.bty-group { display: grid; gap: 5px; }
+.bty-group-h { display: flex; align-items: center; gap: 6px; font: 600 11.5px/1 var(--font-ui); color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.bty-group-h em { font-style: normal; font-size: 10.5px; padding: 1px 5px; border-radius: 5px; background: var(--fill); color: var(--ink-3); }
+.bty-group-h .btn.link { margin-left: auto; font-size: 11px; text-transform: none; letter-spacing: 0; }
+.bty-done-wrap { display: grid; gap: 5px; }
+.bty-tog-col { display: grid; gap: 4px; align-content: center; }
+.psec-sub { border-top: 1px solid var(--glass-border); padding-top: 7px; margin-top: 2px; }
+.psec-sub > summary { cursor: pointer; font: 600 11.5px/1.3 var(--font-ui); color: var(--ink-3); list-style: none; padding: 2px 0; }
+.psec-sub > summary::-webkit-details-marker { display: none; }
+.psec-sub > summary::before { content: "\25B8"; display: inline-block; margin-right: 5px; transition: transform 140ms var(--ease-out); }
+.psec-sub[open] > summary::before { transform: rotate(90deg); }
+.psec-sub > summary:hover { color: var(--ink); }
+.psec-sub > .form { padding-top: 7px; display: grid; gap: 7px; }
 .pill.bounty { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
 
 /* ================================================================ AI designer */

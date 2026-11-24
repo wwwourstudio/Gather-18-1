@@ -978,9 +978,45 @@
             <p class="hint empty-note" id="queueEmptyHint">Turn on “Take players” and viewers can line up with their gamertag.</p>
           </div></details>
 
-          <details class="psec" data-sec="gaming-bounties" open><summary><b>Bounties</b><span class="hint">viewer-funded challenges</span></summary><div class="psec-body">
+          <details class="psec" data-sec="gaming-bounties" open><summary><b>Bounties</b><span class="hint">challenges on stream</span></summary><div class="psec-body form">
+            <div class="bty-new">
+              <input class="input sm" id="btyText" maxlength="120" placeholder="The challenge — e.g. Win the next round with pistols only">
+              <div class="row3">
+                <label class="fld"><span>Reward</span><input class="input sm" id="btyReward" maxlength="16" placeholder="$25 or Hype"></label>
+                <label class="fld"><span>Funding goal</span><input class="input sm num" id="btyGoal" type="number" min="0" max="100000" step="1" placeholder="0"></label>
+                <label class="fld"><span>From</span><input class="input sm" id="btyWho" maxlength="40" placeholder="You"></label>
+              </div>
+              <button type="button" class="btn sm primary block" id="btyAdd"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg><span>Put this bounty on stream</span></button>
+            </div>
+
+            <div class="bty-group" id="btyPendingWrap" hidden>
+              <b class="bty-group-h">Waiting for you <em class="num" id="btyPendingCount">0</em></b>
+              <ul class="bounty-list" id="btyPendingList"></ul>
+            </div>
+
             <ul class="bounty-list" id="bountyList"></ul>
-            <p class="hint empty-note" id="bountyEmpty">Viewers pay for a challenge from the super chat tray (“Make it a bounty”). Accept it when the payment arrives and it shows on stream until you mark it done.</p>
+            <p class="hint empty-note" id="bountyEmpty">No bounties on stream. Write one above, or let viewers fund a challenge from the super chat tray (“Make it a bounty”).</p>
+
+            <div class="bty-done-wrap" id="btyDoneWrap" hidden>
+              <b class="bty-group-h">Settled <em class="num" id="btyDoneCount">0</em><button type="button" class="btn link" id="btyClearDone">Clear</button></b>
+              <ul class="bounty-list done" id="btyDoneList"></ul>
+            </div>
+
+            <details class="psec-sub" data-sec="gaming-bounty-opts"><summary>Board &amp; payment settings</summary><div class="form">
+              <label class="toggle-row"><span><b>Accept paid bounties automatically</b><small>Off: a paid challenge waits here until you take it on.</small></span><input type="checkbox" class="toggle" id="btyAuto" role="switch" checked></label>
+              <label class="fld" id="btyMinRow"><span>Only auto-accept at or above <em class="num" id="btyMinVal">$0</em></span><input type="range" id="btyMin" min="0" max="100" step="1" value="0"></label>
+              <div class="row2">
+                <label class="fld"><span>Board title</span><input class="input sm" id="btyTitle" maxlength="24" placeholder="BOUNTIES"></label>
+                <label class="fld"><span>Rows on screen</span><select class="input sm" id="btyMax"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></label>
+              </div>
+              <div class="row2">
+                <label class="cw-mini"><span>Accent</span><input type="color" id="btyAccent" value="#fbbf24"></label>
+                <div class="bty-tog-col">
+                  <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="btyProg" checked><span>Funding bar</span></label>
+                  <label class="toggle-inline"><input type="checkbox" class="toggle sm" id="btyWhoOn" checked><span>Show who paid</span></label>
+                </div>
+              </div>
+            </div></details>
           </div></details>
 
           <details class="psec" data-sec="gaming-lobby" open><summary><b>Lobby &amp; rig</b><span class="hint">on the watch page</span></summary><div class="psec-body">

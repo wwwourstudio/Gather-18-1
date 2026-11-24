@@ -1,5 +1,5 @@
 import { busy } from './ui.js';
-import { googleConfigured, googleSignedIn, googleToken, googleSignOut, googleSignInToken } from './google.js';
+import { googleConfigured, googleSignedIn, googleToken, googleSignOut, googleSignInToken, onGoogleConfig } from './google.js';
 
 // Account: sign in, profile and synced settings.
 // Created by app.js through createAccount(app): `app` carries the studio state and helpers this part uses.
@@ -273,6 +273,9 @@ export function createAccount(app) {
     finally { busy($('#acGoogleBtn'), false); }
   }
   $('#acGoogleBtn').onclick = googleSignIn;
+  // The client ID arrives with /api config, after this dialog first renders. Without this the Google button stayed
+  // hidden (or the settings row stayed "not configured") until some unrelated re-render happened to come along.
+  onGoogleConfig(() => renderAcctDlg());
   // sign-up extras: a profile photo, show/hide password, a strength hint
   $('#acUpAvatar').onclick = () => $('#acUpAvatarFile').click();
   $('#acUpAvatarFile').onchange = async (e) => {
