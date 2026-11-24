@@ -22,7 +22,9 @@ const signUp = async (page, name) => {
   const errs = [];
   try {
     const a = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage(); a.on('pageerror', (e) => errs.push('host: ' + e.message));
-    await a.goto(BASE + '/'); await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Host'); await a.click('#enterGo');
+    await a.goto(BASE + '/');
+    check('the home page never shows the studio controls', !(await a.isVisible('#dock')) && !(await a.isVisible('.main > .rail')));
+    await a.click('#enterStage'); await a.click('#wGo'); await a.waitForSelector('#enterDlg[open]'); await a.fill('#enterName', 'Alex Host'); await a.click('#enterGo');
     await a.waitForFunction(() => !!window.__gather?.studio && !document.querySelector('#enterDlg')?.open, null, { timeout: 15000 });
     const code = (await a.evaluate(() => window.__gather.studio)).trim();
 

@@ -5611,7 +5611,9 @@ body.pre .views-pill { display: none; }
    Three zones: the getting-started guide or status on the left, the controls centred, Leave on the right.
    Each control is an icon tile with its word underneath; the tile carries the state (red when muted or
    recording, accent when on), so you can read the studio at a glance. */
-.app > .dock { display: grid !important; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 16px; min-height: 76px; padding: 6px 18px !important; }
+body:not(.pre) .app > .dock { display: grid !important; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; column-gap: 16px; min-height: 76px; padding: 6px 18px !important; }
+/* The home page (body.pre) never shows the studio controls. */
+body.pre .app > .dock { display: none !important; }
 .app > .dock > .dock-tools { grid-column: 2; grid-row: 1; gap: 6px; overflow: visible; }
 .app > .dock > .guide, .app > .dock > .dock-note { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; max-width: 100%; }
 .app > .dock > #leaveBtn { grid-column: 3; grid-row: 1; justify-self: end; }
