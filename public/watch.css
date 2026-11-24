@@ -2065,6 +2065,10 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-lobby .btn.sm { height: 28px; }
 .wv-clipit { height: 36px; gap: 6px; }
 .wv-q-sels { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* The lobby code only the accepted challenger sees. */
+.wv-q-lobby { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.wv-q-lobby span { font-size: 11.5px; color: var(--ink-2); }
+.wv-q-lobby b { flex: 1; min-width: 0; font-size: 15px; letter-spacing: 0.04em; word-break: break-all; }
 .wv-q-sel { height: 34px; font-size: 12.5px; }
 .wv-wager { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-3); }
 .wv-wager:empty { display: none; }

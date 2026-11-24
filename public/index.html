@@ -971,11 +971,12 @@
             </div>
           </div></details>
 
-          <details class="psec" data-sec="gaming-queue" open><summary><b>Viewer queue</b></summary><div class="psec-body">
-            <label class="toggle-row"><span><b>Take players</b><small>Viewers join a queue with their gamertag from the watch page.</small></span><input type="checkbox" class="toggle" id="wpQueue" role="switch"></label>
+          <details class="psec" data-sec="gaming-queue" open><summary><b>Challenge queue</b><span class="hint">play the streamer</span></summary><div class="psec-body">
+            <label class="toggle-row"><span><b>Take challengers</b><small>Viewers line up from the watch page with their platform, handle and the game.</small></span><input type="checkbox" class="toggle" id="wpQueue" role="switch"></label>
+            <label class="fld"><span>Lobby / party code <em>sent only to who you accept</em></span><input id="wpLobbyCode" maxlength="48" placeholder="e.g. XK7-2PQ" spellcheck="false"></label>
             <div class="row"><button type="button" class="btn sm primary" id="queueNext">Call next player</button><button type="button" class="btn sm ghost" id="queueClear">Clear queue</button></div>
-            <ol class="queue-list" id="queueList"></ol>
-            <p class="hint empty-note" id="queueEmptyHint">Turn on “Take players” and viewers can line up with their gamertag.</p>
+            <ol class="queue-list chal" id="queueList"></ol>
+            <p class="hint empty-note" id="queueEmptyHint">Turn on “Take challengers” and viewers can line up with their platform, handle and the game they want to play.</p>
           </div></details>
 
           <details class="psec" data-sec="gaming-bounties" open><summary><b>Bounties</b><span class="hint">challenges on stream</span></summary><div class="psec-body form">

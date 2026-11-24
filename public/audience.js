@@ -825,18 +825,111 @@ export function createAudience(app) {
     g.restore();
   }
 
-  // ---------------------------------------------------------------- play with me: the viewer queue
+  // ---------------------------------------------------------------- challenge queue: viewers play the streamer
+  // A challenge names a game, a platform and a handle. The host accepts one at a time; only the accepted
+  // challenger is given the lobby code. Settling it writes both sides' head-to-head record and Elo.
   S.queue = [];
-  function gotQueue(m) { chime(); toast(`${m.name}${m.tag ? ' (' + m.tag + ')' : ''} wants to play.`, { action: ['Open', () => { setTab('gaming'); }] }); S.queue.push({ name: m.name, tag: m.tag, status: 'waiting', ts: Date.now() }); renderQueue(S.queue); }
+  const PLATFORM_LABEL = { pc: 'PC', playstation: 'PlayStation', xbox: 'Xbox', switch: 'Switch', mobile: 'Mobile', other: '' };
+  const FORMAT_LABEL = { ft1: 'First to 1', ft3: 'First to 3', bo3: 'Best of 3', bo5: 'Best of 5', timed: 'Timed' };
+  const prettyGame = (g) => String(g || '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  function recLine(rec) {
+    if (!rec) return '';
+    const n = (rec.w || 0) + (rec.l || 0) + (rec.d || 0);
+    if (!n) return '';
+    // The record is kept from the challenger's side.
+    return `${rec.w || 0}\u2013${rec.l || 0}${rec.d ? '\u2013' + rec.d : ''} vs you \u00B7 ${rec.elo || 1200} Elo`;
+  }
+
+  function gotQueue(m) {
+    chime();
+    const what = m.game ? ` to play ${prettyGame(m.game)}` : '';
+    toast(`${m.name}${m.tag ? ' (' + m.tag + ')' : ''} wants${what}.`, { action: ['Open', () => { setTab('gaming'); }] });
+    S.queue.push({ vid: m.vid, name: m.name, tag: m.tag, status: 'waiting', ts: Date.now(), game: m.game || '', platform: m.platform || '', format: m.format || '', rec: m.rec || null });
+    renderQueue(S.queue);
+  }
+
+  // `kind` names the sub-op: spreading a key called `type` would overwrite the envelope's own.
+  function queueOp(op) { wsSend({ ...op, type: 'qop' }); }
+
   function renderQueue(items) {
     if (items) S.queue = items;
     if (!$('#queueList')) return;
-    const waiting = S.queue.filter((x) => x.status !== 'called');
-    $('#queueCount').textContent = waiting.length ? `${waiting.length} waiting` : '';
-    replaceKids($('#queueList'), ...S.queue.map((x) => { const li = document.createElement('li'); li.className = x.status; const a = document.createElement('span'); a.textContent = x.name; const b = document.createElement('small'); b.textContent = x.status === 'called' ? 'called' : x.tag || ''; li.append(a, b); return li; }));
+    const open = S.queue.filter((x) => x.status === 'waiting' || x.status === 'called');
+    const live = S.queue.filter((x) => x.status === 'accepted');
+    $('#queueCount').textContent = open.length ? `${open.length} waiting` : live.length ? 'match on' : '';
+    const hint = $('#queueEmptyHint');
+    if (hint) hint.hidden = !!S.queue.length;
+
+    replaceKids($('#queueList'), ...S.queue.map((x) => {
+      const li = document.createElement('li');
+      li.className = 'q-item ' + (x.status || 'waiting');
+
+      const who = document.createElement('div');
+      who.className = 'q-who';
+      const nm = document.createElement('b');
+      nm.textContent = x.name;
+      who.append(nm);
+      const bits = [];
+      if (x.platform && PLATFORM_LABEL[x.platform]) bits.push(PLATFORM_LABEL[x.platform]);
+      if (x.tag) bits.push(x.tag);
+      if (x.game) bits.push(prettyGame(x.game));
+      if (x.format && FORMAT_LABEL[x.format]) bits.push(FORMAT_LABEL[x.format]);
+      const sub = document.createElement('small');
+      sub.textContent = bits.join(' \u00B7 ');
+      who.append(sub);
+      const rl = recLine(x.rec);
+      if (rl) {
+        const r = document.createElement('em');
+        r.className = 'q-rec';
+        r.textContent = rl;
+        who.append(r);
+      }
+      li.append(who);
+
+      const acts = document.createElement('div');
+      acts.className = 'q-acts';
+      const btn = (label, cls, tip, fn) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = label;
+        if (tip) { b.dataset.tip = tip; b.setAttribute('aria-label', tip); }
+        b.onclick = fn; return b;
+      };
+      if (x.status === 'accepted') {
+        acts.append(btn('You won', 'primary', 'Record a win for you', () => settle(x, 'host')));
+        acts.append(btn('They won', '', 'Record a win for the challenger', () => settle(x, 'challenger')));
+        acts.append(btn('Draw', 'ghost', 'Record a draw', () => settle(x, 'draw')));
+      } else if (x.status === 'done') {
+        const o = document.createElement('small');
+        o.className = 'q-out';
+        o.textContent = x.outcome === 'challenger' ? 'they won' : x.outcome === 'draw' ? 'draw' : 'you won';
+        acts.append(o);
+        acts.append(btn('\u00D7', 'ghost', 'Remove from the queue', () => queueOp({ kind: 'qdrop', vid: x.vid })));
+      } else {
+        acts.append(btn('Accept', 'primary', 'Accept and send them the lobby code', () => accept(x)));
+        acts.append(btn('\u00D7', 'ghost', 'Remove from the queue', () => queueOp({ kind: 'qdrop', vid: x.vid })));
+      }
+      li.append(acts);
+      return li;
+    }));
   }
-  $('#queueNext').onclick = () => { wsSend({ type: 'qpick' }); toast('The next player sees “You’re up!” with a button to join the stage.'); };
-  $('#queueClear').onclick = () => { wsSend({ type: 'qclear' }); S.queue = []; renderQueue(); };
+
+  function accept(x) {
+    const lobby = ($('#wpLobbyCode')?.value || '').trim();
+    queueOp({ kind: 'qaccept', vid: x.vid, lobby });
+    toast(lobby
+      ? `${x.name} is in \u2014 they get the lobby code on their watch page.`
+      : `${x.name} is in. Add a lobby code above and accept again to send it to them.`);
+  }
+
+  function settle(x, outcome) {
+    queueOp({ kind: 'qresult', vid: x.vid, outcome });
+    const said = outcome === 'challenger' ? `${x.name} takes it` : outcome === 'draw' ? 'Called a draw' : 'You take it';
+    toast(`${said}. ${x.game && x.rec !== undefined ? 'Recorded against their head-to-head.' : ''}`.trim());
+  }
+
+  $('#queueNext').onclick = () => { queueOp({ kind: 'qpick' }); toast('The next player sees \u201cYou\u2019re up!\u201d with a button to join the stage.'); };
+  $('#queueClear').onclick = () => { queueOp({ kind: 'qclear' }); S.queue = []; renderQueue(); };
   $('#wpQueue').onchange = (e) => setWatch({ queue: e.target.checked });
 
   // ---------------------------------------------------------------- custom emotes

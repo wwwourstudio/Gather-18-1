@@ -1010,10 +1010,27 @@ if (code) {
     if (W.info?.live?.on) $('#wLiveText').textContent = 'Live · ' + clockText(W.info.live.since);
     updateHudUptime();
   }, 1000);
-  setInterval(() => {
-    if (sess) api('wping', creds()).catch(() => {});
+  const readPing = (r) => {
+    const q = r?.queue || null;
+    const was = [W.called, W.accepted, W.lobby].join('|');
+    W.called = q?.status === 'called';
+    W.accepted = q?.status === 'accepted';
+    W.lobby = q?.lobby || '';
+    W.qgame = q?.game || '';
+    if (q && q.status !== 'waiting') W.queued = true;
+    if ([W.called, W.accepted, W.lobby].join('|') !== was) renderInteractive(W.info);
+  };
+  // Presence doubles as the queue channel, so it runs faster while someone is waiting their turn: being told
+  // "you're up" half a minute late is no use to a player. Only queued viewers pay for it.
+  const pingGap = () => (W.queued && !W.accepted ? 5000 : 30000);
+  let pingTimer = 0;
+  const ping = () => {
+    if (sess) api('wping', creds()).then(readPing).catch(() => {});
     if ($('#wLive').hidden === false && W.info?.live?.since) $('#wLiveText').textContent = 'Live · ' + clockText(W.info.live.since);
-  }, 30000);
+    clearTimeout(pingTimer);
+    pingTimer = setTimeout(ping, pingGap());
+  };
+  ping();
 } else render({ found: false });
 // ---------------------------------------------------------------- Host Drawer & Tabs (Chat | Stage | Shop)
 function openHostDrawer(on) {
@@ -1400,14 +1417,28 @@ function renderPollCard(info, box = $('#wCards')) {
 W.queued = store.get('queued:' + code, false);
 function renderQueueCard(info, box = $('#wCards')) {
   const qi = info.queue, card = box.querySelector('[data-card="queue"]');
-  if (!qi?.open && !W.called) { card?.remove(); if (!qi?.open) W.queued = false; return; }
+  if (!qi?.open && !W.called && !W.accepted) { card?.remove(); if (!qi?.open) W.queued = false; return; }
   const ahead = W.queued && sess ? Math.max(0, (qi.up || []).indexOf(sess.name)) : 0;
-  const key = JSON.stringify([qi.size, W.queued, W.called, ahead]);
+  const key = JSON.stringify([qi.size, W.queued, W.called, W.accepted, W.lobby, ahead]);
   if (card?.dataset.key === key) return;
   const c = document.createElement('div'); c.className = 'wv-card' + (W.called ? ' up' : ''); c.dataset.card = 'queue'; c.dataset.key = key;
   const k = document.createElement('div'); k.className = 'k'; k.append(Object.assign(document.createElement('span'), { textContent: '🎮 Play with the streamer' }), Object.assign(document.createElement('span'), { textContent: `${qi.size} in line` }));
   c.append(k);
-  if (W.called) {
+  if (W.accepted) {
+    const b = document.createElement('b'); b.textContent = 'Challenge accepted — you’re on.';
+    c.append(b);
+    if (W.lobby) {
+      const row = document.createElement('div'); row.className = 'wv-q-lobby';
+      row.append(Object.assign(document.createElement('span'), { textContent: 'Lobby code' }));
+      const codeEl = document.createElement('b'); codeEl.className = 'num'; codeEl.textContent = W.lobby;
+      const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'btn sm'; copy.textContent = 'Copy';
+      copy.onclick = () => { navigator.clipboard?.writeText(W.lobby).then(() => toast('Lobby code copied.')).catch(() => {}); };
+      row.append(codeEl, copy);
+      c.append(row);
+    } else {
+      c.append(Object.assign(document.createElement('span'), { textContent: 'Watch the stream — the streamer will share the lobby.' }));
+    }
+  } else if (W.called) {
     const b = document.createElement('b'); b.textContent = 'You’re up! The streamer called you.';
     const go = document.createElement('a'); go.className = 'btn wv-buy'; go.href = '/c/' + code; go.target = '_blank'; go.rel = 'noopener'; go.textContent = 'Join the stage';
     c.append(b, go);
@@ -1420,12 +1451,32 @@ function renderQueueCard(info, box = $('#wCards')) {
     const f = document.createElement('div'); f.className = 'wv-q';
     const inp = document.createElement('input'); inp.className = 'input'; inp.placeholder = 'Your gamertag'; inp.maxLength = 20; inp.value = store.get('gamertag', '');
     const mkSel = (opts, key, label) => { const s = document.createElement('select'); s.className = 'input wv-q-sel'; s.setAttribute('aria-label', label); s.append(...opts.map((o) => Object.assign(document.createElement('option'), { value: o, textContent: o }))); s.value = store.get(key, opts[0]); s.onchange = () => store.set(key, s.value); return s; };
-    const plat = box.id === 'wModeQueue' ? mkSel(['PC', 'PlayStation', 'Xbox', 'Switch', 'Mobile'], 'gplat', 'Platform') : null;
-    const role = box.id === 'wModeQueue' ? mkSel(['Flex', 'Support', 'Tank', 'DPS', 'IGL'], 'grole', 'Role') : null;
-    const go = document.createElement('button'); go.type = 'button'; go.className = 'btn primary'; go.textContent = 'Join the line';
-    go.onclick = async () => { try { await ensureSession(); store.set('gamertag', inp.value.trim()); await api('wsend', { ...creds(), type: 'queue', tag: [inp.value.trim(), plat?.value, role?.value].filter(Boolean).join(' · ').slice(0, 32) }); awardXp(5); W.queued = true; store.set('queued:' + code, true); renderInteractive(W.info); } catch (e) { toast(e.message, true); } };
-    if (plat) { const sels = document.createElement('div'); sels.className = 'wv-q-sels'; sels.append(plat, role); c.append(sels); }
-    f.append(inp, go); c.append(f);
+    // Platform and format go to the server as their own fields; the gamertag stays the free-text handle.
+    const PLATS = [['pc', 'PC'], ['playstation', 'PlayStation'], ['xbox', 'Xbox'], ['switch', 'Switch'], ['mobile', 'Mobile']];
+    const FORMATS = [['ft1', 'First to 1'], ['ft3', 'First to 3'], ['bo3', 'Best of 3'], ['bo5', 'Best of 5'], ['timed', 'Timed']];
+    const mkPairSel = (pairs, key, label) => {
+      const sel = document.createElement('select'); sel.className = 'input wv-q-sel'; sel.setAttribute('aria-label', label);
+      sel.append(...pairs.map(([v, t]) => Object.assign(document.createElement('option'), { value: v, textContent: t })));
+      sel.value = store.get(key, pairs[0][0]); sel.onchange = () => store.set(key, sel.value); return sel;
+    };
+    const plat = mkPairSel(PLATS, 'gplat2', 'Platform');
+    const fmt = mkPairSel(FORMATS, 'gfmt', 'Format');
+    const game = document.createElement('input'); game.className = 'input'; game.placeholder = 'Game (e.g. FIFA)'; game.maxLength = 32; game.value = store.get('gchalgame', info.queue?.game || '');
+    const go = document.createElement('button'); go.type = 'button'; go.className = 'btn primary'; go.textContent = 'Challenge the streamer';
+    go.onclick = async () => {
+      try {
+        await ensureSession();
+        store.set('gamertag', inp.value.trim());
+        store.set('gchalgame', game.value.trim());
+        const r = await api('wsend', { ...creds(), type: 'queue', tag: inp.value.trim().slice(0, 32), platform: plat.value, game: game.value.trim(), format: fmt.value });
+        awardXp(5); W.queued = true; store.set('queued:' + code, true);
+        if (r?.rec) toast(`You're ${r.rec.w}–${r.rec.l} against this streamer at ${game.value.trim()}.`);
+        renderInteractive(W.info);
+      } catch (e) { toast(e.message, true); }
+    };
+    const sels = document.createElement('div'); sels.className = 'wv-q-sels'; sels.append(plat, fmt);
+    c.append(sels);
+    f.append(inp, game, go); c.append(f);
   }
   if (card) card.replaceWith(c); else box.append(c);
 }
