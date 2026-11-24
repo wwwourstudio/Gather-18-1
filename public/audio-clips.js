@@ -1,4 +1,4 @@
-// Audio Clips soundboard with organized Grid View, IndexedDB persistence,
+// Audio Clips soundboard with organized Grid View, name search, IndexedDB persistence,
 // drag-and-drop upload & reordering, and instant single-click broadcast mix playback.
 
 import { replaceKids } from './ui.js';
@@ -157,6 +157,62 @@ function fmtClipDur(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** Split a raw search box value into lowercase tokens; every token must match. */
+function searchTokens(raw) {
+  const q = String(raw || '').trim().toLowerCase();
+  return q ? q.split(/\s+/) : [];
+}
+
+function clipMatchesTokens(clip, tokens) {
+  const name = String(clip?.name || '').toLowerCase();
+  return tokens.every((t) => name.includes(t));
+}
+
+/**
+ * Write `text` into `el`, wrapping the matched runs in <mark>. Builds real nodes
+ * (never innerHTML) so a clip label can never inject markup.
+ */
+function appendHighlighted(el, text, tokens) {
+  const str = String(text ?? '');
+  if (!tokens.length) {
+    el.textContent = str;
+    return;
+  }
+  const lower = str.toLowerCase();
+  const hits = [];
+  for (const t of tokens) {
+    if (!t) continue;
+    let from = 0;
+    for (;;) {
+      const i = lower.indexOf(t, from);
+      if (i < 0) break;
+      hits.push([i, i + t.length]);
+      from = i + t.length;
+    }
+  }
+  if (!hits.length) {
+    el.textContent = str;
+    return;
+  }
+  hits.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const [start, end] of hits) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  let cursor = 0;
+  for (const [start, end] of merged) {
+    if (start > cursor) el.appendChild(document.createTextNode(str.slice(cursor, start)));
+    const mk = document.createElement('mark');
+    mk.className = 'ac-hl';
+    mk.textContent = str.slice(start, end);
+    el.appendChild(mk);
+    cursor = end;
+  }
+  if (cursor < str.length) el.appendChild(document.createTextNode(str.slice(cursor)));
+}
+
 function makeClipId() {
   return 'clip-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
 }
@@ -182,6 +238,7 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
 
   const prefs = loadPrefs();
   let clips = [];
+  let query = '';
   let editingId = null;
   let dragClipId = null;
   const bufferCache = new Map(); // clip.id -> AudioBuffer
@@ -228,6 +285,17 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
 
       <div class="ac-cats" id="acCats" role="tablist" aria-label="Filter audio clips by category"></div>
 
+      <div class="ac-search-row" id="acSearchRow" hidden>
+        <div class="ac-search">
+          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-search"/></svg>
+          <input type="search" id="acSearch" placeholder="Search clips by name…" aria-label="Search audio clips by name" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <button type="button" class="ac-search-x" id="acSearchClear" hidden aria-label="Clear clip search" data-tip="Clear search">
+            <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg>
+          </button>
+        </div>
+        <span class="ac-search-meta num" id="acSearchMeta" role="status" aria-live="polite" hidden></span>
+      </div>
+
       <div class="ac-drop-banner" id="acDropBanner" hidden>
         <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>
         <span>Drop audio files to add to Audio Clips</span>
@@ -240,6 +308,10 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
         <button type="button" class="btn sm" id="acEmptyUpload">
           <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg>
           <span>Upload sound effect</span>
+        </button>
+        <button type="button" class="btn sm" id="acEmptyClearSearch" hidden>
+          <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg>
+          <span>Clear search</span>
         </button>
       </div>
 
@@ -282,7 +354,7 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
       </div>
 
       <div class="ac-foot">
-        <p class="hint">Click any pad to play into the live mix. Drag pads to reorder.</p>
+        <p class="hint">Click any pad to play into the live mix. Search by name, then press Enter to fire the top match. Drag pads to reorder.</p>
         <button type="button" class="btn link" id="acRestoreBtn" hidden>Restore starters</button>
       </div>
     </div>
@@ -357,8 +429,15 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
     return [...clips].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
+  function activeTokens() {
+    return searchTokens(query);
+  }
+
   function filteredClips() {
     const ordered = sortedClips();
+    const tokens = activeTokens();
+    // A search looks across the whole library — the category chips would otherwise hide the hit.
+    if (tokens.length) return ordered.filter((c) => clipMatchesTokens(c, tokens));
     if (prefs.cat === 'all') return ordered;
     return ordered.filter((c) => c.category === prefs.cat);
   }
@@ -401,6 +480,7 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
   function renderCategories() {
     const bar = $('#acCats', sec);
     if (!bar) return;
+    bar.classList.toggle('is-muted', activeTokens().length > 0);
     const counts = { all: clips.length };
     for (const c of clips) {
       counts[c.category] = (counts[c.category] || 0) + 1;
@@ -425,6 +505,7 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
       btn.onclick = () => {
         prefs.cat = cat.id;
         savePrefs(prefs);
+        query = ''; // picking a category is a fresh browse, not a refinement of the search
         renderAll();
       };
       return btn;
@@ -585,21 +666,70 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
     $('#acMoveNext', sec).disabled = idx < 0 || idx >= visible.length - 1;
   }
 
+  function renderSearch() {
+    const row = $('#acSearchRow', sec);
+    const input = $('#acSearch', sec);
+    const clearBtn = $('#acSearchClear', sec);
+    const meta = $('#acSearchMeta', sec);
+    if (!row || !input) return;
+
+    // Nothing to search through yet — keep the toolbar quiet until there is.
+    row.hidden = clips.length === 0;
+    if (input.value !== query) input.value = query;
+
+    const tokens = activeTokens();
+    if (clearBtn) clearBtn.hidden = !input.value;
+    if (meta) {
+      if (!tokens.length) {
+        meta.hidden = true;
+        meta.textContent = '';
+        meta.classList.remove('is-none');
+      } else {
+        const found = filteredClips().length;
+        meta.hidden = false;
+        meta.textContent = found ? `${found}/${clips.length}` : 'No match';
+        meta.classList.toggle('is-none', found === 0);
+      }
+    }
+  }
+
+  function clearSearch({ focus = false } = {}) {
+    if (!query) {
+      const input = $('#acSearch', sec);
+      if (input && input.value) input.value = '';
+      renderSearch();
+      if (focus) input?.focus();
+      return;
+    }
+    query = '';
+    renderAll();
+    if (focus) $('#acSearch', sec)?.focus();
+  }
+
   function renderGrid() {
     const grid = $('#acGrid', sec);
     const empty = $('#acEmpty', sec);
     if (!grid) return;
 
+    const tokens = activeTokens();
+    const searching = tokens.length > 0;
     const list = filteredClips();
+    const emptyUploadBtn = $('#acEmptyUpload', sec);
+    const emptyClearBtn = $('#acEmptyClearSearch', sec);
+    if (emptyUploadBtn) emptyUploadBtn.hidden = searching;
+    if (emptyClearBtn) emptyClearBtn.hidden = !searching;
+
     if (!list.length) {
       replaceKids(grid);
       grid.hidden = true;
       if (empty) {
         empty.hidden = false;
         const catObj = CLIP_CATEGORIES.find((c) => c.id === prefs.cat);
-        $('#acEmptyText', sec).textContent = prefs.cat === 'all'
-          ? 'Upload short sound effects (MP3, WAV, OGG) to trigger them live with one click.'
-          : `No clips in ${catObj?.label || prefs.cat} yet.`;
+        $('#acEmptyText', sec).textContent = searching
+          ? `No clip name matches “${query.trim()}”.`
+          : prefs.cat === 'all'
+            ? 'Upload short sound effects (MP3, WAV, OGG) to trigger them live with one click.'
+            : `No clips in ${catObj?.label || prefs.cat} yet.`;
       }
       return;
     }
@@ -638,7 +768,7 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
 
       const name = document.createElement('span');
       name.className = 'ac-pad-name';
-      name.textContent = clip.name;
+      appendHighlighted(name, clip.name, tokens);
 
       const prog = document.createElement('span');
       prog.className = 'ac-pad-prog';
@@ -704,7 +834,9 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
   }
 
   function renderAll() {
+    if (!clips.length) query = '';
     renderCategories();
+    renderSearch();
     renderGrid();
     renderEditor();
     updateSummaryAndControls();
@@ -764,6 +896,7 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
       }
 
       if (added.length) {
+        query = ''; // a new clip must be visible, not hidden behind the current search
         // Normalize order cleanly from 0..N-1
         const ordered = sortedClips();
         ordered.forEach((c, i) => { c.order = i; });
@@ -829,6 +962,32 @@ export function mountAudioClips(container, api, { renderSfxBuffer }) {
     $('#acDropBanner', sec).hidden = true;
     if (e.dataTransfer?.files?.length) importAudioFiles(e.dataTransfer.files);
   });
+
+  // Search box: filters as you type, Enter fires the top match, Esc clears
+  const searchInput = $('#acSearch', sec);
+  searchInput.addEventListener('input', () => {
+    query = searchInput.value;
+    renderAll();
+  });
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      // Don't let Esc bubble out and close the panel while there's a query to clear.
+      if (searchInput.value) {
+        e.preventDefault();
+        e.stopPropagation();
+        clearSearch({ focus: true });
+      }
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!activeTokens().length) return;
+      const top = filteredClips()[0];
+      if (top) playClip(top);
+    }
+  });
+  $('#acSearchClear', sec).onclick = () => clearSearch({ focus: true });
+  $('#acEmptyClearSearch', sec).onclick = () => clearSearch({ focus: true });
 
   // Grid column density toggle
   sec.querySelectorAll('.ac-den-btn').forEach((btn) => {

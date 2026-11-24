@@ -5936,6 +5936,85 @@ body.pre .app > .dock { display: none !important; }
   color: var(--ink-3);
 }
 .ac-cat.on em { color: var(--ink-2); }
+/* a live search looks across every category, so the chips step back while one is on */
+.ac-cats.is-muted .ac-cat { opacity: 0.45; }
+.ac-cats.is-muted .ac-cat.on { opacity: 0.6; }
+
+/* Clip name search */
+.ac-search-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ac-search-row[hidden] { display: none; }
+.ac-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--fill);
+  color: var(--ink-3);
+  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.ac-search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--ink-2);
+}
+.ac-search > .i { flex: none; }
+/* id-scoped: the panel's generic field styling is specific enough to paint a second box inside the pill */
+#audioClipsSec .ac-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--ink);
+  font: 500 12px/1 var(--font-ui);
+}
+#audioClipsSec .ac-search input:focus,
+#audioClipsSec .ac-search input:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+.ac-search input::placeholder { color: var(--ink-3); }
+/* our own clear button stands in for the webkit one */
+.ac-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.ac-search-x {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background-color 140ms var(--ease-out), color 140ms var(--ease-out);
+}
+.ac-search-x:hover { background: var(--surface-3); color: var(--ink); }
+.ac-search-x[hidden] { display: none; }
+.ac-search-meta {
+  flex: none;
+  font: 600 10.5px/1 var(--font-mono);
+  color: var(--ink-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ac-search-meta[hidden] { display: none; }
+.ac-search-meta.is-none { color: color-mix(in srgb, var(--danger) 78%, var(--ink-3)); }
 
 .ac-drop-banner {
   display: flex;
@@ -6072,6 +6151,12 @@ body.pre .app > .dock { display: none !important; }
   word-break: break-word;
 }
 .ac-grid[data-cols="3"] .ac-pad-name { font-size: 11px; }
+.ac-pad-name .ac-hl {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
 
 .ac-pad-prog {
   position: absolute;
@@ -6225,6 +6310,11 @@ body.pre .app > .dock { display: none !important; }
   background: color-mix(in srgb, var(--accent) 14%, #ffffff);
   border-color: color-mix(in srgb, var(--accent) 44%, transparent);
 }
+:root[data-theme="light"] .ac-search {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.1);
+}
+:root[data-theme="light"] .ac-search-x:hover { background: #ffffff; }
 :root[data-theme="light"] .ac-density {
   background: #f1f5f9;
   border-color: rgba(15, 23, 42, 0.1);
