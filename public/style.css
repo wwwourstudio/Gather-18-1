@@ -5702,3 +5702,15 @@ body.pre .views-pill { display: none; }
 #msgs .msg.ai-msg.sam-note .msg-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 @keyframes sam-note-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .sam-chip, #msgs .msg.ai-msg.sam-note { animation: none; } }
+/* Phone sheet: the open panel fills the sheet, so the chat composer sits at the bottom, above the tab bar. */
+@media (max-width: 720px) {
+  body:not(.pre) .main > .side { flex-direction: column; }
+  body:not(.pre) .main > .side > .panel:not([hidden]) { flex: 1 1 auto; min-height: 0; height: auto; display: flex; flex-direction: column; }
+  body:not(.pre) .main > .side > .panel:not([hidden]) > .panel-body { flex: 1 1 auto; min-height: 0; }
+}
+@media (max-width: 720px) {
+  body:not(.pre) .main > .side > .panel:not([hidden]) > :not(.panel-body) { flex: none; }
+}
+@media (max-width: 720px) {
+  body:not(.pre) .main > .side .composer { position: static; bottom: auto; background: transparent; padding-bottom: 10px; }
+}
