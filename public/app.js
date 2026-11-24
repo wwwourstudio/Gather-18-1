@@ -5735,6 +5735,8 @@ const sharedToolsApi = {
   getState: () => S.state,
   getCanvas: () => canvas,
   getStream: () => { try { return canvas.captureStream ? canvas.captureStream(30) : null; } catch { return null; } },
+  getMixStream: () => { audioCtx(); return recDest?.stream || null; }, // the program's audio mix (clips.js)
+  inStudio: () => !!S.studio,
   addElement,
   patchEl,
   getElements: () => S.state.elements || [],

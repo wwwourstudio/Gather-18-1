@@ -10,6 +10,7 @@
 
 import { MOTION_PRESETS, ALERT_STYLES, OVERLAY_PACKS } from './stage-theme.js';
 import { replaceKids } from './ui.js';
+import { createClipBuffer } from './clips.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -852,70 +853,49 @@ function initShowPowerTools(api) {
   };
 
   // Moments + 9:16 Vertical Captioned Clip Exporter
-  const moments = [];
-  window.__gatherAddMoment = (label, kind = 'manual') => {
-    moments.unshift({ id: 'm' + Date.now(), label, kind, ts: Date.now() });
-    if (moments.length > 12) moments.pop();
-    renderMoments();
-  };
+  // Clip & post: the last minute of the program is always recorded in the background (clips.js), so a marked moment
+  // holds the real highlight: 20 s before the mark to 5 s after. Export as 9:16 (TikTok, Reels, Shorts) or 16:9.
+  const clips = createClipBuffer({
+    getCanvas: () => api.getCanvas?.(), getMixStream: () => api.getMixStream?.(),
+    inStudio: () => !!api.inStudio?.(), isHost: () => !!api.isHost?.(),
+    getTitle: () => api.getState?.()?.title, getBrandColor: () => api.getBrand?.()?.color,
+    onChange: () => renderMoments(),
+  });
+  const moments = clips.moments;
+  window.__gatherAddMoment = (label, kind = 'manual') => clips.mark(label, kind);
+  window.__gatherClips = clips; // for the console and tests
 
-  async function recordVerticalClip(label) {
-    const srcCanvas = $('#stage');
-    if (!srcCanvas) return api.toast('Stage is not active yet.', { err: true });
-    api.toast(`Capturing 5s vertical 9:16 clip for “${label}”…`);
-    const vCan = document.createElement('canvas');
-    vCan.width = 540; vCan.height = 960;
-    const g = vCan.getContext('2d');
-    const stream = vCan.captureStream(30);
-    const rec = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm' });
-    const chunks = [];
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    let stop = false;
-    const drawFrame = () => {
-      if (stop) return;
-      const sw = srcCanvas.width, sh = srcCanvas.height;
-      const cropW = Math.min(sw, sh * (9 / 16));
-      const sx = (sw - cropW) / 2;
-      g.drawImage(srcCanvas, sx, 0, cropW, sh, 0, 0, 540, 960);
-      // Branded caption overlay
-      const accent = api.getBrand?.()?.color || '#3b82f6';
-      g.fillStyle = 'rgba(7,10,18,0.78)';
-      g.beginPath(); g.roundRect(28, 760, 484, 118, 18); g.fill();
-      g.fillStyle = accent; g.fillRect(28, 760, 6, 118);
-      g.fillStyle = '#ffffff'; g.font = '800 26px "Plus Jakarta Sans", sans-serif';
-      g.fillText(label.slice(0, 28), 52, 812);
-      g.fillStyle = 'rgba(255,255,255,0.78)'; g.font = '600 17px "Plus Jakarta Sans", sans-serif';
-      g.fillText(api.getState?.()?.title || 'Live on gather · Clip', 52, 850);
-      requestAnimationFrame(drawFrame);
-    };
-    rec.start();
-    drawFrame();
-    setTimeout(() => {
-      stop = true;
-      rec.stop();
-    }, 5000);
-    rec.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
+  async function exportMoment(m, aspect, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Making…'; }
+    api.toast(`Making your ${aspect} clip of “${m.label}”. It takes about as long as the clip.`, { ms: 4000 });
+    try {
+      const blob = await clips.exportClip(m, aspect);
       const u = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = u; a.download = `gather-short-${Date.now()}.webm`; a.click();
-      setTimeout(() => URL.revokeObjectURL(u), 5000);
-      api.toast('9:16 vertical short ready for TikTok, Reels & Shorts!');
-    };
+      const a = document.createElement('a'); a.href = u; a.download = `gather-${aspect === '9:16' ? 'short' : 'clip'}-${new Date(m.ts).toISOString().slice(11, 19).replace(/:/g, '')}.webm`;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 10_000);
+      api.toast(aspect === '9:16' ? 'Vertical clip saved: ready for TikTok, Reels and Shorts.' : 'Clip saved.');
+    } catch (e) { api.toast(e.message || 'Couldn’t make that clip.', { err: true }); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = aspect; } }
   }
 
   function renderMoments() {
     const cnt = document.getElementById('stageClipN'); if (cnt) { cnt.textContent = String(moments.length); cnt.hidden = !moments.length; }
     const ul = $('#momentList', clipSec);
     if (!moments.length) {
-      ul.innerHTML = '<li class="hint">No moments marked yet. Press M during a highlight or click Auto shorts.</li>';
+      ul.innerHTML = '<li class="hint">No moments yet. Press M, or Mark clip on the stage, right after something good happens: the clip keeps the 20 seconds before it.</li>';
       return;
     }
     replaceKids(ul, ...moments.map((m) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<div class="sp-row"><div><b></b><small></small></div><button type="button" class="btn sm primary">9:16 Clip</button></div>`;
+      const li = document.createElement('li'); li.className = 'clip-row';
+      li.innerHTML = `<div class="sp-row"><div><b></b><small></small></div><span class="clip-acts"><button type="button" class="btn sm primary">9:16</button><button type="button" class="btn sm">16:9</button></span></div>`;
       $('b', li).textContent = m.label;
-      $('small', li).textContent = `${m.kind} · ${new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-      $('button', li).onclick = () => recordVerticalClip(m.label);
+      const when = new Date(m.ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      $('small', li).textContent = m.state === 'capturing' ? `${when} · capturing…` : m.state === 'missed' ? `${when} · not captured (the buffer wasn’t running)` : `${when} · ${m.dur || 25} s ready`;
+      const [v, h] = li.querySelectorAll('button');
+      v.disabled = h.disabled = m.state !== 'ready';
+      v.onclick = () => exportMoment(m, '9:16', v);
+      h.onclick = () => exportMoment(m, '16:9', h);
       return li;
     }));
   }
@@ -924,30 +904,29 @@ function initShowPowerTools(api) {
   // On the stage (host only, shows on hover): mark a clip without leaving the chat. A DOM control over the stage,
   // never drawn into the program, so it isn't recorded or streamed.
   const stageClip = document.getElementById('stageClipBtn');
-  if (stageClip) {
-    stageClip.onclick = () => {
-      window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'stage');
-      stageClip.classList.remove('done'); void stageClip.offsetWidth; stageClip.classList.add('done');
-      api.toast('Clip marked. Export it from Studio → Clip & post.', { ms: 2500 });
-    };
-  }
+  if (stageClip) stageClip.onclick = () => {
+    window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'stage');
+    stageClip.classList.remove('done'); void stageClip.offsetWidth; stageClip.classList.add('done');
+    api.toast('Clip marked: it keeps the 20 s before this. Export it from Clip & post.', { ms: 2500 });
+  };
   $('#markMomentBtn', clipSec).onclick = () => {
     window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'manual');
-    api.toast('Moment marked! Click 9:16 Clip to export vertical video.');
+    api.toast(clips.running ? 'Marked. The clip keeps the 20 s before this, ready in a few seconds.' : 'Marked, but the clip buffer only runs while you’re in your studio as host.');
   };
   $('#autoShortsBtn', clipSec).onclick = () => {
-    if (!moments.length) {
-      window.__gatherAddMoment('Top Hype Moment', 'hype spike');
-      window.__gatherAddMoment('Top Super Chat Shout-out', 'super chat');
-    }
-    recordVerticalClip(moments[0]?.label || 'Auto Short Highlight');
+    const ready = moments.find((m) => m.state === 'ready');
+    if (ready) return exportMoment(ready, '9:16');
+    const m = window.__gatherAddMoment('Auto short', 'auto');
+    api.toast('Capturing now. Your short will save in a few seconds.');
+    const wait = setInterval(() => { if (m.state !== 'capturing') { clearInterval(wait); if (m.state === 'ready') exportMoment(m, '9:16'); } }, 1000);
   };
-  // Keyboard M to mark clip (when not typing)
+  // M marks a moment (when not typing)
   document.addEventListener('keydown', (e) => {
     if (String(e.key || '').toLowerCase() !== 'm' || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
+    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable) return;
+    if (!api.isHost?.()) return;
     window.__gatherAddMoment(`Highlight #${moments.length + 1}`, 'hotkey M');
-    api.toast('🎬 Moment marked (M) — ready in Clip & Post.');
+    api.toast('🎬 Moment marked (M). Export it from Clip & post.');
   });
 
   // Green Room & Team Roles sync
