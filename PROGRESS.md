@@ -511,3 +511,7 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - `wxp` reads the balance.
 - **Tests.** `pay` checks that a $25 super chat's XP buys a highlight and a song request and then runs out (402), that both show in the chat, and that a forged viewer can't spend.
 - **Open point.** The watch page still has the older on-device XP counter (used for prediction wagers) next to the server balance. Merging them into one number is a follow-up.
+
+## Sam on Google AI Studio hosting
+- With no `HOUSE_AI_KEY` set, Sam uses the server's `GEMINI_API_KEY` (Google AI Studio provides one), within the same daily allowance (`HOUSE_AI_DAILY`, default 25 per studio).
+- `HOUSE_AI_PROVIDER=off` keeps Sam to hosts' own keys.
