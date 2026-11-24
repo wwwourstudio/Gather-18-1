@@ -515,3 +515,17 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
 ## Sam on Google AI Studio hosting
 - With no `HOUSE_AI_KEY` set, Sam uses the server's `GEMINI_API_KEY` (Google AI Studio provides one), within the same daily allowance (`HOUSE_AI_DAILY`, default 25 per studio).
 - `HOUSE_AI_PROVIDER=off` keeps Sam to hosts' own keys.
+
+## Phone studio, one column (V13)
+- On phones the studio is one column, top to bottom:
+  - the header
+  - the video, edge to edge
+  - the controls right under it (mic, camera, present, record, Sam, leave)
+  - the scenes and guests strip, folded to start
+  - the panel tabs (Chat, Stage, Audience, Shop, AI)
+  - the open panel filling the rest, chat by default, with its message box at the bottom of the screen
+- Nothing is pinned to the bottom of the screen and nothing slides over the video. Folding the strip gives the chat the whole height.
+- The controls move under the video on phones (`placeDock` in app.js) and back to the bottom of the window on wider screens.
+- Scenes and guests remember their folded state separately on phones (`deckClosedPhone`).
+- **Bug fixed (phones and desktop).** Folding the strip turned the stage black. The camera previews in the strip used the `autoplay` attribute, and browsers pause muted autoplay videos out of view. They now start from code and are kept running, and the folded strip collapses to zero height instead of `display: none`.
+- **Tests.** `feat` gives every guest-sync wait 10 s; it passed alone and failed only under full-suite load.

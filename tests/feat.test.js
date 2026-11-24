@@ -30,7 +30,7 @@ let pages = []; // for the timing dump on failure
   const bid = await b.evaluate(() => window.__gather.id);
   const offFirst = await a.evaluate((id) => !window.__gather.state.stage.includes(id), bid);
   await a.click('[data-deck="people"]'); await a.click(`#card-${bid} .crew-thumb`);
-  await b.waitForFunction((id) => window.__gather.state.stage.includes(id), bid, { timeout: 5000, polling: 100 });
+  await b.waitForFunction((id) => window.__gather.state.stage.includes(id), bid, { timeout: 10000, polling: 100 });
   console.log('0 guest arrived backstage:', offFirst, '| clicked onto stage:', true, '| quick invite in footer:', await a.isVisible('#noteLink') || await a.isVisible('#guide'));
   if (!offFirst) console.log('FAIL the guest went straight on stage');
   await a.click('#deckToggle'); const folded = await a.isHidden('#deckBody'); await a.click('#deckToggle');
@@ -42,7 +42,7 @@ let pages = []; // for the timing dump on failure
   const tClick = await a.evaluate(() => Math.round(performance.now()));
   await a.click('.tpl:has-text("Chat-led show")');
   const tClickB = await b.evaluate(() => Math.round(performance.now()));
-  await b.waitForFunction(() => window.__gather.state.layout === 'custom' && window.__gather.state.scene === 'p-chat' && window.__gather.state.elements.some(e => e.type === 'chat'), null, { timeout: 5000, polling: 100 }).catch(async (e) => {
+  await b.waitForFunction(() => window.__gather.state.layout === 'custom' && window.__gather.state.scene === 'p-chat' && window.__gather.state.elements.some(e => e.type === 'chat'), null, { timeout: 10000, polling: 100 }).catch(async (e) => {
     // This step fails now and then in CI. Show both sides so the next failure says why (slow sync, or the host never applied it).
     const view = (p) => p.evaluate(() => ({ layout: window.__gather.state.layout, scene: window.__gather.state.scene, els: window.__gather.state.elements.map((x) => x.type).join(','), host: window.__gather.host === window.__gather.id, phase: window.__gather.phase, visible: document.visibilityState }));
     console.log('  template step timed out · host:', JSON.stringify(await view(a)), '· guest:', JSON.stringify(await view(b)));
@@ -67,11 +67,11 @@ let pages = []; // for the timing dump on failure
   const before = await b.evaluate(() => { const e = window.__gather.state.elements.find(e => e.type === 'image'); return [e.x, e.y]; });
   const box = await a.locator('.ebox.sel').boundingBox();
   await a.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await a.mouse.down(); await a.keyboard.down("Alt"); await a.mouse.move(box.x - 300, box.y + 120, { steps: 8 }); await a.mouse.up(); await a.keyboard.up("Alt");
-  await b.waitForFunction(([x]) => { const e = window.__gather.state.elements.find(e => e.type === 'image'); return Math.abs(e.x - x) > 0.05; }, before, { timeout: 5000, polling: 100 });
+  await b.waitForFunction(([x]) => { const e = window.__gather.state.elements.find(e => e.type === 'image'); return Math.abs(e.x - x) > 0.05; }, before, { timeout: 10000, polling: 100 });
   console.log('drag synced:', before, '->', await b.evaluate(() => { const e = window.__gather.state.elements.find(e => e.type === 'image'); return [+e.x.toFixed(3), +e.y.toFixed(3)]; }));
   // 5. countdown timer
   await a.click('[data-add="timer"]'); await a.selectOption('#elProps select[data-k="mode"]', 'countdown'); await a.click('#elProps [data-count="5"]');
-  await b.waitForFunction(() => window.__gather.state.elements.some(e => e.type === 'timer' && e.mode === 'countdown' && e.target > Date.now()), null, { timeout: 5000, polling: 100 });
+  await b.waitForFunction(() => window.__gather.state.elements.some(e => e.type === 'timer' && e.mode === 'countdown' && e.target > Date.now()), null, { timeout: 10000, polling: 100 });
   console.log('countdown synced');
   // 6. chat -> feature on stage
   await a.click('[data-add]'); // no-op guard
@@ -80,11 +80,11 @@ let pages = []; // for the timing dump on failure
   await a.click('[data-tab="chat"]');
   await a.waitForSelector('#msgs li[data-src="studio"]:not(.me) .feat', { state: 'attached' });
   await a.hover('#msgs li[data-src="studio"]:not(.me)'); await a.click('#msgs li[data-src="studio"]:not(.me) .feat');
-  await b.waitForFunction(() => window.__gather.state.featured?.text?.includes('relay'), null, { timeout: 5000, polling: 100 });
+  await b.waitForFunction(() => window.__gather.state.featured?.text?.includes('relay'), null, { timeout: 10000, polling: 100 });
   console.log('featured message synced; feed length on guest:', await b.evaluate(() => window.__gather.feed.length));
   // 7. twitch connect attempt (network may block)
   await a.click('#settingsTop'); await a.fill('#twitchInput', 'https://twitch.tv/SomeChannel'); await a.click('#twitchGo'); await a.keyboard.press('Escape');
-  await b.waitForFunction(() => window.__gather.state.feeds.twitch === 'somechannel', null, { timeout: 5000, polling: 100 });
+  await b.waitForFunction(() => window.__gather.state.feeds.twitch === 'somechannel', null, { timeout: 10000, polling: 100 });
   await a.waitForTimeout(2500);
   console.log('twitch channel synced; host status:', await a.textContent('#twitchStatus'));
   // guest permissions

@@ -1027,7 +1027,9 @@ body.pre #helpTop, body.pre #settingsTop { display: none; }
 /* the deck folds away to give the stage the room */
 .deck-toggle { margin-left: var(--sp-1); color: var(--ink-3); }
 .deck-toggle .i { transition: transform var(--dur) var(--ease-out); }
-body.deck-closed .deck-body { display: none; }
+/* Folded, the strip keeps its camera previews in the page (zero height, not display:none): browsers stop decoding
+   a video that isn't displayed, and the stage draws from those videos. */
+body.deck-closed .deck-body { height: 0 !important; min-height: 0 !important; max-height: 0 !important; margin: 0 !important; overflow: hidden; opacity: 0; pointer-events: none; }
 body.deck-closed .deck-toggle .i { transform: rotate(180deg); }
 body.deck-closed .deck { padding-bottom: var(--sp-2); }
 /* backstage: the host clicks a picture to bring someone on stage */
@@ -5400,20 +5402,6 @@ body.pre .views-pill { display: none; }
 .pay-step small { font-size: 12px; line-height: 1.4; color: var(--ink-3); overflow-wrap: anywhere; }
 .pay-step.next small { color: var(--ink-2); }
 
-/* ================================================================ Studio on phones (≤720px)
-   From the bottom up: the tab bar, the dock just above it, then the stage and the scenes scrolling above both. The
-   panel is a sheet that a tab opens over everything but the tab bar. (.main made its own stacking layer, so the
-   tab bar sat under the dock.) */
-@media (max-width: 720px) {
-  body:not(.pre) .main { z-index: auto; overflow-y: auto; overscroll-behavior: contain; }
-  body:not(.pre) .main > .rail { z-index: 70; height: 58px; }
-  body:not(.pre) .app > .dock { position: fixed; left: 0; right: 0; bottom: 58px; z-index: 40; min-height: 0; height: auto; padding: 4px 6px; border-radius: 0; }
-  body:not(.pre) .app > .dock .guide { display: none !important; }
-  body:not(.pre) .app > .dock .icon-btn.stacked { min-height: 48px; }
-  body:not(.pre) .studio { padding-bottom: 134px; }
-  body:not(.pre) .main > .side { z-index: 65; bottom: 58px; max-height: 76dvh; height: 76dvh; border-radius: 18px 18px 0 0; }
-  body:not(.pre) .main > .side::before { content: ""; position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: rgba(255, 255, 255, 0.22); z-index: 2; }
-}
 
 .app > .top { grid-row: 1; } .app > .toasts { grid-row: 2; } .app > .main { grid-row: 3; } .app > .dock { grid-row: 4; }
 .app > .main, .app > .dock, .app > .toasts:not(:empty) { margin-top: var(--app-gap, 0px); }
@@ -5447,67 +5435,6 @@ body.pre .views-pill { display: none; }
   body:not(.pre) .app > .toasts .toast { padding: 6px 40px 6px 14px; justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { .toast, .toast.out { animation: none; } }
-
-/* ================================================================ Studio on phones: compact pass
-   Everything the host needs fits on one screen without scrolling: a 48px header, the video edge to edge with the
-   on-air pill in its corner, the scenes right under it, then one row of controls and the tab bar. */
-@media (max-width: 720px) {
-  body:not(.pre) .app > .top { height: 48px; padding: 0 8px 0 12px; gap: 6px; }
-  body:not(.pre) .app > .top .logo-word { font-size: 20px; }
-  body:not(.pre) .app > .top .btn.hdr, body:not(.pre) .app > .top .icon-btn.hdr-ic { height: 34px; min-height: 34px; padding: 0 9px; gap: 6px; font-size: 13px; }
-  body:not(.pre) #watchTop > span, body:not(.pre) #enterTop > span { display: none; }
-  body:not(.pre) #watchTop, body:not(.pre) #enterTop, body:not(.pre) #userBtn { width: 34px; padding: 0; justify-content: center; }
-  body:not(.pre) .app > .top .top-actions { gap: 6px; }
-
-  /* The stage is only as tall as the video. */
-  body:not(.pre) .studio { height: auto !important; min-height: 100%; overflow: visible !important; padding-bottom: 122px; }
-  body:not(.pre) .stage-card { flex: none !important; }
-  body:not(.pre) .stage-card > .stage-wrap { padding: 6px 6px 4px !important; }
-  body:not(.pre) .stage-card .stage { border-radius: 10px !important; }
-  body:not(.pre) .stage-card > .stage-topbar { top: 14px; left: 14px; }
-  body:not(.pre) .stage-card > .stage-topbar .air-pill { height: 22px; padding: 0 8px; font-size: 10.5px; }
-  body:not(.pre) .stage-clip-btn { height: 30px; padding: 0 10px; font-size: 12px; }
-
-  /* Scenes: one compact row. The tabs and the scene cards stay; the filter chips give way to scrolling. */
-  body:not(.pre) #deck { padding: 2px 6px 6px !important; }
-  body:not(.pre) #deck .deck-head { min-height: 0; padding: 0 30px 0 0; gap: 6px; flex-wrap: nowrap; }
-  body:not(.pre) #deck .deck-tabs.seg > button { height: 34px; padding: 0 10px; font-size: 13px; }
-  body:not(.pre) #deck .deck-filter, body:not(.pre) #deck #lockWrap { display: none !important; }
-  body:not(.pre) #deck .deck-head-r { margin-left: auto; }
-  body:not(.pre) #deck .scenes { gap: 8px; padding: 2px 0 2px; scroll-snap-type: x proximity; }
-  body:not(.pre) #deck .scene { width: 100px; padding: 5px; gap: 5px; border-radius: 10px; scroll-snap-align: start; }
-  body:not(.pre) #deck .scene .sc-pv { border-radius: 6px; }
-  body:not(.pre) #deck .scene .sc-name { font-size: 11px; }
-  body:not(.pre) #deck .scene kbd { display: none; }
-
-  /* Controls: icons with a short word under them, one tight row. */
-  body:not(.pre) .app > .dock { padding: 2px 4px; gap: 0; }
-  body:not(.pre) .app > .dock .icon-btn.stacked { min-height: 44px; min-width: 48px; padding: 3px 4px; gap: 2px; font-size: 10px; }
-  body:not(.pre) .app > .dock .icon-btn.stacked .i { width: 20px; height: 20px; }
-  body:not(.pre) #leaveBtn { height: 34px; padding: 0 10px; font-size: 13px; }
-
-  /* Tab bar */
-  body:not(.pre) .main > .rail { height: 54px; }
-  body:not(.pre) .main > .side { bottom: 54px; }
-  body:not(.pre) .app > .dock { bottom: 54px; }
-  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { min-height: 46px; padding: 4px 6px; font-size: 10px; gap: 2px; }
-}
-/* Phone: the page is exactly one screen. The scenes fill what's left under the video as a grid, so every scene
-   is one tap away without sideways scrolling. */
-@media (max-width: 720px) {
-  body:not(.pre) .app { height: 100vh; height: 100dvh; min-height: 0; }
-  body:not(.pre) .app > .main { min-height: 0; grid-template-rows: minmax(0, 1fr) !important; overflow: hidden; }
-  body:not(.pre) .studio { height: 100% !important; min-height: 0; overflow: hidden !important; padding-bottom: 106px; }
-  body:not(.pre) #deck { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
-  body:not(.pre) #deck:not(.collapsed) .deck-body { flex: 1 1 auto; height: auto !important; min-height: 96px !important; max-height: none !important; }
-  body:not(.pre) #deck .deck-head { flex-wrap: wrap; row-gap: 4px; }
-  body:not(.pre) #deck .scene-suggest { order: 9; flex: 1 1 100%; max-width: none; height: 30px; }
-  body:not(.pre) #deck .scene-suggest-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; font-size: 12px; }
-  body:not(.pre) #deck .scene-suggest-acts { width: auto; }
-  body:not(.pre) #deck #sceneStrip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: min-content; align-content: start;
-    gap: 8px; height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 8px; scroll-snap-type: none; }
-  body:not(.pre) #deck #sceneStrip .scene { width: auto; height: auto; min-height: 0; }
-}
 
 /* ================================================================ Scene previews, calm (V11)
    One quiet palette for the deck and the sidebar templates: dark glass tiles tinted by what each block is, a soft
@@ -5574,39 +5501,6 @@ body.pre .views-pill { display: none; }
   body:not(.pre) #topTitle { display: none !important; }
 }
 @media (min-width: 721px) { #umHelp { display: none; } }
-@media (max-width: 720px) {
-  body:not(.pre) .studio { padding-bottom: 54px; }
-  body:not(.pre) #deck #sceneStrip { -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent); padding-bottom: 24px; }
-}
-
-/* ================================================================ Phone motion
-   The panel sheet slides up from the tab bar and back down (no pop), a dim scrim sits behind it, and every
-   control answers a tap with a small press. */
-@media (max-width: 720px) {
-  body:not(.pre) .main > .side {
-    display: flex !important; transform: translateY(0); opacity: 1; visibility: visible;
-    transition: transform .34s cubic-bezier(.2, .9, .25, 1), opacity .2s ease, visibility 0s linear 0s;
-    box-shadow: 0 -24px 60px -20px rgba(0, 0, 0, 0.7);
-  }
-  body.panel-closed:not(.pre) .main > .side {
-    transform: translateY(calc(100% + 60px)); opacity: 0; visibility: hidden; pointer-events: none;
-    transition: transform .28s cubic-bezier(.4, 0, .9, .4), opacity .2s ease .08s, visibility 0s linear .3s;
-  }
-  body:not(.pre):not(.panel-closed) .studio::after {
-    content: ""; position: fixed; inset: 0; z-index: 60; background: rgba(2, 6, 16, 0.42); pointer-events: none;
-    animation: scrim-in .3s ease both;
-  }
-  body:not(.pre) .rail-btn, body:not(.pre) .app > .dock .icon-btn, body:not(.pre) #liveTop, body:not(.pre) #userBtn { transition: transform .12s ease, color .15s, background-color .15s; }
-  body:not(.pre) .rail-btn:active, body:not(.pre) .app > .dock .icon-btn:active, body:not(.pre) #liveTop:active, body:not(.pre) #userBtn:active { transform: scale(.92); }
-  body:not(.pre) .main > .rail .rail-btn .i { transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); }
-  body:not(.pre) .main > .rail .rail-btn.on .i { transform: translateY(-1px) scale(1.08); }
-}
-@keyframes scrim-in { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  body:not(.pre) .main > .side, body.panel-closed:not(.pre) .main > .side { transition: none !important; }
-  body:not(.pre):not(.panel-closed) .studio::after { animation: none; }
-}
-
 /* ================================================================ Studio dock (V12)
    Three zones: the getting-started guide or status on the left, the controls centred, Leave on the right.
    Each control is an icon tile with its word underneath; the tile carries the state (red when muted or
@@ -5663,22 +5557,6 @@ body.pre .app > .dock { display: none !important; }
 .app > .dock > .guide { gap: 10px; }
 @media (prefers-reduced-motion: reduce) { .dock .icon-btn.stacked > :first-child, .dock .rec-tool.recording.icon-btn.stacked > .i { transition: none; animation: none; } }
 
-/* Phone: the same tiles, smaller; Leave is a red round button. */
-@media (max-width: 720px) {
-  body:not(.pre) .app > .dock { grid-template-columns: minmax(0, 1fr) auto; min-height: 0; padding: 4px 8px !important; column-gap: 6px; }
-  body:not(.pre) .app > .dock > .dock-tools { grid-column: 1; justify-content: space-between; gap: 0; width: 100%; }
-  body:not(.pre) .app > .dock > #leaveBtn { grid-column: 2; }
-  body:not(.pre) .app > .dock > .dock-note { display: none !important; }
-  body:not(.pre) .app > .dock .icon-btn.stacked { min-width: 52px; min-height: 0; gap: 3px; padding: 2px 0 !important; }
-  body:not(.pre) .app > .dock .icon-btn.stacked > .i, body:not(.pre) .app > .dock .icon-btn.stacked > .swap { width: 40px; height: 34px; padding: 8px; border-radius: 11px; }
-  body:not(.pre) .dock .ai-dock.icon-btn.stacked::before { width: 40px; height: 34px; margin-left: -20px; border-radius: 11px; }
-  body:not(.pre) .dock .ai-dock.icon-btn.stacked > .orb-i { width: 20px; height: 20px; margin: 7px 0; }
-  body:not(.pre) .app > .dock .icon-btn.stacked > .swap .i { width: 18px; height: 18px; }
-  body:not(.pre) .app > .dock .icon-btn.stacked .caption { font-size: 10px; }
-  body:not(.pre) .app > .dock .dock-sep { display: none; }
-  body:not(.pre) .dock #leaveBtn.btn.danger { width: 40px; height: 40px; min-height: 40px; min-width: 40px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
-  body:not(.pre) .dock #leaveBtn .wide-only { display: none; }
-}
 
 /* ================================================================ Sam in the studio chat
    One conversation: starter prompts above the composer, the Sam orb inside it, and Sam's notes in the feed. */
@@ -5706,18 +5584,6 @@ body.pre .app > .dock { display: none !important; }
 #msgs .msg.ai-msg.sam-note .msg-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 @keyframes sam-note-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .sam-chip, #msgs .msg.ai-msg.sam-note { animation: none; } }
-/* Phone sheet: the open panel fills the sheet, so the chat composer sits at the bottom, above the tab bar. */
-@media (max-width: 720px) {
-  body:not(.pre) .main > .side { flex-direction: column; }
-  body:not(.pre) .main > .side > .panel:not([hidden]) { flex: 1 1 auto; min-height: 0; height: auto; display: flex; flex-direction: column; }
-  body:not(.pre) .main > .side > .panel:not([hidden]) > .panel-body { flex: 1 1 auto; min-height: 0; }
-}
-@media (max-width: 720px) {
-  body:not(.pre) .main > .side > .panel:not([hidden]) > :not(.panel-body) { flex: none; }
-}
-@media (max-width: 720px) {
-  body:not(.pre) .main > .side .composer { position: static; bottom: auto; background: transparent; padding-bottom: 10px; }
-}
 /* The composer orb and chip dots hold still: one more spinning gradient costs frames on slow machines. */
 .composer-box .sam-btn .orb, .sam-chip::before { animation: none; }
 
@@ -5737,3 +5603,114 @@ body.pre .app > .dock { display: none !important; }
 /* Viewer rewards in the studio chat */
 #msgs .msg.ext.hl { background: color-mix(in srgb, #fbbf24 12%, transparent); box-shadow: inset 3px 0 0 #fbbf24; border-radius: 10px; }
 #msgs .msg.ext.song { background: color-mix(in srgb, #a855f7 14%, transparent); box-shadow: inset 3px 0 0 #a855f7; }
+
+/* ================================================================ Studio on phones (V13): one column
+   Top to bottom: the header, the video edge to edge, the controls right under it, the scenes and guests strip
+   (folds away), then the panel tabs and the open panel, chat by default, filling the rest. Nothing is fixed to the
+   bottom of the screen and nothing slides over the video, so the host always sees the picture and the comments. */
+@media (max-width: 720px) {
+  body:not(.pre) .app { display: flex !important; flex-direction: column; height: 100vh; height: 100dvh; min-height: 0; padding: 0 !important; column-gap: 0; overflow: hidden; }
+  body:not(.pre) .app > .top { flex: none; }
+  body:not(.pre) .app > .toasts { flex: none; margin: 0 !important; }
+  body:not(.pre) .app > .main { flex: 1 1 auto; min-height: 0; margin: 0 !important; display: flex !important; flex-direction: column; overflow: hidden; z-index: auto; gap: 0 !important; }
+
+  /* the video and its controls */
+  body:not(.pre) .main > .studio { order: 1; flex: none; display: flex; flex-direction: column; height: auto !important; min-height: 0; overflow: visible !important; padding: 0 !important; gap: 0 !important; }
+  body:not(.pre) .stage-card { flex: none !important; }
+  body:not(.pre) .stage-card > .stage-wrap { padding: 0 !important; }
+  body:not(.pre) .stage-card .stage { border-radius: 0 !important; box-shadow: none !important; }
+  body:not(.pre) .stage-card > .stage-topbar { top: 10px; left: 10px; }
+  body:not(.pre) .stage-card > .stage-topbar .air-pill { height: 22px; padding: 0 8px; font-size: 10.5px; }
+  body:not(.pre) .stage-clip { top: 8px !important; right: 8px !important; }
+  body:not(.pre) .stage-clip-btn { height: 28px; padding: 0 10px; font-size: 12px; }
+  body:not(.pre) .studio > .dock {
+    position: static !important; display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 6px;
+    min-height: 0; height: auto; margin: 0 !important; padding: 6px 10px 4px !important; border: 0 !important; border-radius: 0 !important;
+    background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  body:not(.pre) .studio > .dock > .dock-tools { grid-column: 1; display: flex; justify-content: space-between; gap: 0; width: 100%; overflow: visible; }
+  body:not(.pre) .studio > .dock > #leaveBtn { grid-column: 2; grid-row: 1; justify-self: end; }
+  body:not(.pre) .studio > .dock > .guide, body:not(.pre) .studio > .dock > .dock-note, body:not(.pre) .studio > .dock .dock-sep { display: none !important; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked { min-width: 48px; min-height: 0; gap: 3px; padding: 0 !important; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked > .i, body:not(.pre) .studio > .dock .icon-btn.stacked > .swap { width: 40px; height: 34px; padding: 8px; border-radius: 11px; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked > .swap .i { width: 18px; height: 18px; }
+  body:not(.pre) .studio > .dock .ai-dock.icon-btn.stacked::before { width: 40px; height: 34px; margin-left: -20px; border-radius: 11px; }
+  body:not(.pre) .studio > .dock .ai-dock.icon-btn.stacked > .orb-i { width: 20px; height: 20px; margin: 7px 0; }
+  body:not(.pre) .studio > .dock .icon-btn.stacked .caption { font-size: 10px; }
+  body:not(.pre) .dock #leaveBtn.btn.danger { width: 40px; height: 40px; min-height: 40px; min-width: 40px; padding: 0; justify-content: center; font-size: 0; gap: 0; border-radius: 50%; }
+  body:not(.pre) .dock #leaveBtn > .i { margin: 0; }
+  body:not(.pre) .dock #leaveBtn .wide-only { display: none; }
+
+  /* scenes and guests: one compact strip that folds away */
+  body:not(.pre) #deck { padding: 4px 10px 8px !important; border: 0 !important; border-top: 1px solid var(--glass-border) !important; border-radius: 0 !important; background: transparent !important; }
+  body:not(.pre) #deck .deck-head { position: relative; min-height: 0; padding: 0 34px 0 0; gap: 8px; flex-wrap: nowrap; }
+  body:not(.pre) #deck .deck-tabs.seg > button { height: 32px; padding: 0 10px; font-size: 12.5px; }
+  body:not(.pre) #deck .deck-filter, body:not(.pre) #deck #lockWrap, body:not(.pre) #deck .crew-count { display: none !important; }
+  body:not(.pre) #deck .deck-toggle { position: absolute; right: 0; top: 2px; width: 30px; height: 30px; }
+  body:not(.pre) #deck .scene-suggest { display: none !important; }
+  body:not(.pre):not(.deck-closed) #deck:not(.collapsed) .deck-body { height: 84px !important; min-height: 0 !important; max-height: none !important; margin-top: 4px; }
+  body:not(.pre):not(.deck-closed) #deck .deck-body:has(.deck-layer.on .crew-list) { height: 96px !important; }
+  body:not(.pre) #deck #sceneStrip { display: flex; gap: 8px; height: 100%; overflow-x: auto; overflow-y: hidden; padding: 2px 0; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  body:not(.pre) #deck #sceneStrip::-webkit-scrollbar { display: none; }
+  body:not(.pre) #deck #sceneStrip .scene { flex: none; width: 96px !important; height: auto; padding: 5px !important; gap: 5px !important; border-radius: 10px !important; scroll-snap-align: start; }
+  body:not(.pre) #deck .scene .sc-name { font-size: 11px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body:not(.pre) #deck .scene kbd { display: none; }
+
+  /* the panel tabs: a row of tabs above the open panel */
+  body:not(.pre) .main > .rail {
+    order: 2; position: static !important; inset: auto !important; flex: none; z-index: auto !important; display: flex !important; flex-direction: row !important;
+    justify-content: space-around; align-items: stretch; width: auto !important; height: 44px !important; min-height: 0; margin: 0; padding: 0 6px !important; gap: 0;
+    border: 0 !important; border-top: 1px solid var(--glass-border) !important; border-bottom: 1px solid var(--glass-border) !important; border-radius: 0 !important;
+    background: color-mix(in srgb, var(--surface-1, #0b1020) 80%, transparent) !important; box-shadow: none !important; overflow: hidden;
+  }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { flex: 1 1 0; min-width: 0; width: auto !important; min-height: 0 !important; height: 100%; padding: 0 2px !important; flex-direction: row; gap: 6px; font-size: 12px; justify-content: center; position: relative; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked .i { width: 16px; height: 16px; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked .caption { font-size: 12px; font-weight: 600; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on { color: var(--ink) !important; background: none !important; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on::after { content: ""; position: absolute; left: 22%; right: 22%; top: auto !important; bottom: 0 !important; width: auto !important; height: 2px !important; margin: 0 !important; border-radius: 2px 2px 0 0; background: var(--accent); }
+  body:not(.pre) .main > .rail > :not(.rail-btn) { display: none !important; }
+
+  /* the open panel fills the rest; the chat composer sits at the bottom of the screen */
+  body:not(.pre) .main > .side {
+    order: 3; position: static !important; inset: auto !important; display: flex !important; flex-direction: column; flex: 1 1 auto; min-height: 0;
+    width: auto !important; height: auto !important; max-height: none !important; transform: none !important; opacity: 1 !important; visibility: visible !important;
+    pointer-events: auto !important; z-index: auto !important; margin: 0; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+  }
+  body:not(.pre) .main > .side::before { display: none !important; }
+  body:not(.pre) .main > .side > .panel:not([hidden]) { flex: 1 1 auto; min-height: 0; height: auto; display: flex; flex-direction: column; }
+  body:not(.pre) .main > .side > .panel:not([hidden]) > :not(.panel-body) { flex: none; }
+  body:not(.pre) .main > .side > .panel:not([hidden]) > .panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  body:not(.pre) .main > .side .composer { position: static !important; bottom: auto; background: transparent; padding: 6px 10px max(8px, env(safe-area-inset-bottom, 0px)) !important; }
+  body:not(.pre) .main > .side .panel-head { padding: 8px 10px 6px; }
+  body:not(.pre) [data-panel="chat"] .chat-head h2, body:not(.pre) [data-panel="chat"] .chat-head .panel-ic { display: none; }
+  body:not(.pre) .sam-starters { margin: 0 10px 4px; }
+
+  /* touch feedback */
+  body:not(.pre) .rail-btn, body:not(.pre) .dock .icon-btn, body:not(.pre) #liveTop, body:not(.pre) #userBtn { transition: transform .12s ease, color .15s, background-color .15s; }
+  body:not(.pre) .rail-btn:active, body:not(.pre) .dock .icon-btn:active, body:not(.pre) #liveTop:active, body:not(.pre) #userBtn:active { transform: scale(.94); }
+}
+@media (max-width: 720px) {
+  body:not(.pre) .app > .main { padding: 0 !important; }
+  body:not(.pre) #watchTop > span, body:not(.pre) #enterTop > span { display: none !important; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { display: flex !important; flex-direction: row !important; align-items: center; }
+  /* chat header: one row of filters (plus the options button); the mood meter waits for wider screens */
+  body:not(.pre) [data-panel="chat"] .chat-head { display: flex !important; align-items: center; flex-wrap: nowrap; gap: 6px; padding: 6px 8px 6px 10px !important; }
+  body:not(.pre) [data-panel="chat"] .chat-head .chat-mood { display: none !important; }
+  body:not(.pre) [data-panel="chat"] .chat-head > :is(.seg, [role="tablist"]) { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; order: 1; }
+  body:not(.pre) [data-panel="chat"] .chat-head > :is(.seg, [role="tablist"]) button { flex: none; height: 28px; padding: 0 10px; font-size: 12.5px; }
+  body:not(.pre) [data-panel="chat"] .chat-head > .icon-btn { order: 2; flex: none; }
+  body:not(.pre) [data-panel="chat"] .chat-body { padding: 6px 10px 4px !important; }
+}
+@media (max-width: 720px) {
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked .i { display: none; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked .caption { font-size: 13px; }
+  body:not(.pre) [data-panel="chat"] .chat-head > .icon-btn:first-child, body:not(.pre) #popChatBtn { display: none !important; }
+  body:not(.pre) .main > .side .composer-hint { display: none; }
+  body:not(.pre) .main > .side .chat-scope button { height: 26px; padding: 0 10px; font-size: 12px; }
+  body:not(.pre) .main > .side .composer { gap: 6px; }
+}
+@media (max-width: 720px) {
+  body:not(.pre) [data-panel="chat"] .chat-head > :not(.chat-filter):not(.chat-opts-btn):not(.chat-opts-pop) { display: none !important; }
+  body.deck-closed:not(.pre) #deck { padding-bottom: 2px !important; }
+  body:not(.pre) .main > .side .chat-composer-top { margin-bottom: 2px; }
+}

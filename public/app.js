@@ -1391,7 +1391,11 @@ function participants() {
   for (const p of S.peers.values()) list.push({ id: p.id, name: p.name, mic: p.mic, cam: p.cam, sharing: p.sharing, hand: !!p.hand, avatar: p.avatar || '', offbg: p.offbg || '', joinedAt: p.joinedAt, peer: p, level: p.meters[0]?.level() || 0, meter: p.meters[0] || null });
   return list.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
 }
-function cardVideo(id) { return $(`#card-${cssId(id)} video`); }
+function cardVideo(id) {
+  const v = $(`#card-${cssId(id)} video`);
+  if (v?.paused && v.srcObject && !v.dataset.kick) { v.dataset.kick = '1'; v.play().catch(() => {}).finally(() => setTimeout(() => delete v.dataset.kick, 1000)); } // keep it running for the stage
+  return v;
+}
 
 // ---------------------------------------------------------------- canvas stage
 const canvas = $('#stageCanvas');
@@ -4131,12 +4135,14 @@ function renderCrew() {
     let li = $('#card-' + cssId(p.id));
     if (!li) {
       li = document.createElement('li'); li.className = 'crew-card'; li.id = 'card-' + cssId(p.id); li.dataset.id = p.id;
-      li.innerHTML = `<div class="crew-thumb"><video autoplay playsinline></video><div class="ini" hidden><span></span></div>`
+      li.innerHTML = `<div class="crew-thumb"><video playsinline></video><div class="ini" hidden><span></span></div>`
         + `<div class="crew-viz" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="crew-vu" aria-hidden="true"><i></i></div>`
         + `<div class="crew-tools"><button type="button" class="icon-btn sm on-media ct-stage" aria-pressed="false">${ICON.stage}</button><button type="button" class="icon-btn sm on-media ct-mute" aria-label="Ask to mute">${ICON.mute}</button><button type="button" class="icon-btn sm on-media danger ct-kick" aria-label="Remove from studio">${ICON.kick}</button></div></div>`
         + `<div class="crew-info"><div class="crew-name"><span class="nm"></span></div><div class="tagrow"></div><div class="crew-sub"></div></div>`; // status lives beside the picture, not on it
       const v = $('video', li);
-      if (p.me) { v.muted = true; const ov = outVideo(); if (ov) v.srcObject = new MediaStream([ov]); v.classList.toggle('mirror', !!S.videoFx.mirror); }
+      // Started from code, not the autoplay attribute: browsers pause a muted *autoplay* video once it's out of view (a
+      // folded strip on a phone), and the stage draws every camera from these videos.
+      if (p.me) { v.muted = true; const ov = outVideo(); if (ov) v.srcObject = new MediaStream([ov]); v.classList.toggle('mirror', !!S.videoFx.mirror); playEl(v); }
       else if (p.peer.stream.getTracks().length) { v.srcObject = p.peer.stream; playEl(v); }
       $('.ct-stage', li).addEventListener('click', () => toggleStage(p.id));
       // the host clicks someone's picture to bring them on stage or send them backstage
@@ -4374,8 +4380,7 @@ function setTab(tab) {
   if (a.startsWith('look:')) { S.lookSub = a.slice(5) || S.lookSub || 'layouts'; panel = S.lookSub; rail = 'look'; }
   if (a.startsWith('show:')) { S.audSub = a.slice(5) || S.audSub || 'watch'; panel = (S.audSub === 'polls' || S.audSub === 'gaming') ? S.audSub : 'show'; rail = 'show'; }
   S.tab = rail;
-  // On a phone the panel is a sheet: only a tap opens it (start-up and joining switch tabs without covering the stage).
-  if (!window.matchMedia('(max-width: 720px)').matches || navigator.userActivation?.isActive) { document.body.classList.remove('panel-closed'); $('#panelToggle').setAttribute('aria-expanded', 'true'); }
+  document.body.classList.remove('panel-closed'); $('#panelToggle').setAttribute('aria-expanded', 'true');
   $$('.rail-btn').forEach((b) => { const on = b.dataset.tab === rail; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== panel));
   $$('.look-seg [data-look]').forEach((b) => { const on = b.dataset.look === panel; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
@@ -4383,16 +4388,19 @@ function setTab(tab) {
   if (rail === 'chat') { S.unread = 0; $('#chatBadge').hidden = true; }
   if (panel !== 'layouts' && editor.on) setEditing(false);
 }
-// On a phone the panel is a sheet over the stage: closed to start with, opened by a tab, closed by tapping the
-// same tab again (or anywhere on the stage).
+// Phones (720px and narrower) get one column: the video, the controls right under it, the scenes strip, then the
+// panel tabs and the open panel (chat by default) filling the rest. Nothing slides over the video. The controls move
+// under the video here and back to the bottom of the window on wider screens.
 const phoneLayout = matchMedia('(max-width: 720px)');
-if (phoneLayout.matches) document.body.classList.add('panel-closed');
-$$('.rail-btn').forEach((b) => b.addEventListener('click', () => {
-  if (phoneLayout.matches && b.classList.contains('on') && !document.body.classList.contains('panel-closed')) { document.body.classList.add('panel-closed'); return; }
-  document.body.classList.remove('panel-closed');
-  setTab(b.dataset.tab);
-}));
-document.querySelector('.stage-card')?.addEventListener('pointerdown', () => { if (phoneLayout.matches) document.body.classList.add('panel-closed'); });
+const dockEl = $('#dock'), dockHome = { parent: dockEl?.parentNode, next: dockEl?.nextSibling };
+function placeDock() {
+  if (!dockEl) return;
+  if (phoneLayout.matches) { const card = $('.stage-card'); if (card && card.nextElementSibling !== dockEl) card.after(dockEl); }
+  else if (dockEl.parentNode !== dockHome.parent) dockHome.parent.insertBefore(dockEl, dockHome.next);
+}
+placeDock();
+phoneLayout.addEventListener('change', () => { placeDock(); setDeckClosed(store.get(deckKey(), phoneLayout.matches)); });
+$$('.rail-btn').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.aud-seg [data-aud]').forEach((b) => b.addEventListener('click', () => { S.audSub = b.dataset.aud; setTab('show:' + b.dataset.aud); }));
 // Hide the panel to give the stage the room; any tab brings it back.
 $('#panelToggle').onclick = () => {
@@ -5036,11 +5044,12 @@ function setDeckClosed(closed) {
   $('#deckToggle').setAttribute('aria-expanded', String(!closed));
   $('#deckToggle').setAttribute('aria-label', closed ? 'Show scenes and people' : 'Hide scenes and people');
   $('#deckToggle').dataset.tip = closed ? 'Show' : 'Hide';
-  store.set('deckClosed', closed);
+  store.set(deckKey(), closed);
 }
+function deckKey() { return matchMedia('(max-width: 720px)').matches ? 'deckClosedPhone' : 'deckClosed'; }
 function openDeck() { if (document.body.classList.contains('deck-closed')) setDeckClosed(false); }
 $('#deckToggle').onclick = () => setDeckClosed(!document.body.classList.contains('deck-closed'));
-setDeckClosed(store.get('deckClosed', false));
+setDeckClosed(store.get(deckKey(), matchMedia('(max-width: 720px)').matches));
 (() => {
   let lock = 0;
   const onWheel = (e) => {
