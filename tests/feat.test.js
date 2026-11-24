@@ -55,7 +55,8 @@ let pages = []; // for the timing dump on failure
   console.log('template synced to guest:', await b.evaluate(() => window.__gather.state.elements.map(e => e.type).join(',')));
   // 2. text element + edit
   await a.click('[data-add="text"]'); await a.fill('#elProps textarea', 'Episode 12: Building in public');
-  await b.waitForFunction(() => window.__gather.state.elements.some(e => e.type === 'text' && e.text === 'Episode 12: Building in public'), null, { timeout: 5000, polling: 100 });
+  // 10 s: under a full parallel run in a GPU-less sandbox the guest's poll can lag; this checks the sync, not its speed.
+  await b.waitForFunction(() => window.__gather.state.elements.some(e => e.type === 'text' && e.text === 'Episode 12: Building in public'), null, { timeout: 10000, polling: 100 });
   console.log('text edit synced');
   // 3. image upload
   await a.click('[data-add="image"]'); await a.setInputFiles('#elProps input[data-upload]', SP + '/logo.png');
