@@ -16,6 +16,7 @@ import { createBroadcast } from './broadcast.js';
 import { createAccount } from './account.js';
 import { createAssistant } from './assistant.js';
 import { createSamChat } from './sam-chat.js';
+import { createAutoMoments } from './auto-moments.js';
 import { createLiveChat } from './livechat.js';
 import { createViewerCount } from './viewers.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
@@ -2024,7 +2025,7 @@ const FEED_MAX = 200;
 const SRC_COLOR = { studio: null, twitch: '#9146ff', youtube: '#ff0033', rumble: '#85c742', x: '#e7e9ea', kick: '#53fc18', watch: '#16a34a' };
 const SRC_NAME = { studio: 'Studio', twitch: 'Twitch', youtube: 'YouTube', rumble: 'Rumble', x: 'X', kick: 'Kick', watch: 'Watch page' };
 S.feed = [];
-function pushFeed(m) { samChat?.onFeed(m); S.feed.push(m); if (S.feed.length > FEED_MAX) S.feed.splice(0, S.feed.length - FEED_MAX); }
+function pushFeed(m) { samChat?.onFeed(m); autoMoments?.onFeed(m); S.feed.push(m); if (S.feed.length > FEED_MAX) S.feed.splice(0, S.feed.length - FEED_MAX); }
 
 // Twitch chat is readable anonymously over its public IRC WebSocket: no key, no server, no cost.
 const twitch = { ws: null, channel: '', want: '', retry: 0, status: 'off' };
@@ -3281,6 +3282,14 @@ const assistant = createAssistant({
 });
 // Sam in the chat: starters, the Sam button, and notes as the show goes -> ./sam-chat.js
 const samChat = createSamChat({ $, $$, S, store, isHost, upsertAI: (...a) => assistant.upsertAI(...a), askProducer, setStage, autoGrow });
+// Big moments (chat spikes, reaction bursts, super chats) clip themselves -> ./auto-moments.js
+const autoMoments = createAutoMoments({
+  store, isHost, inStudio: () => !!S.studio,
+  mark: (label, kind) => window.__gatherAddMoment?.(label, kind),
+  note: (...a) => samChat.note(...a),
+  save: (m, aspect) => window.__gatherExportMoment?.(m, aspect),
+});
+window.__gatherAuto = autoMoments;
 function upsertAI(...args) { return assistant.upsertAI(...args); }
 function stageAnswer(...args) { return assistant.stageAnswer(...args); }
 function actChip(...args) { return assistant.actChip(...args); }
@@ -5714,7 +5723,7 @@ function gotSuperchat(...args) { return audience.gotSuperchat(...args); }
 function renderBountyPanel(...args) { return audience.renderBountyPanel(...args); }
 function drawBountyEl(...args) { return audience.drawBountyEl(...args); }
 function refreshSupers(...args) { return audience.refreshSupers(...args); }
-function reactFloat(...args) { return audience.reactFloat(...args); }
+function reactFloat(...args) { autoMoments?.onReact(); return audience.reactFloat(...args); }
 function setWatch(...args) { return audience.setWatch(...args); }
 function renderWatchSec(...args) { return audience.renderWatchSec(...args); }
 function setShop(...args) { return audience.setShop(...args); }

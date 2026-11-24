@@ -479,3 +479,13 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
 - The replay is muted, so voices from a moment ago don't talk over the host.
 - **Tests.** `clips` checks that Replay goes on stage and ends by itself.
 - **Note.** M is listed in Help for both "Mute" and "Mark highlight". That clash was already there; I is used for replay so it doesn't add another.
+
+## R5: auto highlight clips
+- Big moments mark themselves in the clip buffer (`public/auto-moments.js`):
+  - a chat spike: 8+ viewer messages in 15 s, well above the minute before
+  - a burst of 12+ reactions in 10 s
+  - every paid super chat
+- At most one automatic moment every 45 s (15 s for super chats).
+- Sam posts "Clipped that: …" in the studio chat with a **Save 9:16** button.
+- Clip & post → "Clip big moments for me" turns it off.
+- **Tests.** `clips` checks that a chat spike clips itself and that Sam's note has the button.

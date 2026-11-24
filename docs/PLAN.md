@@ -81,7 +81,7 @@ the watch page glow.
 | R2 ✅ | **Watch page Live and People tabs** | Live: the running poll, prediction, auction or drop as one card plus the play-with-me line. People: who's here, top fans, moderators. | Tabs show real data from the feed; test. |
 | R3 ✅ | **@Sam recap** | A viewer types "@Sam recap" or taps "What did I miss?": Sam summarises the last 10 minutes of captions and chat. | Answer in the watch chat; test with a mocked AI. |
 | R4 ✅ | **Instant replay** | The host taps Replay: the last 30 s from the clip buffer plays on stage as a media layer, then the scene comes back. | Replay plays and returns; test. |
-| R5 | **Auto highlight clips** | Chat spikes, super chats and big reactions mark a moment by themselves (rate-limited) and show in Moments. | Moments appear without a click; test. |
+| R5 ✅ | **Auto highlight clips** | Chat spikes, super chats and big reactions mark a moment by themselves (rate-limited) and show in Moments. | Moments appear without a click; test. |
 | R6 | **Cart** | Viewers add several shop items, then pay once with Stripe Checkout. | One checkout for many items; pay test with the Stripe mock. |
 | R7 | **Spend XP** | Viewers spend XP on a highlighted message or a song request. | XP goes down and the reward shows; test. |
 

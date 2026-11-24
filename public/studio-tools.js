@@ -779,7 +779,8 @@ function initShowPowerTools(api) {
         <button type="button" class="btn sm primary grow" id="markMomentBtn">🎬 Mark moment <kbd>M</kbd></button>
         <button type="button" class="btn sm" id="autoShortsBtn">✨ Auto shorts</button>
       </div>
-      <p class="hint" style="margin:0">Marks highlights (plus super chats, hype spikes &amp; bounties) and exports 9:16 captioned clips for TikTok, Reels &amp; Shorts.</p>
+      <label class="toggle-row"><span><b>Clip big moments for me</b><small>Chat spikes, reaction bursts and super chats mark themselves. Sam tells you in the chat.</small></span><input type="checkbox" class="toggle" id="autoClipsSw" role="switch"></label>
+      <p class="hint" style="margin:0">Marks highlights and exports 9:16 captioned clips for TikTok, Reels &amp; Shorts.</p>
       <ul class="el-list" id="momentList"></ul>
     </div>
   `;
@@ -900,6 +901,8 @@ function initShowPowerTools(api) {
     }));
   }
   renderMoments();
+  window.__gatherExportMoment = (m, aspect) => exportMoment(m, aspect);
+  { const sw = $('#autoClipsSw', clipSec); if (sw) { sw.checked = store.get('autoClips', true); sw.onchange = () => store.set('autoClips', sw.checked); } }
 
   // On the stage (host only, shows on hover): mark a clip without leaving the chat. A DOM control over the stage,
   // never drawn into the program, so it isn't recorded or streamed.

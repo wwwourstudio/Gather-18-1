@@ -40,6 +40,11 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     }, fs.readFileSync(file).toString('base64'));
     check('the clip is 540x960', meta.w === 540 && meta.h === 960, JSON.stringify(meta));
 
+    // Auto highlight: a burst of viewer chat clips itself, and Sam says so in the studio chat.
+    await a.evaluate(() => { for (let i = 0; i < 9; i++) window.__gatherAuto.onFeed({ src: 'watch', name: 'V' + i, text: 'wow' }); });
+    const auto = await a.evaluate(() => window.__gatherClips.moments.find((m) => m.kind === 'auto-chat')?.label || '');
+    const said = await a.waitForFunction(() => /Clipped that: the chat went wild/.test(document.querySelector('#msgs .sam-note:last-of-type')?.textContent || [...document.querySelectorAll('#msgs .sam-note')].map((x) => x.textContent).join(' ')), null, { timeout: 4000 }).then(() => true).catch(() => false);
+    check('a chat spike clips itself, and Sam says so with a Save 9:16 button', auto === 'Chat spike' && said && await a.evaluate(() => [...document.querySelectorAll('#msgs .sam-note button')].some((b) => b.textContent === 'Save 9:16')), auto);
     // Instant replay: the last 30 s play on stage, then the scene comes back by itself.
     await a.evaluate(() => document.querySelector('#stageReplayBtn').click());
     const started = await a.waitForFunction(() => window.__gather.local.pres?.kind === 'replay', null, { timeout: 5000 }).then(() => true).catch(() => false);

@@ -118,6 +118,7 @@ export function createAudience(app) {
       if (item.bounty) acceptBounty(item);
       else setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || (item.voice ? 'Voice super chat' : 'Sent a super chat'), paid: money(item.amount) } });
       superAlert(item);
+      window.__gatherAuto?.onSuper(item);
     }
     renderSupers();
   }
