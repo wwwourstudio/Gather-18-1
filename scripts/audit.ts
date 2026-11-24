@@ -280,6 +280,9 @@ async function sweep(s: Session, scope: string, area: string, depth = 0): Promis
         const c = top.closest('[id]'); return `covered by ${top.tagName.toLowerCase()}${top.className && typeof top.className === 'string' ? '.' + top.className.split(' ')[0] : ''}${c ? ' in #' + c.id : ''}`;
       }).catch(() => 'detached');
       const inMenu = await el.evaluate((n: Element) => !!n.closest('#presentMenu')).catch(() => false);
+      // An item in the closed Present menu isn't meant to be reachable: only report it when the menu is open.
+      const menuOpen = await el.evaluate((n: Element) => !!n.closest('#presentMenu')?.matches(':popover-open')).catch(() => false);
+      if (inMenu && !menuOpen) continue;
       if (inMenu) add('Present menu', 'Present menu items can’t be reached (Share screen, Play a video, Present slides, Show an image, AI answer)', 'P0', '', s.width, cover);
       else if (!/not covered/.test(cover)) add(area, `“${label}” can’t be clicked: ${cover}`, 'P1', 'Fix stacking or scrolling so the control is reachable at this width.', s.width, id);
       continue;
@@ -384,11 +387,15 @@ async function featureChecks(s: Session, browser: Browser, code: string): Promis
     if (await p.isHidden('#aiSetup')) await p.click('#aiSetupBtn');
     await p.click('#aiProv [data-prov="claude"]');
     await p.fill('#aiKey', ''); await p.locator('#aiKey').dispatchEvent('change');
+    // Asking Sam happens in the Chat panel's composer (Chat | Ask Sam switch).
+    await p.click('.rail-btn[data-tab="chat"]'); await p.click('[data-to="ai"]:visible');
     await p.fill('#aiInput', 'Who won the 1966 World Cup?'); await p.click('#aiAsk'); await p.waitForTimeout(500);
     const t = await lastToast(p);
     if (!/key/i.test(t)) add('Feature: AI chat', 'Asking with no key gives no clear “add your key” message', 'P1', 'Validate before sending and point at the key field.', W, t);
     else passes.push('AI chat: asking without a key explains what to do');
+    await p.click('.rail-btn[data-tab="ai"]');
     await p.fill('#aiKey', 'sk-ant-audit-invalid'); await p.locator('#aiKey').dispatchEvent('change');
+    await p.click('.rail-btn[data-tab="chat"]'); await p.click('[data-to="ai"]:visible');
     await p.fill('#aiInput', 'Who won the 1966 World Cup?'); await p.click('#aiAsk');
     await p.waitForFunction(() => { const g = (window as unknown as GatherWindow).__gather; const it = g.ai.items[g.ai.items.length - 1]; return !!it && it.role === 'assistant' && it.done; }, null, { timeout: 25000 });
     const last = await p.evaluate(() => { const g = (window as unknown as GatherWindow).__gather; return g.ai.items[g.ai.items.length - 1]; });
@@ -448,7 +455,7 @@ async function featureChecks(s: Session, browser: Browser, code: string): Promis
   });
 
   await step('Video upload', async () => {
-    await p.click('#shareBtn'); await shot(s, 'feature-present-menu');
+    await p.evaluate(() => (document.querySelector('#presentMenu') as HTMLElement & { hidePopover?: () => void })?.hidePopover?.()).catch(() => undefined); await p.click('#shareBtn'); await shot(s, 'feature-present-menu');
     await p.click('[data-present="video"]');
     await p.waitForFunction(() => (window as unknown as GatherWindow).__gather.local.pres?.kind === 'video', null, { timeout: 10000 });
     await p.waitForTimeout(800); await shot(s, 'feature-video');
@@ -471,7 +478,7 @@ async function featureChecks(s: Session, browser: Browser, code: string): Promis
   });
 
   await step('PDF presentations', async () => {
-    await p.click('#shareBtn'); await p.click('[data-present="pdf"]');
+    await p.evaluate(() => (document.querySelector('#presentMenu') as HTMLElement & { hidePopover?: () => void })?.hidePopover?.()).catch(() => undefined); await p.click('#shareBtn'); await p.click('[data-present="pdf"]');
     await p.waitForFunction(() => (window as unknown as GatherWindow).__gather.local.pres?.kind === 'pdf', null, { timeout: 12000 });
     await p.waitForTimeout(800); await shot(s, 'feature-pdf');
     const sc = await p.evaluate(() => (window as unknown as GatherWindow).__gather.state.scene);
@@ -510,7 +517,7 @@ async function featureChecks(s: Session, browser: Browser, code: string): Promis
   });
 
   await step('Banner editing', async () => {
-    await p.click('.rail-btn[data-tab="show"]');
+    await p.click('.rail-btn[data-tab="look"]'); await p.click('.look-seg:visible [data-look="overlays"]'); // banners live in Stage → Overlays
     await p.fill('#bannerText', 'Audit headline'); await p.fill('#bannerSub', 'first line'); await p.click('#bannerShow');
     await p.waitForFunction(() => (window as unknown as GatherWindow).__gather.state.banner?.text === 'Audit headline', null, { timeout: 4000 });
     await p.fill('#bannerText', 'Audit headline, edited'); await p.click('#bannerShow');

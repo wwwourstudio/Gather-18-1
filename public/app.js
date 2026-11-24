@@ -191,8 +191,8 @@ const notifier = createNotifier($('#toasts') || '#toasts');
 function toast(msg, opts = {}) { return notifier.push(msg, opts); }
 toast.dismiss = (key) => notifier.dismiss(key);
 toast.clear = () => notifier.clear();
-// A dialog opened after a toast would cover it; bring the toasts back on top.
-for (const d of document.querySelectorAll('dialog')) new MutationObserver(() => { const box = $('#toasts'); if (d.open && box && box.children.length && box.showPopover) { try { box.hidePopover(); box.showPopover(); } catch {} } }).observe(d, { attributes: true, attributeFilter: ['open'] });
+// A dialog opened after a notification would cover the bar: float it above the dialog, and back into the page after.
+for (const d of document.querySelectorAll('dialog')) new MutationObserver(() => { const box = $('#toasts'); if (!box?.showPopover) return; try { if (box.matches(':popover-open')) box.hidePopover(); if (d.open && box.children.length) box.showPopover(); } catch {} }).observe(d, { attributes: true, attributeFilter: ['open'] });
 const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 const fmtTime = (ms) => { const s = Math.floor(ms / 1000); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
 const newCode = () => 'gather-' + [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -1039,6 +1039,7 @@ async function onServer(m) {
       const wasHosting = isHost() && !S.studio;
       S.id = m.id; S.tok = m.tok; S.studio = m.studio; S.host = m.host; S.short = m.short || ""; S.shortInvite = m.inviteShort || "";
       S.local.joinedAt = Date.now();
+      if (S.voiceOnly && S.local.camOn) setCam(false); // joined by voice from the watch page: camera stays off
       S.iceServers = await iceConfig(m.iceServers);
       const pre = S.state;
       S.state = m.state;
@@ -1102,7 +1103,10 @@ async function onServer(m) {
       sysMsg(`${p.name} joined the studio`);
       toast(`${p.name} joined`);
       chime();
-      if (isHost() && !S.state.stage.includes(p.id) && S.state.stage.length < MAX) {
+      if (isHost() && m.peer.raised && S.autoStage?.has(m.peer.raised) && !S.state.stage.includes(p.id)) {
+        S.autoStage.delete(m.peer.raised);
+        setStage({ stage: [...S.state.stage, p.id] }); toast(`${p.name} is on the show.`);
+      } else if (isHost() && !S.state.stage.includes(p.id) && S.state.stage.length < MAX) {
         // Guests wait backstage until the host brings them on (or straight on, if the host chose that).
         if (store.get('autoStage', false)) setStage({ stage: [...S.state.stage, p.id] });
         else { toast(`${p.name} is backstage`, { action: ['Put on stage', () => toggleStage(p.id)], ms: 10000 }); }
@@ -4239,7 +4243,8 @@ function setTab(tab) {
   if (a.startsWith('look:')) { S.lookSub = a.slice(5) || S.lookSub || 'layouts'; panel = S.lookSub; rail = 'look'; }
   if (a.startsWith('show:')) { S.audSub = a.slice(5) || S.audSub || 'watch'; panel = (S.audSub === 'polls' || S.audSub === 'gaming') ? S.audSub : 'show'; rail = 'show'; }
   S.tab = rail;
-  document.body.classList.remove('panel-closed'); $('#panelToggle').setAttribute('aria-expanded', 'true');
+  // On a phone the panel is a sheet: only a tap opens it (start-up and joining switch tabs without covering the stage).
+  if (!window.matchMedia('(max-width: 720px)').matches || navigator.userActivation?.isActive) { document.body.classList.remove('panel-closed'); $('#panelToggle').setAttribute('aria-expanded', 'true'); }
   $$('.rail-btn').forEach((b) => { const on = b.dataset.tab === rail; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== panel));
   $$('.look-seg [data-look]').forEach((b) => { const on = b.dataset.look === panel; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
@@ -4247,7 +4252,16 @@ function setTab(tab) {
   if (rail === 'chat') { S.unread = 0; $('#chatBadge').hidden = true; }
   if (panel !== 'layouts' && editor.on) setEditing(false);
 }
-$$('.rail-btn').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+// On a phone the panel is a sheet over the stage: closed to start with, opened by a tab, closed by tapping the
+// same tab again (or anywhere on the stage).
+const phoneLayout = matchMedia('(max-width: 720px)');
+if (phoneLayout.matches) document.body.classList.add('panel-closed');
+$$('.rail-btn').forEach((b) => b.addEventListener('click', () => {
+  if (phoneLayout.matches && b.classList.contains('on') && !document.body.classList.contains('panel-closed')) { document.body.classList.add('panel-closed'); return; }
+  document.body.classList.remove('panel-closed');
+  setTab(b.dataset.tab);
+}));
+document.querySelector('.stage-card')?.addEventListener('pointerdown', () => { if (phoneLayout.matches) document.body.classList.add('panel-closed'); });
 $$('.aud-seg [data-aud]').forEach((b) => b.addEventListener('click', () => { S.audSub = b.dataset.aud; setTab('show:' + b.dataset.aud); }));
 // Hide the panel to give the stage the room; any tab brings it back.
 $('#panelToggle').onclick = () => {
@@ -4944,8 +4958,8 @@ function renderLobby() {
     const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn primary sm'; ok.textContent = 'Let in';
     ok.onclick = () => {
       wsSend({ type: 'admit', id: w.id, accept: true });
-      // A raised hand from the watch page goes on the show, not backstage.
-      if (/^Raised hand/.test(w.note || '')) (S.autoStage ||= new Map()).set(String(w.name || '').toLowerCase(), Date.now());
+      // A raised hand from the watch page goes on the show, not backstage (peer-joined matches the lobby id).
+      if (/^Raised hand/.test(w.note || '')) (S.autoStage ||= new Set()).add(w.id);
     };
     if (/^Raised hand/.test(w.note || '')) ok.textContent = 'Bring on';
     const no = document.createElement('button'); no.type = 'button'; no.className = 'btn ghost sm'; no.textContent = 'Decline';
@@ -4957,17 +4971,6 @@ function renderLobby() {
 }
 async function refreshLobby() { if (!S.studio || !isHost()) return; try { S.lobby = (await api('lobbyList', creds())).lobby; renderLobby(); } catch {} }
 setInterval(() => { if (S.studio && isHost() && S.lobby?.length) refreshLobby(); }, 10000);
-// Raised hands the host let in go straight on stage as soon as they arrive (within 5 minutes of "Bring on").
-setInterval(() => {
-  if (!S.autoStage?.size || !isHost()) return;
-  for (const p of participants()) {
-    const t = S.autoStage.get(String(p.name || '').toLowerCase());
-    if (!t || p.me) continue;
-    S.autoStage.delete(String(p.name || '').toLowerCase());
-    if (Date.now() - t < 5 * 60_000 && !S.state.stage.includes(p.id)) { toggleStage(p.id); toast(`${p.name} is on the show.`); }
-  }
-  for (const [k, t] of S.autoStage) if (Date.now() - t > 5 * 60_000) S.autoStage.delete(k);
-}, 1500);
 // The public call-in line is gone: viewers raise a hand on the watch page and record a voice question instead.
 // The /c/ link stays only as the private way in for a "Play with me" player the host calls up.
 // Callers: knock and wait
@@ -5626,7 +5629,7 @@ S.callin = typeof location?.pathname === 'string' && location.pathname.startsWit
   const q = new URLSearchParams(location.search), pass = q.get('pass');
   if (linkCode && pass && /^[\w.-]{4,40}$/.test(pass)) {
     (S.joinPass ||= {})[linkCode] = pass;
-    if (q.get('as') === 'voice') { S.local.camOn = false; }
+    if (q.get('as') === 'voice') { S.local.camOn = false; S.voiceOnly = true; }
     history.replaceState(null, '', location.pathname);
   }
 }

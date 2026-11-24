@@ -6,7 +6,7 @@
 /* ---------------------------------------------------------------- lit backdrop */
 .backdrop { position: fixed; inset: 0; z-index: -1; background: radial-gradient(90% 60% at 40% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%), var(--bg); } /* calm adaptive glow; no moving blobs */
 
-.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--sp-3); padding: var(--sp-3) max(var(--sp-3), env(safe-area-inset-right, 0px)) var(--sp-3) max(var(--sp-3), env(safe-area-inset-left, 0px)); }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; --app-gap: var(--sp-3); column-gap: var(--sp-3); row-gap: 0; padding: var(--sp-3) max(var(--sp-3), env(safe-area-inset-right, 0px)) var(--sp-3) max(var(--sp-3), env(safe-area-inset-left, 0px)); }
 .grow { flex: 1; min-width: 0; }
 .row { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
@@ -816,18 +816,13 @@ img.wiz-overlay-box {
 }
 
 /* ---------------------------------------------------------------- toasts */
-/* #toasts is a manual popover so it sits in the top layer, above any open dialog. Undo the popover defaults. */
-.toasts[popover] { top: auto; right: auto; margin: 0; padding: 0; border: 0; background: none; color: inherit; overflow: visible; height: auto; }
-.toasts { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: grid; gap: var(--sp-2); z-index: var(--z-toast); justify-items: center; pointer-events: none; width: max-content; max-width: calc(100vw - var(--sp-8)); }
-.toast { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); font-size: var(--fs-13); font-weight: 500; animation: rise var(--dur) var(--ease-out); pointer-events: auto; text-align: center; }
-.toast.err { --glass-bg-raised: rgba(120, 20, 40, 0.92); --on-media: rgba(120, 20, 40, 0.92); }
 
 /* ---------------------------------------------------------------- responsive */
 @media (max-width: 1240px) {
   .main { grid-template-columns: minmax(0, 1fr) 320px 76px; }
 }
 @media (max-width: 900px) {
-  .app { height: auto; min-height: 100%; gap: var(--sp-3); padding: var(--sp-3) max(var(--sp-3), env(safe-area-inset-right, 0px)) 0 max(var(--sp-3), env(safe-area-inset-left, 0px)); }
+  .app { height: auto; min-height: 100%; --app-gap: var(--sp-3); column-gap: var(--sp-3); row-gap: 0; padding: var(--sp-3) max(var(--sp-3), env(safe-area-inset-right, 0px)) 0 max(var(--sp-3), env(safe-area-inset-left, 0px)); }
   .main { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; gap: var(--sp-3); }
   .studio { overflow: visible; }
   .stage { width: 100%; min-width: 0; }
@@ -887,7 +882,7 @@ img.wiz-overlay-box {
 /* ================================================================ V4: a docked control room
    Regions sit edge to edge, divided by hairlines, so the stage is the only lit object on screen.
    The side panel folds away (click the open tab again), and before you enter a studio only the stage shows. */
-.app { gap: 0; padding: 0; }
+.app { --app-gap: 0; column-gap: 0; row-gap: 0; padding: 0; }
 .app > .top, .main > .side, .main > .rail, .app > .dock, .studio > .deck, .studio > .stage-card { border-radius: 0; }
 .top { height: 52px; border-width: 0 0 1px; padding: 0 var(--sp-3) 0 var(--sp-4); gap: var(--sp-3); }
 .logo-word { font-size: 24px; letter-spacing: -0.045em; }
@@ -1179,8 +1174,6 @@ body.deck-closed .deck { padding-bottom: var(--sp-2); }
 .warn-note { color: var(--warn-ink); }
 .react-float { position: absolute; bottom: 10%; font-size: 30px; pointer-events: none; z-index: 5; animation: react-up 2.4s var(--ease-out) forwards; }
 @keyframes react-up { from { transform: translateY(0) scale(.6); opacity: 0; } 15% { opacity: 1; transform: translateY(-20px) scale(1.1); } to { transform: translateY(-220px); opacity: 0; } }
-.msg.sc-pending { border: 1px dashed var(--warn-line); background: var(--warn-bg); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); display: grid; gap: 6px; }
-.msg.sc-pending .sc-note { font-size: 12px; color: var(--ink-3); }
 /* Foldable subsections & dedicated interactive panels */
 .sec-fold > summary::-webkit-details-marker { display: none; }
 .sub-fold summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
@@ -1337,7 +1330,7 @@ body:not(.pre) .backdrop .amb.on { opacity: 0.42; }
 .backdrop::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 40%, transparent 30%, color-mix(in srgb, var(--bg) 85%, transparent) 100%); }
 :root[data-theme="light"] body:not(.pre) .backdrop .amb.on { opacity: 0.4; }
 
-body:not(.pre) .app { gap: 10px; padding: 10px; }
+body:not(.pre) .app { --app-gap: 10px; column-gap: 10px; row-gap: 0; padding: 10px; }
 body:not(.pre) .main { gap: 10px; }
 body:not(.pre) .app > .top, body:not(.pre) .main > .side, body:not(.pre) .main > .rail, body:not(.pre) .app > .dock { border-radius: 16px; border-width: 1px; }
 body:not(.pre) .main > .side { overflow: hidden; }
@@ -1359,7 +1352,7 @@ body:not(.pre) .scene { background: var(--glass-bg); -webkit-backdrop-filter: va
 #leaveBtn.btn.danger:hover { --btn-bg: var(--danger-soft); }
 
 @media (max-width: 900px) {
-  body:not(.pre) .app { gap: 0; padding: 0; }
+  body:not(.pre) .app { --app-gap: 0; column-gap: 0; row-gap: 0; padding: 0; }
   body:not(.pre) .main { gap: 0; }
   body:not(.pre) .app > .top, body:not(.pre) .main > .side, body:not(.pre) .main > .rail, body:not(.pre) .app > .dock { border-radius: 0; }
 }
@@ -3267,12 +3260,6 @@ body.syncing:not(.pre) .stage::after {
 .msg:hover .mact, .msg:focus-within .mact { opacity: 1; pointer-events: auto; }
 @media (hover: none) { .msg .mact { position: static; opacity: 1; pointer-events: auto; margin-top: 4px; justify-self: start; box-shadow: none; } }
 
-/* 7. Single unified toast queue */
-.toast { display: inline-flex; align-items: center; gap: 10px; max-width: min(440px, calc(100vw - 24px)); padding: 10px 12px; border-radius: 12px; touch-action: pan-x; cursor: grab; user-select: none; }
-.toast-msg { flex: 1; min-width: 0; font-size: 13px; line-height: 1.35; }
-.toast-count { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: 800 11px/1 var(--font-ui); }
-.toast-x { width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-3); cursor: pointer; display: grid; place-items: center; font-size: 14px; }
-.toast-x:hover { background: var(--fill-hover); color: var(--ink); }
 
 /* 8. Redesigned Brand Kit: even swatches, color well, custom bg picker, visual font cards, live previews, overlay packs */
 .swatches { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; }
@@ -5176,7 +5163,7 @@ body:not(.pre) .stage-card .stage { box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 
 @media (min-width: 901px) { body.pre .landing { width: min(1080px, calc(100vw - 48px)); } }
 @media (max-width: 900px) {
   body.pre { height: 100vh; height: 100dvh; overflow: hidden; }
-  body.pre .app { height: 100vh; height: 100dvh; min-height: 0; grid-template-rows: auto minmax(0, 1fr); padding-bottom: 0; }
+  body.pre .app { height: 100vh; height: 100dvh; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); padding-bottom: 0; }
   body.pre .main { min-height: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
   body.pre .studio { display: block; height: 100%; min-height: 0; overflow: hidden; }
   body.pre .landing {
@@ -5394,3 +5381,128 @@ body.pre .stage-clip { display: none; }
 .views-pill .i { color: var(--ink-3); }
 .views-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 body.pre .views-pill { display: none; }
+
+/* Green room: "Add a photo" and "Remove" sat 4px on top of each other (their link buttons had negative margins). */
+.who-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.who-hint .btn.link { margin: 0; }
+
+/* Get paid: setup steps (audience.js renderPaySteps) */
+.pay-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.pay-step { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.pay-step + .pay-step { border-top: 1px solid var(--aud-line, var(--glass-border)); }
+.pay-step > i { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 700 11.5px/1 var(--font-ui); font-style: normal;
+  color: var(--ink-3); border: 1.5px solid var(--glass-border); }
+.pay-step.done > i { color: #fff; background: #16a34a; border-color: #16a34a; }
+.pay-step.next > i { color: var(--accent-text); border-color: var(--accent); }
+.pay-step > span { display: grid; gap: 2px; min-width: 0; }
+.pay-step b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.pay-step.done b { color: var(--ink-2); }
+.pay-step small { font-size: 12px; line-height: 1.4; color: var(--ink-3); overflow-wrap: anywhere; }
+.pay-step.next small { color: var(--ink-2); }
+
+/* ================================================================ Studio on phones (≤720px)
+   From the bottom up: the tab bar, the dock just above it, then the stage and the scenes scrolling above both. The
+   panel is a sheet that a tab opens over everything but the tab bar. (.main made its own stacking layer, so the
+   tab bar sat under the dock.) */
+@media (max-width: 720px) {
+  body:not(.pre) .main { z-index: auto; overflow-y: auto; overscroll-behavior: contain; }
+  body:not(.pre) .main > .rail { z-index: 70; height: 58px; }
+  body:not(.pre) .app > .dock { position: fixed; left: 0; right: 0; bottom: 58px; z-index: 40; min-height: 0; height: auto; padding: 4px 6px; border-radius: 0; }
+  body:not(.pre) .app > .dock .guide { display: none !important; }
+  body:not(.pre) .app > .dock .icon-btn.stacked { min-height: 48px; }
+  body:not(.pre) .studio { padding-bottom: 134px; }
+  body:not(.pre) .main > .side { z-index: 65; bottom: 58px; max-height: 76dvh; height: 76dvh; border-radius: 18px 18px 0 0; }
+  body:not(.pre) .main > .side::before { content: ""; position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: rgba(255, 255, 255, 0.22); z-index: 2; }
+}
+
+.app > .top { grid-row: 1; } .app > .toasts { grid-row: 2; } .app > .main { grid-row: 3; } .app > .dock { grid-row: 4; }
+.app > .main, .app > .dock, .app > .toasts:not(:empty) { margin-top: var(--app-gap, 0px); }
+
+/* ================================================================ Notification bar
+   One line under the header: it opens, says one thing, and folds away. It takes its own row in the layout, so it
+   never sits on top of the stage, the scenes or the controls. While a dialog is open it floats above the dialog. */
+.toasts { display: grid; min-width: 0; }
+.toasts:empty { display: none; }
+.toasts[popover]:not(:popover-open):not(:empty) { display: grid; position: static; inset: auto; width: auto; height: auto; margin: 0; padding: 0; border: 0; background: none; color: inherit; overflow: visible; }
+.toasts:popover-open { position: fixed; inset: 12px 12px auto; width: min(560px, calc(100vw - 24px)); margin: 0 auto; padding: 0; border: 0; background: none; overflow: visible; }
+.toasts:popover-open .toast { border-radius: 12px; border: 1px solid var(--glass-border); box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.7); }
+.toast { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; max-height: 64px; min-height: 36px; padding: 6px 40px; overflow: hidden;
+  border-radius: 12px; background: color-mix(in srgb, var(--surface-2) 92%, var(--accent) 8%); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--glass-border));
+  color: var(--ink); font-size: 13px; font-weight: 500; line-height: 1.35; touch-action: pan-y; user-select: none; animation: bar-in 0.22s var(--ease-out); }
+.toast::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.toast.err { background: color-mix(in srgb, var(--surface-2) 80%, #dc2626 20%); border-color: rgba(248, 113, 113, 0.45); }
+.toast.err::before { background: #f87171; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22); }
+.toast.out { animation: bar-out 0.2s ease-in forwards; }
+.toast-txt { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-align: left; }
+.toast-act { flex: none; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: 700 12px/1 var(--font-ui); cursor: pointer; }
+.toast-count { flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--fill-hover); color: var(--ink-2); font: 800 11px/1 var(--font-ui); }
+.toast-x { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: var(--ink-3); cursor: pointer; display: grid; place-items: center; font-size: 16px; }
+.toast-x:hover { background: var(--fill-hover); color: var(--ink); }
+@keyframes bar-in { from { max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; } }
+@keyframes bar-out { to { max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; border-width: 0; opacity: 0; } }
+.app > .toasts:not(:popover-open) .toast { border-radius: 0; border-width: 0 0 1px; }
+@media (max-width: 900px) {
+  body:not(.pre) .app > .toasts .toast { padding: 6px 40px 6px 14px; justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .toast, .toast.out { animation: none; } }
+
+/* ================================================================ Studio on phones: compact pass
+   Everything the host needs fits on one screen without scrolling: a 48px header, the video edge to edge with the
+   on-air pill in its corner, the scenes right under it, then one row of controls and the tab bar. */
+@media (max-width: 720px) {
+  body:not(.pre) .app > .top { height: 48px; padding: 0 8px 0 12px; gap: 6px; }
+  body:not(.pre) .app > .top .logo-word { font-size: 20px; }
+  body:not(.pre) .app > .top .btn.hdr, body:not(.pre) .app > .top .icon-btn.hdr-ic { height: 34px; min-height: 34px; padding: 0 9px; gap: 6px; font-size: 13px; }
+  body:not(.pre) #watchTop > span, body:not(.pre) #enterTop > span { display: none; }
+  body:not(.pre) #watchTop, body:not(.pre) #enterTop, body:not(.pre) #userBtn { width: 34px; padding: 0; justify-content: center; }
+  body:not(.pre) .app > .top .top-actions { gap: 6px; }
+
+  /* The stage is only as tall as the video. */
+  body:not(.pre) .studio { height: auto !important; min-height: 100%; overflow: visible !important; padding-bottom: 122px; }
+  body:not(.pre) .stage-card { flex: none !important; }
+  body:not(.pre) .stage-card > .stage-wrap { padding: 6px 6px 4px !important; }
+  body:not(.pre) .stage-card .stage { border-radius: 10px !important; }
+  body:not(.pre) .stage-card > .stage-topbar { top: 14px; left: 14px; }
+  body:not(.pre) .stage-card > .stage-topbar .air-pill { height: 22px; padding: 0 8px; font-size: 10.5px; }
+  body:not(.pre) .stage-clip-btn { height: 30px; padding: 0 10px; font-size: 12px; }
+
+  /* Scenes: one compact row. The tabs and the scene cards stay; the filter chips give way to scrolling. */
+  body:not(.pre) #deck { padding: 2px 6px 6px !important; }
+  body:not(.pre) #deck .deck-head { min-height: 0; padding: 0 30px 0 0; gap: 6px; flex-wrap: nowrap; }
+  body:not(.pre) #deck .deck-tabs.seg > button { height: 34px; padding: 0 10px; font-size: 13px; }
+  body:not(.pre) #deck .deck-filter, body:not(.pre) #deck #lockWrap { display: none !important; }
+  body:not(.pre) #deck .deck-head-r { margin-left: auto; }
+  body:not(.pre) #deck .scenes { gap: 8px; padding: 2px 0 2px; scroll-snap-type: x proximity; }
+  body:not(.pre) #deck .scene { width: 100px; padding: 5px; gap: 5px; border-radius: 10px; scroll-snap-align: start; }
+  body:not(.pre) #deck .scene .sc-pv { border-radius: 6px; }
+  body:not(.pre) #deck .scene .sc-name { font-size: 11px; }
+  body:not(.pre) #deck .scene kbd { display: none; }
+
+  /* Controls: icons with a short word under them, one tight row. */
+  body:not(.pre) .app > .dock { padding: 2px 4px; gap: 0; }
+  body:not(.pre) .app > .dock .icon-btn.stacked { min-height: 44px; min-width: 48px; padding: 3px 4px; gap: 2px; font-size: 10px; }
+  body:not(.pre) .app > .dock .icon-btn.stacked .i { width: 20px; height: 20px; }
+  body:not(.pre) #leaveBtn { height: 34px; padding: 0 10px; font-size: 13px; }
+
+  /* Tab bar */
+  body:not(.pre) .main > .rail { height: 54px; }
+  body:not(.pre) .main > .side { bottom: 54px; }
+  body:not(.pre) .app > .dock { bottom: 54px; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked { min-height: 46px; padding: 4px 6px; font-size: 10px; gap: 2px; }
+}
+/* Phone: the page is exactly one screen. The scenes fill what's left under the video as a grid, so every scene
+   is one tap away without sideways scrolling. */
+@media (max-width: 720px) {
+  body:not(.pre) .app { height: 100vh; height: 100dvh; min-height: 0; }
+  body:not(.pre) .app > .main { min-height: 0; grid-template-rows: minmax(0, 1fr) !important; overflow: hidden; }
+  body:not(.pre) .studio { height: 100% !important; min-height: 0; overflow: hidden !important; padding-bottom: 106px; }
+  body:not(.pre) #deck { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
+  body:not(.pre) #deck:not(.collapsed) .deck-body { flex: 1 1 auto; height: auto !important; min-height: 96px !important; max-height: none !important; }
+  body:not(.pre) #deck .deck-head { flex-wrap: wrap; row-gap: 4px; }
+  body:not(.pre) #deck .scene-suggest { order: 9; flex: 1 1 100%; max-width: none; height: 30px; }
+  body:not(.pre) #deck .scene-suggest-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; font-size: 12px; }
+  body:not(.pre) #deck .scene-suggest-acts { width: auto; }
+  body:not(.pre) #deck #sceneStrip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: min-content; align-content: start;
+    gap: 8px; height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 8px; scroll-snap-type: none; }
+  body:not(.pre) #deck #sceneStrip .scene { width: auto; height: auto; min-height: 0; }
+}

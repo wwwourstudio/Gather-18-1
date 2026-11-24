@@ -26,6 +26,9 @@ export function createNotifier(root) {
 
   function syncPopover(box, open) {
     if (!box) return;
+    box.classList.toggle('on', !!open);
+    // The bar sits in the page layout. Only while a dialog is open does it float in the top layer, above the dialog.
+    if (open && !document.querySelector('dialog[open]')) open = false;
     try {
       if (open && typeof box.showPopover === 'function') {
         if (box.matches?.(':popover-open')) box.hidePopover();

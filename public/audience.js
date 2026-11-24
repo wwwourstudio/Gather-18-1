@@ -106,13 +106,11 @@ export function createAudience(app) {
   function closeViewer(vid) { const v = VIEW.get(vid); if (!v) return; VIEW.delete(vid); try { v.pc.close(); } catch {} renderWatchSec(); }
   function closeAllViewers() { for (const vid of [...VIEW.keys()]) closeViewer(vid); }
 
-  // Super chats: a claim until the host sees the money arrive in their own PayPal/Venmo/Cash App/Stripe.
+  // Super chats: paid by card on the watch page; they arrive here already confirmed by Stripe.
   S.supers = new Map();
-  const PAY_NAME = { paypal: 'PayPal', venmo: 'Venmo', cashapp: 'Cash App', stripe: 'Stripe', card: 'Card' };
   const money = (a) => '$' + (Number.isInteger(a) ? a : Number(a).toFixed(2));
   function gotSuperchat(item, fresh) {
     if (!item?.id || item.status === 'paying') return;
-    const had = S.supers.has(item.id);
     const was = S.supers.get(item.id)?.status;
     S.supers.set(item.id, item);
     if (fresh && item.auto && item.status === 'confirmed' && was !== 'confirmed') { // paid by card on the watch page: on screen right away
@@ -121,44 +119,14 @@ export function createAudience(app) {
       else setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || (item.voice ? 'Voice super chat' : 'Sent a super chat'), paid: money(item.amount) } });
       superAlert(item);
     }
-    if (fresh && !had && item.status === 'pending') {
-      chime();
-      toast(`${money(item.amount)} super chat from ${item.name} on ${PAY_NAME[item.method]}. Check it arrived, then confirm.`, { key: 'sc-' + item.id, ms: 12000, action: ['Review', () => { setTab('show:supers'); $('#watchSec')?.scrollIntoView({ block: 'start', behavior: smooth() }); }] });
-    }
     renderSupers();
-    superInChat(item);
-  }
-  /** Pending super chats also land in the studio chat, with the confirm buttons right there. Once confirmed, the paid
-      message that every viewer sees replaces it (it arrives as a normal watch-page message with its amount). */
-  function superInChat(x) {
-    const log = $('#msgs'); if (!log) return;
-    let li = log.querySelector(`[data-sc="${cssEsc(x.id)}"]`);
-    if (x.status !== 'pending') { li?.remove(); return; }
-    if (li) return;
-    li = document.createElement('li'); li.className = 'msg ext paid sc-pending'; li.dataset.sc = x.id;
-    const who = document.createElement('div'); who.className = 'who';
-    const badge = document.createElement('span'); badge.className = 'pill caps src-watch' + (x.bounty ? ' bounty' : ''); badge.textContent = x.bounty ? '🎯 Bounty' : 'Super chat';
-    const b = document.createElement('b'); b.textContent = x.name;
-    const amt = document.createElement('span'); amt.className = 'paid-amt'; amt.textContent = money(x.amount);
-    who.append(badge, b, amt);
-    const txt = document.createElement('div'); txt.className = 'txt'; txt.textContent = x.text || '(no message)';
-    const note = document.createElement('div'); note.className = 'sc-note'; note.textContent = `Check your ${PAY_NAME[x.method]} for ${money(x.amount)} from ${x.name}, then:`;
-    const row = document.createElement('div'); row.className = 'row';
-    const btn = (t, cls, act) => { const k = document.createElement('button'); k.type = 'button'; k.className = 'btn sm ' + cls; k.textContent = t; k.onclick = () => superAct(x, act); return k; };
-    row.append(btn(x.bounty ? 'Payment arrived · accept bounty' : 'Payment arrived · show it', 'primary', 'confirm'), btn('Not received', 'ghost', 'dismiss'));
-    if (x.voice) { const v = document.createElement('button'); v.type = 'button'; v.className = 'btn sm ghost'; v.textContent = `▶ Voice ${x.voice}s (only you)`; v.onclick = () => playScVoice(x, false); row.append(v); }
-    li.append(who, txt, note, row);
-    appendLog(li);
   }
   function superAct(item, act) {
     notifier.dismiss('sc-' + item.id);
     wsSend({ type: 'superchat', id: item.id, do: act });
-    item.status = { confirm: 'confirmed', dismiss: 'dismissed', answered: 'answered' }[act];
-    if (act === 'confirm') superAlert(item);
-    if (act === 'confirm' && item.bounty) acceptBounty(item);
-    else if (act === 'confirm') setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || 'Sent a super chat', paid: money(item.amount) } });
+    item.status = { dismiss: 'dismissed', answered: 'answered' }[act];
     if ((act === 'answered' || act === 'dismiss') && S.state.featured?.id === 'w-' + item.id) setStage({ featured: null });
-    renderSupers(); superInChat(item);
+    renderSupers();
   }
   // ---------------------------------------------------------------- bounties: viewer-funded challenges on the stream
   function acceptBounty(item) {
@@ -222,7 +190,7 @@ export function createAudience(app) {
   }
   function renderSupers() {
     const box = $('#scList'); if (!box) return;
-    const items = [...S.supers.values()].filter((x) => x.status !== 'dismissed').sort((a, b) => (a.status === 'pending' ? -1 : 0) - (b.status === 'pending' ? -1 : 0) || b.ts - a.ts);
+    const items = [...S.supers.values()].filter((x) => x.status !== 'dismissed').sort((a, b) => b.ts - a.ts);
     $('#scEmpty').hidden = !!items.length;
     const total = [...S.supers.values()].filter((x) => x.status === 'confirmed' || x.status === 'answered').reduce((s, x) => s + x.amount, 0);
     $('#scTotal').textContent = total ? `${money(total)} confirmed` : '';
@@ -231,16 +199,15 @@ export function createAudience(app) {
       const top = document.createElement('div'); top.className = 'sc-top';
       const amt = document.createElement('span'); amt.className = 'paid-amt'; amt.textContent = money(x.amount);
       const who = document.createElement('b'); who.textContent = x.name;
-      const via = document.createElement('small'); via.textContent = `${PAY_NAME[x.method]} · ${x.auto ? 'paid by card' : x.status === 'pending' ? 'not confirmed yet' : x.status}`;
+      const via = document.createElement('small'); via.textContent = x.status === 'answered' ? 'paid by card · answered' : 'paid by card';
       top.append(amt, who, via);
       const txt = document.createElement('p'); txt.textContent = x.text || '(no message)';
       const row = document.createElement('div'); row.className = 'row';
       const btn = (t, cls, act) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => superAct(x, act); return b; };
-      if (x.status === 'pending') row.append(btn('Payment arrived · show it', 'primary', 'confirm'), btn('Not received', 'ghost', 'dismiss'));
-      else if (x.status === 'confirmed') row.append(btn('Answered', '', 'answered'));
+      if (x.status === 'confirmed') row.append(btn('Answered', '', 'answered'));
       const vb = (t, cls, onAir) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => playScVoice(x, onAir); return b; };
-      if (x.voice) row.append(vb(`▶ Voice ${x.voice}s`, 'ghost', false), ...(x.status !== 'pending' ? [vb('Play on air', '', true)] : []));
-      if (x.status !== 'pending') { const r = document.createElement('button'); r.type = 'button'; r.className = 'btn sm ghost'; r.textContent = 'Replay alert'; r.onclick = () => superAlert(x); row.append(r); }
+      if (x.voice) row.append(vb(`▶ Voice ${x.voice}s`, 'ghost', false), vb('Play on air', '', true));
+      { const r = document.createElement('button'); r.type = 'button'; r.className = 'btn sm ghost'; r.textContent = 'Replay alert'; r.onclick = () => superAlert(x); row.append(r); }
       li.append(top, txt, row);
       return li;
     }));
@@ -280,6 +247,7 @@ export function createAudience(app) {
     if (document.activeElement !== $('#wpMin')) $('#wpMin').value = String(cfg.min);
     // Super chats are paid by card on the watch page, so they need Stripe connected; one line says what's left.
     if (S.studio && isHost() && !CARD.checked) cardStatus();
+    renderPaySteps();
     $('#wpSupersState').textContent = cfg.supers && CARD.ready ? 'On' : cfg.supers ? 'Connect Stripe' : 'Off';
     $('#wpPayStatus').textContent = !CARD.ready ? (cfg.supers ? 'Super chats are on, but viewers won’t see the tip button until Stripe is connected.' : 'Connect Stripe, then turn on super chats.')
       : cfg.supers ? 'Viewers see a tip button in the chat on your watch page.' : 'Stripe is connected. Turn on super chats to show the tip button.';
@@ -295,11 +263,30 @@ export function createAudience(app) {
     try { Object.assign(CARD, await api('payCard', { ...creds(), op: 'status' })); } catch {}
     renderCard();
   }
+  /** Get paid, step by step: what's done and the one thing to do next. */
+  function renderPaySteps() {
+    const ol = $('#wpPaySteps'); if (!ol) return;
+    const cfg = watchCfg();
+    const steps = [
+      [CARD.available, 'Card payments on this site', CARD.available ? 'Ready' : 'The site owner adds STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY in the hosting settings, then redeploys.'],
+      [CARD.ready, 'Your Stripe account', CARD.ready ? 'Connected: money goes straight to you' : CARD.connected ? 'Almost there: finish your Stripe details' : 'Connect Stripe below (a few minutes, one time)'],
+      [!!cfg.supers, 'Super chats on', cfg.supers ? 'Viewers see the green $ in your chat' : 'Turn on “Take super chats” below'],
+    ];
+    const next = steps.findIndex(([done]) => !done);
+    replaceKids(ol, ...steps.map(([done, title, sub], i) => {
+      const li = document.createElement('li'); li.className = 'pay-step' + (done ? ' done' : i === next ? ' next' : '');
+      li.innerHTML = '<i aria-hidden="true"></i><span><b></b><small></small></span>';
+      li.querySelector('i').textContent = done ? '✓' : String(i + 1);
+      li.querySelector('b').textContent = title; li.querySelector('small').textContent = sub;
+      return li;
+    }));
+  }
   function renderCard() {
+    renderPaySteps();
     const box = $('#wpPayCard'); if (!box) return;
     const go = $('#wpCardGo'), st = $('#wpCardState');
     box.classList.toggle('on', CARD.ready);
-    if (!CARD.available) { go.disabled = true; go.textContent = 'Not set up'; st.textContent = 'Card payments need this site’s Stripe keys (STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY). Once they’re added, connect your Stripe here.'; return; }
+    if (!CARD.available) { go.disabled = true; go.textContent = 'Not set up'; st.textContent = 'Not available on this site yet (see step 1).'; return; }
     go.disabled = false;
     if (CARD.ready) { go.textContent = 'Disconnect'; go.className = 'btn sm ghost'; st.textContent = 'On: viewers can pay by card, Apple Pay or Google Pay in your chat. Super chats go on stream as soon as they’re paid.'; }
     else if (CARD.connected) { go.textContent = 'Finish Stripe setup'; go.className = 'btn sm primary'; st.textContent = 'Almost there: finish your Stripe details, then come back to this tab.'; }

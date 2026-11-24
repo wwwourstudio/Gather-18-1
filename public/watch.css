@@ -1695,9 +1695,18 @@ button.wv-like:disabled { opacity: 0.4; cursor: default; }
 .wv-keys dd { margin: 0; color: var(--ink-2); font-size: 14px; }
 .wv-keys kbd { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12); font: 700 13px var(--font-ui); }
 
-.toasts { position: fixed; z-index: 60; left: 50%; top: 62px; transform: translateX(-50%); display: grid; gap: 8px; pointer-events: none; }
-.toast { padding: 8px 16px; border-radius: 6px; background: var(--surface-3); border: 1px solid var(--line-2); font-size: 13px; font-weight: 500; pointer-events: auto; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
-.toast.err { background: rgba(120, 20, 40, 0.95); }
+/* Notifications take over the header row for a moment and slide away: never over the video or the chat. */
+.toasts { position: fixed; z-index: 60; top: 0; left: 0; right: 0; display: grid; pointer-events: none; }
+.toast { grid-area: 1 / 1; display: flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 16px; pointer-events: auto;
+  background: #0a1020; border-bottom: 1px solid color-mix(in srgb, var(--accent, #3b82f6) 40%, transparent); color: var(--ink);
+  font-size: 13.5px; font-weight: 500; text-align: center; animation: wbar-in 0.22s ease-out, wbar-out 0.25s ease-in 3.25s forwards; }
+.toast::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent, #3b82f6); }
+.toast.err { background: #3a0e18; border-bottom-color: rgba(248, 113, 113, 0.5); }
+.toast.err::before { background: #f87171; }
+@keyframes wbar-in { from { transform: translateY(-100%); } }
+@keyframes wbar-out { to { transform: translateY(-100%); } }
+@media (max-width: 900px) { .toast { height: 48px; font-size: 13px; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .wv-top, .wv-opts, .wv-chat, .wv-creator-card, .wv-showcase-card, .wv-drawer { background: rgba(8, 12, 26, 0.95); } }
 @media (prefers-reduced-transparency: reduce) { .wv-ambient video { display: none; } .wv-top, .wv-opts, .wv-chat, .wv-creator-card, .wv-showcase-card, .wv-drawer { background: rgba(8, 12, 26, 0.96); -webkit-backdrop-filter: none; backdrop-filter: none; } }

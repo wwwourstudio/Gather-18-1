@@ -398,3 +398,22 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - It runs once, the first time you host (not under browser automation), and any time from Help → "Take the studio tour".
   - Esc or arrow keys work, and steps whose part isn't on screen are skipped.
 - **Verified:** all 13 suites pass, including the new acct test and the backstage, deck and tour checks in `feat`.
+
+## Plan execution: B2–B7, notification bar, compact phone studio
+- **Notification bar (studio).** Notifications show in their own row under the header: a slim bar that opens, says one thing, and folds away.
+  - It never sits over the stage, the scenes or the controls.
+  - While a dialog is open it floats above the dialog, then goes back into the page.
+  - On the watch page the bar slides in over the header row for a moment, never over the video or the chat.
+- **Phone studio (B2).** The whole studio fits on one phone screen:
+  - A 48px header with icon-only Watch page and Invite.
+  - The video edge to edge, with the on-air pill in its corner.
+  - Scenes as a 3-column grid filling the space under the video.
+  - One row of controls above the tab bar.
+  - Panels open as a sheet from a tab. Tapping the same tab or the stage closes it, and the sheet starts closed.
+- **B3.** Audience → Get paid shows three setup steps: card payments on this site → your Stripe → super chats on. Each step says what's done and what to do next.
+- **B4.** The old "payment arrived · confirm" super chat flow is gone in the studio and on the server. Card super chats are confirmed by Stripe.
+- **B5.**
+  - A raised hand the host lets in is put on stage by its lobby id, not by name.
+  - A voice join keeps the camera off after joining.
+- **B6.** The profile hint's "Use a photo" and "Remove" no longer overlap.
+- **B7.** The audit's banner, Present menu, share and AI chat steps use the current UI.

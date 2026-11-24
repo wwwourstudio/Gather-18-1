@@ -169,6 +169,9 @@
     </div>
   </header>
 
+  <!-- Notification bar: its own row under the header, so it never covers the stage or the controls. -->
+  <div class="toasts" id="toasts" role="status" aria-live="polite" popover="manual"></div>
+
   <!-- ================= MAIN ================= -->
   <main class="main">
     <section class="studio" aria-label="Your studio">
@@ -556,6 +559,7 @@
             </div></details>
 
             <details class="psec" data-sec="supers" data-aud-group="supers" open><summary><b>Card payments</b><span class="hint" id="wpSupersState"></span></summary><div class="psec-body">
+              <ol class="pay-steps" id="wpPaySteps" aria-label="Get paid setup"></ol>
               <div class="pay-card" id="wpPayCard">
                 <span class="pay-card-ic" aria-hidden="true"><svg class="i"><use href="/icons.svg#i-tip"/></svg></span>
                 <div><b>Card, Apple Pay &amp; Google Pay</b><small id="wpCardState">Viewers pay right on your watch page, straight into your own Stripe account. Nobody leaves gather.</small></div>
@@ -2081,7 +2085,6 @@
 </dialog>
 
 <button type="button" class="audio-unblock glass raised" id="audioUnblock" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Your browser paused your guests’ sound. Click to hear them.</button>
-<div class="toasts" id="toasts" role="status" aria-live="polite" popover="manual"></div>
 <div class="media-sink" id="mediaSink" aria-hidden="true"></div>
 
 <script src="/app.js" type="module"></script>
