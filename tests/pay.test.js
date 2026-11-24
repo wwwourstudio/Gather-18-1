@@ -88,6 +88,24 @@ const mock = http.createServer((req, res) => {
     const list = await post('scList', { studio: code, id: h.id, tok: h.tok });
     check('the host’s list shows it as paid by card', list.items.some((x) => x.id === co.id && x.status === 'confirmed' && x.auto && x.method === 'card'));
 
+    // The bag: several items, one card payment, priced and stock-checked on the server.
+    await post('send', { studio: code, id: h.id, tok: h.tok, ops: [{ type: 'state', state: { shop: { items: [{ id: 'tee', title: 'Show tee', price: '$20', stock: 5 }, { id: 'cap', title: 'Cap', price: '$15', stock: 1 }], pinned: '' } } }] });
+    await sleep(300);
+    const tooMany = await post('wcartbuy', { studio: code, vid: v.vid, vtok: v.vtok, lines: [{ id: 'cap', qty: 2 }] });
+    check('the bag can’t take more than is in stock', tooMany.status === 409 && /Only 1 Cap left/.test(tooMany.error || ''), tooMany.error);
+    const cart = await post('wcartbuy', { studio: code, vid: v.vid, vtok: v.vtok, lines: [{ id: 'tee', qty: 2, price: '$0.01' }, { id: 'cap', qty: 1 }] });
+    const cartSess = seen.filter((x) => x.url === '/v1/checkout/sessions').at(-1);
+    check('the whole bag is one checkout at the server’s prices ($55)', cart.clientSecret && cart.cents === 5500 && /unit_amount%5D=5500|unit_amount\]=5500/.test(cartSess?.body || ''), JSON.stringify(cart));
+    check('…before Stripe says paid, nothing leaves stock', (await post('wshopdone', { studio: code, vid: v.vid, vtok: v.vtok, orderId: cart.orderId })).status === 'paying');
+    paidSessions.add(cart.clientSecret.replace(/_secret$/, ''));
+    const doneCart = await post('wshopdone', { studio: code, vid: v.vid, vtok: v.vtok, orderId: cart.orderId });
+    await sleep(2100);
+    const shopNow = (await feed(code)).shop?.items || [];
+    check('once paid, every line leaves stock', doneCart.status === 'paid' && shopNow.find((x) => x.id === 'tee')?.stock === 3 && shopNow.find((x) => x.id === 'cap')?.stock === 0, JSON.stringify(shopNow.map((x) => [x.id, x.stock])));
+    const rep = (await post('send', { studio: code, id: h.id, tok: h.tok, ops: [{ type: 'sales' }] })).results?.find((x) => x.type === 'sales')?.report;
+    const bagRows = (rep?.rows || []).filter((r) => r.kind === 'sale');
+    check('the sales report has the bag as one $55 line', bagRows.length === 1 && bagRows[0].cents === 5500 && /2× Show tee, Cap/.test(bagRows[0].title), JSON.stringify(bagRows));
+
     await page.waitForSelector('#wScPop:not([hidden]) .wv-scpop-amt', { timeout: 8000 }).catch(() => {});
     const pop = await page.$eval('#wScPop', (el) => ({ hidden: el.hidden, text: el.textContent, tier: el.dataset.tier })).catch(() => ({}));
     check('a super chat pop-up shows in the chat with amount and name', !pop.hidden && /\$25/.test(pop.text || '') && /Riley/.test(pop.text || '') && pop.tier === 'amber', JSON.stringify(pop));

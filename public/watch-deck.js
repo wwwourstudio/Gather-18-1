@@ -5,7 +5,7 @@ import { replaceKids } from './ui.js';
 export function createStreamDeck(app) {
   const {
     $, code, W, store, toast, likeMsg, setAsk, money, renderPollCard, renderQueueCard, renderPartyMe,
-    renderPlayExtras, renderHotspot, buyProductInline
+    renderPlayExtras, renderHotspot, buyProductInline, checkoutBag
   } = app;
   // ---------------------------------------------------------------- Stream-type deck: the show's own tools under the video
   // A shopping show gets its whole shelf (and the featured product on the video); a gamer show gets the play-with-me line
@@ -173,6 +173,7 @@ export function createStreamDeck(app) {
         out.push(Object.assign(document.createElement('p'), { className: 'wv-mode-empty', textContent: 'Your bag is empty. Add pieces from the drop and check out when you’re ready.' }));
       } else {
         const ul = document.createElement('ul'); ul.className = 'wv-bag';
+        const cardBag = !!W.info?.watch?.shopCard; // one card payment for the whole bag, in the page
         let total = 0, sym = '$', known = true;
         replaceKids(ul, ...bag.map((x) => {
           const p = items.find((q) => q.id === x.id);
@@ -186,13 +187,18 @@ export function createStreamDeck(app) {
           const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', `One more ${p.title}`);
           plus.onclick = () => { const b = getBag(); const it = b.find((y) => y.id === p.id); if (it) { it.qty = Math.min(9, it.qty + 1); setBag(b); } };
           q.append(minus, Object.assign(document.createElement('span'), { className: 'num', textContent: String(x.qty) }), plus);
-          li.append(skuThumb(p), tx, q, buyLink(p, sale, 'Checkout', 'btn sm primary'));
+          li.append(skuThumb(p), tx, q, ...(cardBag ? [] : [buyLink(p, sale, 'Checkout', 'btn sm primary')]));
           return li;
         }));
         out.push(ul);
         const sum = document.createElement('div'); sum.className = 'wv-bag-sum';
         sum.append(Object.assign(document.createElement('span'), { textContent: `${count} item${count === 1 ? '' : 's'}` }), Object.assign(document.createElement('b'), { className: 'num', textContent: known ? fmtPrice(Math.round(total * 100) / 100, sym) : '' }));
-        out.push(sum, Object.assign(document.createElement('p'), { className: 'wv-bag-note', textContent: `Each Checkout opens ${sh.store || 'the seller’s store'}${sale?.code ? `, with code ${sale.code} copied for the sale item` : ''}. Your bag stays on this device.` }));
+        if (cardBag) {
+          const pay = document.createElement('button'); pay.type = 'button'; pay.className = 'btn primary block wv-bag-pay'; pay.id = 'wBagPay';
+          pay.textContent = known ? `Pay ${fmtPrice(Math.round(total * 100) / 100, sym)} · one checkout` : 'Pay for the bag';
+          pay.onclick = () => checkoutBag(bag, total, () => setBag([]));
+          out.push(sum, pay, Object.assign(document.createElement('p'), { className: 'wv-bag-note', textContent: 'Card, Apple Pay or Google Pay, right here. Sale prices are applied at checkout.' }));
+        } else out.push(sum, Object.assign(document.createElement('p'), { className: 'wv-bag-note', textContent: `Each Checkout opens ${sh.store || 'the seller’s store'}${sale?.code ? `, with code ${sale.code} copied for the sale item` : ''}. Your bag stays on this device.` }));
       }
     }
     replaceKids(body, ...out);

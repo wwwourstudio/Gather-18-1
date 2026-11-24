@@ -489,3 +489,12 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
 - Sam posts "Clipped that: …" in the studio chat with a **Save 9:16** button.
 - Clip & post → "Clip big moments for me" turns it off.
 - **Tests.** `clips` checks that a chat spike clips itself and that Sam's note has the button.
+
+## R6: one checkout for the bag
+- **Watch page.** When card checkout is on, the shop bag has one **Pay $total · one checkout** button. It opens the same in-page Stripe checkout as Buy now (card, Apple Pay, Google Pay) and empties the bag once paid.
+  - Without card checkout, each item keeps its store link as before.
+- **Server (`wcartbuy`).**
+  - Prices, flash-sale discounts and stock are checked on the server. The page's prices are never trusted.
+  - Up to 10 lines of up to 9 each.
+  - When Stripe confirms, `wshopdone` takes every line out of stock, posts one "Just bought 2× …" per line, and keeps the bag as one line in the sales report.
+- **Tests.** `pay` checks the stock limit, one checkout at the server's prices ($55 for 2× $20 + $15, even with a forged $0.01), nothing leaving stock before payment, stock after payment, and one sales line.

@@ -1383,7 +1383,7 @@ function renderQueueCard(info, box = $('#wCards')) {
 // ---------------------------------------------------------------- Stream-type deck: the show's own tools under the video → ./watch-deck.js
 const deck = createStreamDeck({
   $, code, W, store, toast, likeMsg, setAsk, money, renderPollCard, renderQueueCard, renderPartyMe,
-  renderPlayExtras, renderHotspot, buyProductInline
+  renderPlayExtras, renderHotspot, buyProductInline, checkoutBag
 });
 const { MODE_CFG, buyWithCode } = deck;
 function renderInteractive(...args) { return deck.renderInteractive(...args); }
@@ -1996,6 +1996,40 @@ async function buyProductInline(drop, sale) {
   } catch (e) {
     host.hidden = true; replaceKids(host);
     toast(e.message || 'Couldn’t start checkout right now.');
+  }
+}
+
+/** The bag: one card payment for everything in it, in the page (never the store's own site). */
+async function checkoutBag(lines, total, onPaid) {
+  const host = $('#wShopCheckout');
+  if (!host || !lines?.length) return;
+  try {
+    await ensureSession();
+    if (!sess?.named) { openSignIn(); return; }
+    host.hidden = false;
+    host.innerHTML = '<div class="wv-co-bar"><b>Opening secure checkout…</b><button type="button" class="btn sm ghost" id="wCoCancel">Cancel</button></div><div id="wCoMount"></div>';
+    $('#wCoCancel').onclick = () => { try { shopCheckoutMount?.destroy(); } catch {} shopCheckoutMount = null; host.hidden = true; replaceKids(host); };
+    host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const r = await api('wcartbuy', { ...creds(), lines: lines.map((l) => ({ id: l.id, qty: l.qty })) });
+    const StripeFn = await loadStripe();
+    const stripe = StripeFn(r.pk, r.account ? { stripeAccount: r.account } : undefined);
+    try { shopCheckoutMount?.destroy(); } catch {}
+    shopCheckoutMount = await stripe.initEmbeddedCheckout({
+      fetchClientSecret: async () => r.clientSecret,
+      onComplete: async () => {
+        try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
+        try { shopCheckoutMount?.destroy(); } catch {}
+        shopCheckoutMount = null; host.hidden = true; replaceKids(host);
+        const n = lines.reduce((a, l) => a + l.qty, 0);
+        toast(`Order confirmed! Thanks for grabbing ${n} item${n === 1 ? '' : 's'}.`);
+        onPaid?.(); poll();
+      },
+    });
+    const mount = $('#wCoMount'); if (mount) shopCheckoutMount.mount(mount);
+    host.querySelector('.wv-co-bar b').textContent = `Your bag · ${'$' + (r.cents / 100).toFixed(2)}`;
+  } catch (e) {
+    host.hidden = true; replaceKids(host);
+    toast(e.message || 'Couldn’t start checkout right now.', true);
   }
 }
 
