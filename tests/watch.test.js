@@ -82,7 +82,9 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const inStudio = await a.waitForFunction(() => [...document.querySelectorAll('#msgs .msg.ext')].some((li) => /Hello from the watch page/.test(li.textContent)), null, { timeout: 10000 }).then(() => true).catch(() => false);
     check('viewer chat reaches the studio chat', inStudio);
     // Super chats are on, but this site has no Stripe connected: no tip button, so nobody is sent to pay elsewhere.
-    check('without card payments the watch page shows no tip button', await w.evaluate(() => { const b = document.querySelector('#wTipBtn'); return !b || b.hidden || !b.offsetParent; }));
+    check('without card payments the green $ is greyed out and opens nothing', await w.evaluate(() => { const b = document.querySelector('#wTipBtn'); return !!b && b.classList.contains('off') && b.getAttribute('aria-disabled') === 'true'; }));
+    await w.click('#wTipBtn', { force: true }); // aria-disabled: Playwright won't click it unforced
+    check('…tapping it says tips aren’t on, and the tray stays shut', await w.evaluate(() => document.querySelector('#wTipDock').hidden));
     // The super chat alert on stream and in the viewer's chat is covered with a real card payment in pay.test.js.
     check('the page fits one screen (no page scroll)', await w.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
     const p = await mk({ width: 390, height: 844 }); await p.goto(B + '/w/' + sc2); await p.waitForTimeout(2500);

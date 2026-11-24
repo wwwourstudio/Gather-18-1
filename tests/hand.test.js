@@ -47,7 +47,7 @@ const signUp = async (page, name) => {
     const [g] = await Promise.all([vctx.waitForEvent('page'), v.click('#wHandBar .btn.primary')]);
     g.on('pageerror', (e) => errs.push('joiner: ' + e.message));
     await g.waitForLoadState();
-    check('Join now opens the studio with the pass, and the pass leaves the address bar', /\/c\//.test(g.url()) && !/pass=/.test(await g.evaluate(() => location.href)), g.url());
+    check('Join now opens the studio with the pass, and the pass leaves the address bar', /\/c\//.test(g.url()) && await wait(g, () => !/pass=/.test(location.href)), g.url());
     await g.waitForSelector('#enterDlg[open]', { timeout: 10000 });
     await g.fill('#enterName', 'Jordan'); await g.click('#enterGo');
     check('they’re in without knocking again', await wait(g, () => !!window.__gather?.studio && !document.querySelector('#knockWait:not([hidden])'), null, 20000));

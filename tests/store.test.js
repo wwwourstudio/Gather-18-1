@@ -56,7 +56,7 @@ const signUp = async (page, name) => {
     await v.click('#wTabChat');
     await v.fill('#wText', 'This is :hype: right now'); await v.click('#wSend');
     await v.waitForTimeout(1200);
-    await v.click('#wAsk'); await v.fill('#wText', 'What GPU are you using?'); await v.click('#wSend');
+    await v.click('#wAsk'); await v.click('#wHandMenu [role="menuitem"]:has-text("Ask in chat")'); await v.fill('#wText', 'What GPU are you using?'); await v.click('#wSend');
     check('viewer: emote renders as an image', await wait(v, () => [...document.querySelectorAll('#wMsgs img.emote')].some((i) => i.src.startsWith('data:image'))));
 
     // Host: sees the question and the player; calls the next player.
@@ -68,14 +68,14 @@ const signUp = async (page, name) => {
     // A second viewer likes, mentions, reports; the poll result reaches the host.
     const v2 = await mk(bv);
     await v2.goto(B + '/w/' + code);
-    await wait(v2, () => document.querySelectorAll('#wMsgs li.row').length >= 2);
+    await wait(v2, () => document.querySelectorAll('#wMsgs li.row:not(.welcome)').length >= 2);
     await signUp(v2, 'Sam');
-    await v2.click('#wMsgs li.row button.wv-like');
+    await v2.click('#wMsgs li.row:not(.welcome) button.wv-like');
     await v2.fill('#wText', '@Jordan same question here'); await v2.click('#wSend');
     check('viewer: an @mention of them is highlighted', await wait(v, () => document.querySelector('#wMsgs li.mention')));
-    check('likes reach everyone', await wait(v, () => document.querySelector('#wMsgs li.row .wv-like span')?.textContent === '1'));
+    check('likes reach everyone', await wait(v, () => document.querySelector('#wMsgs li.row:not(.welcome) .wv-like span')?.textContent === '1'));
     check('host: live poll counts', await wait(a, () => (window.__gather.pollCounts || []).reduce((s, n) => s + n, 0) >= 1));
-    await v2.hover('#wMsgs li.row'); await v2.click('#wMsgs li.row .wv-acts button[aria-label="Report"]');
+    await v2.hover('#wMsgs li.row:not(.welcome)'); await v2.click('#wMsgs li.row:not(.welcome) .wv-acts button[aria-label="Report"]');
     await v.screenshot({ path: SP + '/store-viewer-chat.png' });
 
     // Phones held upright show the whole 16:9 picture; Fill turns it into the vertical 9:16 view.

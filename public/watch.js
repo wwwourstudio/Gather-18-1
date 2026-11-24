@@ -354,7 +354,7 @@ function msgEl(m) {
   li.dataset.id = m.id; li.dataset.name = m.name; if (m.sc) li.dataset.sc = m.sc;
   if (m.sys) { li.className = 'sys'; li.textContent = m.text; return li; } // auction results, giveaway winners
   if (m.paid) li.className = 'paid' + (m.status === 'answered' ? ' answered' : '') + (m.status === 'pending' ? ' pending' : '');
-  else li.className = 'row' + (m.q ? ' q' : '');
+  else li.className = 'row' + (m.q ? ' q' : '') + (m.ai ? ' sam' : '') + (m.samQ ? ' samq' : '') + (m.host ? ' host' : '');
   const mine = sess?.named && m.name === sess.name;
   if (mine) li.classList.add('me');
   if (!mine && sess?.named && new RegExp('@' + sess.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(m.text)) li.classList.add('mention');
@@ -367,6 +367,7 @@ function msgEl(m) {
   }
   av.textContent = (m.name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   av.setAttribute('aria-hidden', 'true');
+  if (m.ai) { av.textContent = '✦'; av.style.background = ''; av.classList.add('sam'); }
 
   const body = document.createElement('div');
   const head = document.createElement('div'); head.className = 'wv-mh';
@@ -374,6 +375,7 @@ function msgEl(m) {
   const t = document.createElement('time'); const d = new Date(m.ts || Date.now()); t.dateTime = d.toISOString(); t.textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   head.append(b);
   if (m.host) { const hp = document.createElement('span'); hp.className = 'wv-host-pill'; hp.textContent = 'Host'; head.append(hp); }
+  if (m.ai) { const hp = document.createElement('span'); hp.className = 'wv-host-pill ai'; hp.textContent = 'AI'; head.append(hp); b.style.color = ''; }
   head.append(t);
   if (m.q) { const q = document.createElement('span'); q.className = 'wv-qb'; q.innerHTML = '<svg class="i" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg>Question'; head.append(q); }
 
@@ -385,12 +387,13 @@ function msgEl(m) {
   const gap = document.createElement('span'); gap.className = 'wv-sp';
   const acts = document.createElement('span'); acts.className = 'wv-acts';
   const mk = (icon, label, fn) => { const k = document.createElement('button'); k.type = 'button'; k.innerHTML = `<svg class="i" aria-hidden="true"><use href="/icons.svg#i-${icon}"/></svg>`; k.setAttribute('aria-label', label); k.title = label; k.onclick = fn; return k; };
-  if (m?.id != null && !String(m.id).startsWith('mine-')) {
+  if (m?.id != null && !String(m.id).startsWith('mine-') && !String(m.id).startsWith('pin-') && !m.ai) {
     acts.append(mk('reply', 'Reply', () => setReply(m)));
     if (mine) acts.append(mk('trash-2', 'Delete my message', () => deleteMsg(m.id, li)));
     else acts.append(mk('flag', 'Report', () => reportMsg(m.id, li)), mk('volume-x', `Mute ${m.name} for me`, () => muteName(m.name)));
   }
-  head.append(gap, acts, lk);
+  head.append(gap, acts);
+  if (!String(m.id || '').startsWith('pin-')) head.append(lk); // pinned welcome messages can't be liked
   const txtNode = richText(m.text);
   if (W.lang && m.text) applyLiveTranslation(txtNode, m.text);
   if (m.re?.n) { const q = document.createElement('span'); q.className = 'wv-re'; q.textContent = `${m.re.n}: ${m.re.t || ''}`; body.append(head, q, txtNode); }
@@ -840,6 +843,7 @@ $('#wCompose').addEventListener('submit', async (e) => {
     if (ACCT.user && !sess?.signed) await joinSigned();
     if (naming) await naming.catch(() => {});
     await ensureSession(); renderMe();
+    if (/^@sam\b/i.test(text)) return askSam(text);
     const asking = $('#wAsk').getAttribute('aria-pressed') === 'true';
     const re = W.reply ? { n: W.reply.name, t: String(W.reply.text || '').slice(0, 80) } : undefined;
     const r = await api('wsend', { ...creds(), type: asking ? 'question' : 'chat', text, re });
@@ -857,6 +861,56 @@ $('#wCompose').addEventListener('submit', async (e) => {
     showErr('#wErr', err.message);
   }
 });
+
+// ---------------------------------------------------------------- Sam in the chat
+// Anyone can @Sam in chat (or tap Ask Sam): the question and Sam's answer show for everyone. Sam answers from what
+// the show has told it (about, links, what's next, captions, recent chat) and explains how the page works.
+async function askSam(text) {
+  const thinking = document.createElement('li'); thinking.className = 'row sam thinking'; thinking.dataset.id = 'sam-thinking';
+  thinking.innerHTML = '<span class="wv-av sam" aria-hidden="true">✦</span><div><div class="wv-mh"><b>Sam</b><span class="wv-host-pill ai">AI</span></div><span class="wv-typing" aria-label="Sam is thinking"><i></i><i></i><i></i></span></div>';
+  $('#wMsgs').append(thinking); $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
+  $('#wText').value = '';
+  try {
+    const r = await api('wsam', { ...creds(), text });
+    thinking.remove();
+    for (const m of [r.ask, r.reply]) { if (!m) continue; W.shown.add(m.id + ':'); W.recentChat = [...W.recentChat, m].slice(-80); $('#wMsgs').append(msgEl(m)); }
+    $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
+    awardXp(2);
+  } catch (err) {
+    thinking.remove();
+    $('#wText').value = text;
+    if (err.status === 401) { await renew().catch(() => {}); return showErr('#wErr', 'Your chat session ended. Send again.'); }
+    showErr('#wErr', err.message);
+  }
+}
+
+$('#wSamBtn').onclick = () => { const t = $('#wText'); if (!/^@sam\b/i.test(t.value)) t.value = '@Sam ' + t.value.replace(/^\s+/, ''); t.focus(); t.setSelectionRange(t.value.length, t.value.length); };
+
+// ---------------------------------------------------------------- the chat never starts empty
+// The first message is always the streamer's welcome (pinned at the top), then Sam says hi, with one-tap starters.
+function renderWelcome(info) {
+  const box = $('#wMsgs'); if (!box) return;
+  const on = !!info?.found;
+  let wrap = box.querySelector('li[data-id="pin-welcome"]');
+  if (!on) { wrap?.remove(); box.querySelector('li[data-id="pin-sam"]')?.remove(); box.querySelector('li.starters')?.remove(); return; }
+  const host = info.host?.name || 'The host';
+  const text = (info.watch?.about || '').trim() || `Welcome to ${info.title || 'the show'}! 👋 I’m live right now. Say hi and tell me where you’re watching from.`;
+  const key = host + '|' + text;
+  if (wrap?.dataset.k === key) return;
+  wrap?.remove(); box.querySelector('li[data-id="pin-sam"]')?.remove(); box.querySelector('li.starters')?.remove();
+  wrap = msgEl({ id: 'pin-welcome', name: host, text, ts: Date.now(), host: true, av: info.host?.av || '' });
+  wrap.classList.add('welcome'); wrap.dataset.k = key;
+  const sam = info.watch?.sam === false ? null : msgEl({ id: 'pin-sam', name: 'Sam', ai: true, text: `Hi! I’m Sam, ${host.split(' ')[0]}’s AI co-host. Ask me anything with @Sam: what you missed, the links, or how to join the show.`, ts: Date.now() });
+  sam?.classList.add('welcome', 'w2');
+  const starters = document.createElement('li'); starters.className = 'starters';
+  const chip = (label, fill, send) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'wv-starter'; b.textContent = label;
+    b.onclick = () => { $('#wText').value = fill; $('#wText').focus(); if (send) $('#wCompose').requestSubmit(); };
+    return b;
+  };
+  starters.append(chip('👋 Say hi', 'Hi! 👋', true), chip('🔥 Let’s go!', 'Let’s go! 🔥', true), ...(sam ? [chip('✦ Ask Sam', '@Sam ', false), chip('What did I miss?', '@Sam what did I miss?', true)] : []));
+  box.prepend(...[wrap, sam, starters].filter(Boolean));
+}
 
 // ---------------------------------------------------------------- super chats (single unified inline tray) → ./watch-superchat.js
 const superChat = createSuperChat({
@@ -1777,7 +1831,8 @@ function renderRoom(info) {
   $('#wPin').hidden = !pin;
   $('#wPinText').textContent = pin;
   $('#wPinBy').textContent = `Pinned by ${info.host?.name || 'the host'}`;
-  $('#wMsgs').dataset.welcome = on ? `Welcome to ${info.title || 'the show'}! Say hi, ${info.host?.name || 'the host'} sees every message.` : '';
+  $('#wMsgs').dataset.welcome = '';
+  renderWelcome(info);
   syncRailStrip();
 }
 

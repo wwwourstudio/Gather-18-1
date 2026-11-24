@@ -1,5 +1,16 @@
 # gather: progress
 
+## Watch party and studio: join the show, Sam in chat, clips, viewer count
+
+- **Raise your hand:** the hand in the watch chat opens Join on camera / Join by voice / Leave a voice message / Ask in chat. Joining knocks on the studio's waiting room ("Raised hand · camera", with **Bring on**); once let in, **Join now** opens the studio with a one-time pass, straight in, and the host's studio puts them on stage. Suite: `hand`.
+- **Sam in the watch chat:** anyone can @Sam (or tap ✦ Ask Sam). The question and Sam's answer show for everyone. Sam answers from the show's facts (about, links, what's next, notices, shop, poll, recent captions and chat) and explains the page; it never runs anything for a viewer. Uses the site's house AI key (`HOUSE_AI_PROVIDER` + `HOUSE_AI_KEY`); limits: one question per viewer every 8 s, 15 a day per viewer, 300 a day per show. Without a key, viewers are told Sam isn't on. Suite: `sam`.
+- **The chat never starts empty:** the streamer's welcome is the first message (pinned), then Sam's hello and one-tap starters (Say hi, Let's go, Ask Sam, What did I miss?). Messages slide in; paid ones glow once.
+- **Sidebar tabs:** Chat, Live (polls, drops, queue), People. The emoji row and the separate Tip button are gone; the green $ in the chat box greys out when tips aren't available.
+- **Show & Host drawer:** flush right, rounded inside edge only, a real show card, and About this show (about, notices & links, what's next, AI spotlight) moved in from the tab under the video.
+- **Watch page:** the page-wide blurred live video works again; the green "Direct · 0.1 s" badge is gone; the show card's photo fits its ring (no second avatar).
+- **Studio:** host-only **Mark clip** on the stage on hover; a **watching** pill with the total live viewers (watch page, YouTube when Google is connected, Rumble) and a breakdown on hover; scene cards under the video use the Scene templates design.
+- **Not done:** the Live and People tabs got new names but not new content; Twitch and Kick viewer counts need their API keys.
+
 ## Design pass: home on phones, rail, deck, Audience, Get paid
 
 - **Home page on phones and tablets:** one screen tall like desktop. Heading and subtitle two lines each, then Go Live and Join, then the preview cut off at the bottom. Removed everything under the preview (two feature-card lists, the platform strip, the footer). Fixed light-mode contrast in the preview and the Schedule link.
