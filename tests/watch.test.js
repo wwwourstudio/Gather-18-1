@@ -54,6 +54,10 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     const guest = await post('join', { studio: code, dev: 'f'.repeat(24), name: 'Guest', intent: 'join' });
     await post('wsend', { studio: code, vid: v.vid, vtok: v.vtok, type: 'react', emoji: '🔥' });
     check('reactions are counted for everyone', (await feed(code)).reacts['🔥'] >= 1);
+    await post('send', { studio: code, id: h.id, tok: h.tok, ops: [{ type: 'state', state: { mod: { moderators: [{ src: 'watch', user: 'riley', name: 'Riley' }] } } }] });
+    await new Promise((r) => setTimeout(r, 2100));
+    const team = (await feed(code)).team;
+    check('the People tab gets the moderators by name only', team?.mods?.includes('Riley') && !JSON.stringify(team).includes('riley'), JSON.stringify(team));
     await setW({ cap: 0, direct: false, chat: true });
     check('with direct video off, viewers are told it is off (they fall back to platforms)', (await post('wrtcJoin', { studio: code, vid: v.vid, vtok: v.vtok })).reason === 'off');
     await post('leave', { studio: code, id: guest.id, tok: guest.tok, why: 'left' });

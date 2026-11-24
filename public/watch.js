@@ -302,6 +302,7 @@ function render(info) {
   renderGoal(info);
   $('#wChat').classList.toggle('quiet', !$('#wMsgs li.row, #wMsgs li.paid'));
   renderTops(W.recentChat);
+  renderPeople(info);
   renderAbout(info);
   renderShopUI(info);
   renderLiveActs(info);
@@ -521,6 +522,37 @@ function richText(text) {
     span.append(document.createTextNode(part));
   }
   return span;
+}
+
+/** People tab: the top fans by XP and who runs the room (the host and moderators). */
+function renderPeople(info) {
+  const fans = (info.topFans || []).filter((f) => f?.name && f.xp > 0).slice(0, 5);
+  const me = sess?.named ? sess.name : '';
+  const fk = JSON.stringify(fans);
+  if ($('#wFans').dataset.k !== fk) {
+    $('#wFans').dataset.k = fk;
+    replaceKids($('#wFans'), ...fans.map((f, i) => {
+      const li = document.createElement('li'); if (f.name === me) li.className = 'me';
+      const rank = document.createElement('span'); rank.className = 'wv-fan-rank num'; rank.textContent = ['🥇', '🥈', '🥉'][i] || `#${i + 1}`;
+      const nm = document.createElement('b'); nm.textContent = f.name; nm.style.color = nameColor(f.name);
+      const xp = document.createElement('em'); xp.className = 'num'; xp.textContent = `${Number(f.xp).toLocaleString()} XP`;
+      li.append(rank, nm, xp); return li;
+    }));
+  }
+  $('#wFansWrap').hidden = !fans.length;
+  const team = [...(info.host?.name ? [[info.host.name, 'Host']] : []), ...(info.team?.mods || []).map((n) => [n, 'Mod'])];
+  const tk = JSON.stringify(team);
+  if ($('#wTeam').dataset.k !== tk) {
+    $('#wTeam').dataset.k = tk;
+    replaceKids($('#wTeam'), ...team.map(([n, role]) => {
+      const li = document.createElement('li');
+      const av = document.createElement('span'); av.className = 'wv-team-av'; av.textContent = initialsOf(n); av.style.background = nameColor(n);
+      const nm = document.createElement('b'); nm.textContent = n;
+      const tag = document.createElement('small'); tag.className = 'wv-team-tag ' + role.toLowerCase(); tag.textContent = role;
+      li.append(av, nm, tag); return li;
+    }));
+  }
+  $('#wTeamWrap').hidden = !team.length;
 }
 
 function renderTops(items) {
@@ -1655,9 +1687,26 @@ function actButton(label, primary, onClick) {
   const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm' + (primary ? ' primary' : ''); b.textContent = label; b.onclick = () => onClick(b); return b;
 }
 
+/** The Live tab mirrors a running auction or giveaway as a card whose button jumps to its controls. */
+function syncActCard(act) {
+  const cards = $('#wCards'); if (!cards) return;
+  let card = cards.querySelector('[data-card="act"]');
+  if (!act) { card?.remove(); return; }
+  if (!card) {
+    card = document.createElement('div'); card.className = 'wv-card wv-act-card'; card.dataset.card = 'act';
+    card.innerHTML = '<div class="k"><span></span><span class="wv-act-live">Live</span></div><b class="wv-act-t"></b><small class="wv-act-s"></small><button type="button" class="wv-act-go"></button>';
+    card.querySelector('.wv-act-go').onclick = () => { setTab('chat'); $('#wActs')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    cards.prepend(card);
+  }
+  card.querySelector('.k span').textContent = act.kind === 'auction' ? '🔨 Auction' : '🎁 Giveaway';
+  card.querySelector('.wv-act-t').textContent = act.title || '';
+  card.querySelector('.wv-act-s').textContent = act.sub || '';
+  card.querySelector('.wv-act-go').textContent = act.kind === 'auction' ? 'Bid now' : 'Enter now';
+}
 function renderLiveActs(info) {
   const box = $('#wActs'); if (!box || !info) return;
   const now = Date.now(), a = info.auction, gv = info.giveaway, so = info.shoutout, raid = info.raid;
+  syncActCard(a && a.status === 'live' && a.endsAt > now ? { kind: 'auction', title: a.title, sub: a.top ? `${a.top.name} leads · ${usd(a.top.amt)}` : `Starts at ${usd(a.start)}` } : gv && gv.status === 'open' ? { kind: 'giveaway', title: gv.prize, sub: 'Open now' } : null);
   const rows = [];
   if (raid && W.raidStay !== raid.at + raid.url && raid.at > now - 4000) {
     const r = actRow('raid', `<span class="wv-act-tag">Raid</span><span class="wv-act-main"><b class="wv-act-t"></b><small class="wv-act-s">The host is sending everyone to their next show</small></span><span class="wv-act-clock num" data-raid="${raid.at}"></span>`);

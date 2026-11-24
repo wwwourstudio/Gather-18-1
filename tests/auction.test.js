@@ -37,6 +37,7 @@ const signUp = async (page, name) => {
     check('viewer: the auction appears under the video', await wait(v, () => /Signed vinyl · \$10/.test(document.querySelector('#wActs')?.textContent || '')));
     await v.click('#wActs [data-kind="auction"] .btn.primary'); // Bid $10
     check('viewer: bidding makes them the leader', await wait(v, () => /You’re winning/.test(document.querySelector('#wActs').textContent)));
+    check('viewer: the Live tab shows the auction as a card, with who leads', await wait(v, () => { const c = document.querySelector('#wCards [data-card="act"]'); return !!c && /Auction/.test(c.textContent) && /Jordan leads/.test(c.textContent) && /Bid now/.test(c.textContent); }));
     check('host: the panel shows who leads', await wait(a, () => /Jordan leads/.test(document.querySelector('#auLeader').textContent)));
     await a.screenshot({ path: SP + '/auction-host.png' });
     await v.screenshot({ path: SP + '/auction-viewer.png' });

@@ -1257,7 +1257,7 @@ body { background: var(--bg, #080c16); color: var(--ink); }
   line-height: 1.5;
   text-align: center;
 }
-#wPulsePanel:has(#wPin:not([hidden]), #wHere:not([hidden]), #wTopsWrap:not([hidden])) .wv-pulse-empty { display: none; }
+#wPulsePanel:has(#wPin:not([hidden]), #wHere:not([hidden]), #wTopsWrap:not([hidden]), #wFansWrap:not([hidden]), #wTeamWrap:not([hidden])) .wv-pulse-empty { display: none; }
 
 .wv-stage-empty {
   display: grid;
@@ -2620,3 +2620,24 @@ html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer
 }
 @keyframes wv-amb-drift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
 @media (prefers-reduced-motion: reduce) { .wv:not(.glow) .wv-ambient { animation: none; } }
+
+/* People tab: top fans and the team */
+.wv-fans, .wv-team { display: grid; gap: 8px; }
+.wv-fans-list, .wv-team-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.wv-fans-list li, .wv-team-list li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.035); animation: wv-row-in .35s ease both; }
+.wv-fans-list li.me { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 50%, transparent); }
+.wv-fan-rank { width: 24px; text-align: center; font-size: 13px; }
+.wv-fans-list b, .wv-team-list b { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wv-fans-list em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.wv-team-av { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: #fff; font: 700 11px/1 var(--font-ui); flex: none; }
+.wv-team-tag { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(255, 255, 255, 0.07); color: var(--ink-2); }
+.wv-team-tag.host { background: color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent); color: var(--accent-text, #93c5fd); }
+.wv-team-tag.mod { background: rgba(34, 197, 94, 0.16); color: #86efac; }
+@keyframes wv-row-in { from { opacity: 0; transform: translateY(4px); } }
+/* Live tab: auction or giveaway card */
+.wv-act-card { display: grid; gap: 4px; }
+.wv-act-card .wv-act-live { color: #f87171; font-weight: 700; }
+.wv-act-card .wv-act-t { font-size: 14px; }
+.wv-act-card .wv-act-s { font-size: 12px; color: var(--ink-2); }
+.wv-act-card .wv-act-go { justify-self: start; margin-top: 6px; height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--accent, #3b82f6); color: #fff; font: 700 12.5px/1 var(--font-ui); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .wv-fans-list li, .wv-team-list li { animation: none; } }

@@ -457,3 +457,11 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - If one lane drops, the other keeps going.
   - The dialog shows a live 9:16 preview while a tall destination is on.
 - **Verified.** `live` streams to two local RTMP servers at once. The first receives 1280x720 and the second 720x1280, both H.264 + AAC, and no stream key reaches gather or the relay log. `livebuiltin` passes too.
+
+## R2: watch page Live and People tabs
+- **Live tab.** A running auction or giveaway shows as a card next to polls, predictions, drops and the play-with-me line. It says who leads, and a "Bid now" / "Enter now" button jumps to its controls under the video.
+- **People tab.**
+  - Top fans by XP this show (your own row highlighted).
+  - The host and moderators, with Host / Mod tags.
+  - The feed carries moderators' names only, never their platform user ids.
+- **Tests.** `auction` checks the Live tab card. `watch` checks the moderators in the feed.
