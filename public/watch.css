@@ -2712,3 +2712,37 @@ html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer
   .wv-msgs li.starters { gap: 6px; padding: 2px 0 8px; }
   .wv-msgs li.starters button { height: 32px; padding: 0 12px; font-size: 13px; }
 }
+
+/* ================================================================ Phones: one design with the studio (V15)
+   The watch page and the studio share the same phone spec: a 52px header with 36px round-cornered icon buttons and
+   12px side margins, a 40px tab bar with an accent underline, chat rows with round 28px avatars (13px names, 11px
+   times, 14.5px text), and a 44px message box with a round accent send button. */
+@media (max-width: 720px) {
+  .wv { grid-template-rows: 52px 0 auto auto auto auto; }
+  .wv-top { height: 52px; padding: 0 10px 0 12px; gap: 8px; }
+  .wv-logo { font-size: 21px; }
+  .wv-live-tag { height: 24px; padding: 0 9px; font-size: 11px; }
+  .wv-infobtn, .wv-share-top { width: 36px !important; height: 36px !important; min-width: 36px !important; min-height: 36px !important; padding: 0 !important; justify-content: center; border-radius: 10px !important; background: var(--fill) !important; border: 0 !important; }
+  .wv-infobtn > :not(.wv-info-av) { display: none; }
+  .wv-info-av { width: 24px; height: 24px; border-radius: 50%; font-size: 11px; }
+  .wv-stagebox { top: 52px; }
+  .wv-chat { height: calc(100dvh - 52px - 56.25vw); grid-template-rows: 40px auto minmax(0, 1fr) auto; }
+  .wv-chat-head { height: 40px; padding: 0 8px 0 4px; border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08)); }
+  .wv-tabs button { min-height: 40px; height: 40px; padding: 0 12px; font-size: 13px; font-weight: 600; }
+  .wv-lang-sel { height: 28px; border-radius: 8px; font-size: 12px; }
+  .wv-rail-strip { min-height: 26px; padding: 0 12px; font-size: 12px; }
+  /* chat rows */
+  .wv-msgs { padding: 6px 12px; }
+  .wv-msgs li.row { grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; padding: 6px 0; }
+  .wv-msgs .wv-av { width: 28px; height: 28px; border-radius: 50%; font-size: 11px; }
+  .wv-mh > b { font-size: 13px; font-weight: 700; }
+  .wv-mh time { font-size: 11px; }
+  .wv-msgs .wv-mt { font-size: 14.5px; line-height: 1.45; margin-top: 1px; }
+  button.wv-like { height: 24px; }
+  /* message box */
+  .wv-compose { padding: 8px 12px max(10px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08)); }
+  .wv-composer .input { height: 44px; border-radius: 14px; padding: 0 48px 0 14px; font-size: 15px; background: var(--fill, rgba(255, 255, 255, 0.04)); border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1)); }
+  .wv-send { width: 36px !important; height: 36px !important; top: 4px !important; right: 4px !important; border-radius: 50% !important; box-shadow: none !important; }
+  .wv-tool { height: 36px; min-width: 36px; border-radius: 10px; }
+  .wv-me { height: 36px; border-radius: 10px; font-size: 13px; }
+}

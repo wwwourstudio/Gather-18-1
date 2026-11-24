@@ -5787,3 +5787,29 @@ body.pre .app > .dock { display: none !important; }
   body:not(.pre) #msgs .msg.ai-msg.sam-note .txt { font-size: 13.5px; line-height: 1.45; }
   body:not(.pre) #msgs .msg.ai-msg.sam-note .msg-tools .btn { height: 30px; font-size: 12.5px; }
 }
+
+/* ================================================================ Phones: one design with the watch page (V15)
+   Same spec as the watch page: 12px side margins, 36px icon buttons, a 40px tab bar with an accent underline, round
+   28px avatars with 13px names and 11px times, and a 44px message box with a round accent send button. */
+@media (max-width: 720px) {
+  body:not(.pre) .app > .top { height: 52px; padding: 0 10px 0 12px !important; }
+  body:not(.pre) #watchTop, body:not(.pre) #enterTop { width: 36px; height: 36px !important; border-radius: 10px; }
+  body:not(.pre) #userBtn { width: 36px; height: 36px !important; border-radius: 10px; }
+  body:not(.pre) .main > .rail { height: 40px !important; padding: 0 4px !important; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked .caption { font-size: 13px; font-weight: 600; }
+  body:not(.pre) .main > .rail .rail-btn.icon-btn.stacked.on::after { left: 16% !important; right: 16% !important; }
+  body:not(.pre) [data-panel="chat"] .chat-body { padding: 6px 12px 4px !important; }
+  body:not(.pre) #msgs .msg.has-av { padding: 6px 0; column-gap: 10px; }
+  body:not(.pre) #msgs .msg.has-av > .cav { width: 28px !important; height: 28px !important; font-size: 11px !important; }
+  body:not(.pre) #msgs .msg .who b { font-size: 13px; font-weight: 700; }
+  body:not(.pre) #msgs .msg .txt { font-size: 14.5px; line-height: 1.45; }
+  body:not(.pre) .main > .side .composer { padding: 8px 12px max(10px, env(safe-area-inset-bottom, 0px)) !important; }
+  body:not(.pre) .main > .side .composer-box { min-height: 44px; border-radius: 14px; padding: 4px 4px 4px 8px; align-items: center; }
+  body:not(.pre) .main > .side .composer-box .send-btn { width: 36px; height: 36px; border-radius: 50%; }
+  body:not(.pre) .main > .side .composer-box .comp-file { width: 32px; height: 32px; }
+  body:not(.pre) .main > .side .composer-box .sam-btn { width: 32px; height: 32px; }
+}
+@media (max-width: 720px) {
+  /* in a phone's chat row, only a platform worth knowing (YouTube, Twitch…) gets a tag: not "Watch" or "Guests only" */
+  body:not(.pre) #msgs .msg .who .pill.src-watch, body:not(.pre) #msgs .msg .msg-scope { display: none; }
+}

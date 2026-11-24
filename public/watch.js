@@ -341,9 +341,14 @@ function renderChat(items, gone = []) {
     log.append(msgEl(m));
   }
   while (log.children.length > 200) log.firstChild.remove();
-  if (atBottom) log.scrollTop = log.scrollHeight; else if (items.length) $('#wNewer').hidden = false;
+  // The first load opens at the newest messages; after that, only follow along if the viewer is already at the bottom.
+  if (atBottom || !W.booted) { log.scrollTop = log.scrollHeight; $('#wNewer').hidden = true; } else if (items.length) $('#wNewer').hidden = false;
   W.booted = true;
 }
+// Open at the newest messages once the chat has settled (the welcome cards and the first messages arrive in more than
+// one pass), unless the viewer has already scrolled it themselves.
+for (const ev of ['wheel', 'touchstart', 'keydown']) $('#wMsgs').addEventListener(ev, () => { W.chatTouched = true; }, { passive: true });
+for (const ms of [600, 1500, 3000]) setTimeout(() => { if (W.chatTouched) return; const l = $('#wMsgs'); l.scrollTop = l.scrollHeight; $('#wNewer').hidden = true; }, ms);
 $('#wMsgs').addEventListener('scroll', () => { const l = $('#wMsgs'); if (l.scrollHeight - l.scrollTop - l.clientHeight < 40) $('#wNewer').hidden = true; });
 $('#wNewer').onclick = () => { const l = $('#wMsgs'); l.scrollTop = l.scrollHeight; $('#wNewer').hidden = true; };
 

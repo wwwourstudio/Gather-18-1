@@ -547,3 +547,14 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - A message's actions (studio: Show on stage, Hide, Time out, Block; watch page: reply, report, mute) appear only on the message you tap.
   - An older rule showed them under every message.
 - **Phone chat.** Smaller avatars, quieter source and audience pills, a clear gap between messages, a plain message input, and more compact pinned welcome cards, Sam notes and starter chips.
+
+## Phones: one design for the studio and the watch page (V15)
+- **Shared phone spec on both pages:**
+  - a 52 px header with 36 px round-cornered icon buttons and 12 px side margins
+  - a 40 px tab bar with an accent underline
+  - chat rows with round 28 px avatars, 13 px names, 11 px times and 14.5 px text
+  - a 44 px rounded message box with a round accent send button
+- **Watch page.**
+  - The header shows only the logo, ON AIR, the title, the host's avatar and Share.
+  - The chat opens at the newest messages, unless the viewer has already scrolled it.
+- **Studio.** Phone chat rows drop the "Watch" and "Guests only" tags; YouTube and Twitch tags stay.
