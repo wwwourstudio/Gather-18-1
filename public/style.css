@@ -5433,6 +5433,8 @@ body.pre .views-pill { display: none; }
 .toast.err { background: color-mix(in srgb, var(--surface-2) 80%, #dc2626 20%); border-color: rgba(248, 113, 113, 0.45); }
 .toast.err::before { background: #f87171; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22); }
 .toast.out { animation: bar-out 0.2s ease-in forwards; }
+.toast.swap { animation: bar-swap 0.2s ease-out; }
+@keyframes bar-swap { from { opacity: 0.2; } }
 .toast-txt { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; text-align: left; }
 .toast-act { flex: none; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: 700 12px/1 var(--font-ui); cursor: pointer; }
 .toast-count { flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--fill-hover); color: var(--ink-2); font: 800 11px/1 var(--font-ui); }

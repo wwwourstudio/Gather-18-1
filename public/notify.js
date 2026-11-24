@@ -173,6 +173,9 @@ export function createNotifier(root) {
     item.el = el;
     active = item;
     renderCount(item);
+    // Back-to-back notifications swap text in place: the bar stays open, so the page below doesn't jump.
+    const prev = box.firstElementChild;
+    if (prev && (prev.classList.contains('out') || prev.isConnected)) el.classList.add('swap');
     replaceKids(box, el);
     syncPopover(box, true);
     setCoachVisibility(true);

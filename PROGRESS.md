@@ -429,3 +429,14 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - The panel sheet slides up over a dimmed stage and slides away.
   - Tab icons spring when chosen, and every control presses on tap.
 - **Watch page glow.** With the direct video the whole page glows with the blurred picture, like the studio. Before the picture arrives, or when the show plays on another platform, a slow wash of the host's brand colour keeps the page from going flat.
+
+## Dock, Sam in the chat, phone sheet
+- **Studio dock.**
+  - Each control is an icon tile with its word underneath. The tile shows the state: red when muted, a live red when recording, the accent colour when on.
+  - Controls are centred, the getting-started guide is on the left, and Leave is a red pill with an icon (a round button on phones).
+- **Sam in the one studio chat.**
+  - The separate "Ask Sam" composer is gone. Starter prompts (Show intro, Poll idea, Recap chat, Guest questions, Fact-check, Banner, 5-min countdown) sit above the composer.
+  - The Sam orb in the composer starts an @Sam message.
+  - Sam posts short notes with action buttons: a hello, going live, viewer questions ("Show on stage" / "Draft an answer") and a quiet chat. Notes cost no AI request, and AI settings → "Notes in the chat" turns them off.
+- **Phone chat sheet.** The chat fills the sheet, with the composer at the bottom.
+- **Notification bar.** Back-to-back notifications swap text in place, so the page below doesn't jump.
