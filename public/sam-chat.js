@@ -1,29 +1,28 @@
 // Sam in the studio chat: one conversation for people and the AI.
 // - Starter prompts above the composer send straight to Sam (or fill the composer when they need more words).
 // - The Sam button in the composer starts an "@Sam" message.
-// - Sam posts short notes on its own as the show goes (start, going live, a viewer question, a quiet chat), each
-//   with a button that does the obvious next thing. Notes stay on the host's screen and never cost an AI request.
+// - Sam posts short getting-started notes for the host and welcomes guests automatically when they enter.
 // Created by app.js through createSamChat(app).
 export function createSamChat(app) {
-  const { $, $$, S, store, isHost, upsertAI, askProducer, setStage, autoGrow } = app;
+  const { $, $$, S, store, isHost, upsertAI, askProducer, setStage, setTab, autoGrow } = app;
   const notes = new Map(); // note id -> [{ label, run }]
   const said = new Set(); // one-time notes already posted this session
   let lastNote = 0, lastQuestion = 0, lastChat = Date.now(), wasLive = false, quietSaid = 0;
 
-  const on = () => isHost() && !!S.studio && store.get('samNotes', true);
+  const on = () => isHost() && store.get('samNotes', true);
   const name = () => S.aiName || 'Sam';
   const hostName = () => (S.name || store.get('name', '') || '').split(/\s+/)[0] || 'there';
 
   /** Post a note from Sam into the chat. `key` makes it once per session; `gap` keeps notes from piling up. */
-  function note(text, actions = [], { key = '', gap = 20e3 } = {}) {
+  function note(text, actions = [], { key = '', gap = 20e3, broadcast = false } = {}) {
     if (!on()) return;
     if (key && said.has(key)) return;
-    if (Date.now() - lastNote < gap) return;
+    if (gap > 0 && Date.now() - lastNote < gap) return;
     if (key) said.add(key);
     lastNote = Date.now();
     const id = 'note-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     notes.set(id, actions);
-    upsertAI({ id, role: 'assistant', text, done: true, note: true, ts: Date.now() }, false);
+    upsertAI({ id, role: 'assistant', text, done: true, note: true, ts: Date.now() }, broadcast);
   }
 
   /** Buttons for a note, used by the chat renderer. */
@@ -66,16 +65,57 @@ export function createSamChat(app) {
   $('#samBtn')?.addEventListener('click', () => draft());
 
   // ---------------------------------------------------------------- moments Sam speaks up
+  function seedAdminSuggestions() {
+    if (!isHost() || !store.get('samNotes', true)) return;
+    note(
+      `Welcome back, ${hostName()}! I'm ${name()}, your AI producer. Ready to get the show rolling? Here are a few quick things you can set up before going live:`,
+      [
+        { label: 'Customize brand', run: () => setTab?.('brand') },
+        { label: 'Open Gaming tools', run: () => setTab?.('gaming') },
+        { label: 'Music & SFX', run: () => setTab?.('music') },
+      ],
+      { key: 'hello', gap: 0 }
+    );
+    setTimeout(() => {
+      note(
+        `Quick tip: Type @${name()} anytime to generate show intros, launch a 5-minute countdown, show banners, or moderate viewer questions. When guests enter, I'll welcome them right here.`,
+        [
+          { label: 'Write show intro', run: ask(STARTERS[0][1]) },
+          { label: '5-min countdown', run: ask(STARTERS[6][1]) },
+          { label: 'Poll idea', run: ask(STARTERS[1][1]) },
+        ],
+        { key: 'tips', gap: 0 }
+      );
+    }, 350);
+  }
+
   function onJoin() {
     if (!isHost()) return;
-    setTimeout(() => note(`Hi ${hostName()}, I'm ${name()}, your producer. I'll drop tips here as the show goes. Ask me anything: type @${name()} or tap my orb in the message box.`,
-      [{ label: 'Write my intro', run: ask(STARTERS[0][1]) }], { key: 'hello', gap: 0 }), 1800);
+    said.delete('hello');
+    said.delete('tips');
+    setTimeout(seedAdminSuggestions, 220);
   }
+
+  /** Automatically welcome a guest in the shared chat as soon as they enter the studio. */
+  function onGuestJoin(peer) {
+    if (!isHost() || !S.studio || !peer) return;
+    const guestName = String(peer.name || 'Guest').trim() || 'Guest';
+    const key = 'welcome:' + (peer.id || guestName.toLowerCase());
+    if (said.has(key)) return;
+    said.add(key);
+    lastNote = Date.now();
+    const id = 'welcome-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const text = `Welcome to the stream, ${guestName}! 👋 Glad you're here — check your mic and camera, and drop a note in chat if you need anything before going on stage.`;
+    upsertAI({ id, role: 'assistant', text, done: true, note: true, ts: Date.now() }, true);
+  }
+
+  // Seed initial host suggestions if the studio workspace is already open without an active room yet.
+  setTimeout(() => { if (!S.studio && isHost() && !document.body.classList.contains('pre')) seedAdminSuggestions(); }, 450);
 
   /** Every chat message from any source passes here (app.js pushFeed). */
   function onFeed(m) {
     lastChat = Date.now(); quietSaid = 0;
-    if (!on() || !m || m.src === 'studio' || m.src === 'ai') return;
+    if (!on() || !S.studio || !m || m.src === 'studio' || m.src === 'ai') return;
     const text = String(m.text || '').trim();
     if (m.reward === 'song') { // a viewer spent XP on a song request: make sure the host sees it
       const song = text.replace(/^🎵\s*Song request:\s*/, '');
@@ -96,7 +136,7 @@ export function createSamChat(app) {
 
   // Going live, and a chat that has gone quiet while live.
   setInterval(() => {
-    if (!on()) return;
+    if (!on() || !S.studio) return;
     const live = !!S.state?.live?.on;
     if (live && !wasLive) {
       const n = (S.state.live.links || []).length;
@@ -112,5 +152,5 @@ export function createSamChat(app) {
     }
   }, 5000);
 
-  return { note, noteActions, onJoin, onFeed, draft };
+  return { note, noteActions, onJoin, onGuestJoin, seedAdminSuggestions, onFeed, draft };
 }

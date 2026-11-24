@@ -1091,7 +1091,6 @@ async function onServer(m) {
       S.id = m.id; S.tok = m.tok; S.studio = m.studio; S.host = m.host; S.short = m.short || ""; S.shortInvite = m.inviteShort || "";
       S.local.joinedAt = Date.now();
       if (S.voiceOnly && S.local.camOn) setCam(false); // joined by voice from the watch page: camera stays off
-      if (wasHosting || isHost()) samChat?.onJoin();
       S.iceServers = await iceConfig(m.iceServers);
       const pre = S.state;
       S.state = m.state;
@@ -1116,6 +1115,7 @@ async function onServer(m) {
       stopPreviewLoop();
       $$('#msgs > *').forEach((n) => n.remove());
       for (const msg of m.history) addMsg(msg);
+      if (wasHosting || isHost()) samChat?.onJoin();
       for (const p of m.peers) createPeer(p, true); // newcomer makes the offers
       pollLoop(++pollGen);
       if (S.host === S.id && wasHosting) {
@@ -1155,6 +1155,7 @@ async function onServer(m) {
       sysMsg(`${p.name} joined the studio`);
       toast(`${p.name} joined`);
       chime();
+      samChat?.onGuestJoin?.(p);
       if (isHost() && m.peer.raised && S.autoStage?.has(m.peer.raised) && !S.state.stage.includes(p.id)) {
         S.autoStage.delete(m.peer.raised);
         setStage({ stage: [...S.state.stage, p.id] }); toast(`${p.name} is on the show.`);
@@ -1194,6 +1195,16 @@ async function onServer(m) {
     }
     case 'state': startSceneFade(S.state, m.state); S.state = m.state; requestStageRender(); renderAll(); renderChatMood(); break;
     case 'chat': addMsg(m.msg); break;
+    case 'chat-del': {
+      const id = String(m.id || '');
+      if (id) {
+        $$(`#msgs li[data-fid="${cssEsc(id)}"]`).forEach((li) => li.remove());
+        const idx = S.feed.findIndex((x) => x.id === id);
+        if (idx >= 0) S.feed.splice(idx, 1);
+        renderChatMood();
+      }
+      break;
+    }
     case 'guest-brief': S.brief = m.brief || null; renderGuestBrief(); break;
     case 'like': setLikes(m.id, m.n, m.from); break;
     case 'feed': for (const it of m.items || []) addExternal(it); break;
@@ -1592,30 +1603,15 @@ function drawTile(p, rect, t) {
     drawMicOff(tx + s / 2, ty + s / 2, s * .3);
   }
 }
-// A camera fills its tile only when that crops little. Otherwise (a 4:3 webcam in a 16:9 tile, a tall tile in
-// side-by-side) the whole picture is shown, heads and hands included, and the spare space gets a blurred copy of
-// the same video. The blur is a 48 px downscale stretched back up: cheap enough for every frame.
-const fillBlur = new Map(); // tile id → small canvas
-function drawFitVideo(el, x, y, w, h, id) {
-  const vw = el.videoWidth, vh = el.videoHeight, ratio = (w / h) / (vw / vh);
-  // The tall companion crops a wide camera to its centre, the way vertical streams frame a face.
-  if ((ratio > 0.9 && ratio < 1.11) || (PASS?.vertical && ratio < 1)) { // close enough: fill, losing at most ~5% per side
-    const s = Math.max(w / vw, h / vh), sw = w / s, sh = h / s;
-    g.drawImage(el, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
-    return;
-  }
-  let c = fillBlur.get(id);
-  if (!c) { c = document.createElement('canvas'); c.width = 48; c.height = 27; fillBlur.set(id, c); }
-  const cg = c.getContext('2d');
-  cg.drawImage(el, 0, 0, c.width, c.height);
-  g.save();
-  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-  const bs = Math.max(w / c.width, h / c.height) * 1.15; // a little overscan hides the soft edges
-  g.drawImage(c, x + (w - c.width * bs) / 2, y + (h - c.height * bs) / 2, c.width * bs, c.height * bs);
-  g.fillStyle = 'rgba(4,8,18,.35)'; g.fillRect(x, y, w, h); // keep the person the brightest thing in the tile
-  g.restore();
-  const s = Math.min(w / vw, h / vh), dw = vw * s, dh = vh * s;
-  g.drawImage(el, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+// Always cover the full width and height of the camera card cleanly (center-cropped like CSS object-fit: cover).
+function drawFitVideo(el, x, y, w, h) {
+  const vw = el.videoWidth, vh = el.videoHeight;
+  if (!vw || !vh || !w || !h) return;
+  const s = Math.max(w / vw, h / vh);
+  const sw = w / s, sh = h / s;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(el, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
 }
 function drawMicOff(cx, cy, r, color = '#ff6b6b') {
   g.save(); g.strokeStyle = color; g.lineWidth = Math.max(1.6, r * .2); g.lineCap = 'round';
@@ -1694,26 +1690,113 @@ function drawTicker(t, r) {
   g.restore();
 }
 function drawFrame() {
-  const brand = S.state.brand, f = brand.frame;
-  if (f === 'vignette') { const r = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75); r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = r; g.fillRect(0, 0, W, H); }
-  const ov = assetImg(brand.overlay);
-  if (ov) g.drawImage(ov, 0, 0, W, H);
+  const brand = S.state.brand || {}, f = brand.frame;
+  const accent = /^#[0-9a-f]{6}$/i.test(brand.color || '') ? brand.color : '#3b82f6';
+  if (f === 'vignette') {
+    const r = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
+    r.addColorStop(0, 'rgba(0,0,0,0)'); r.addColorStop(1, 'rgba(0,0,0,.55)');
+    g.fillStyle = r; g.fillRect(0, 0, W, H);
+  } else if (f === 'border') {
+    g.save();
+    g.strokeStyle = accent;
+    g.globalAlpha = 0.72;
+    g.lineWidth = Math.max(4, Math.round(W * 0.0045));
+    const pad = Math.round(W * 0.012);
+    rr(pad, pad, W - pad * 2, H - pad * 2, 16);
+    g.stroke();
+    g.restore();
+  } else if (f === 'corners') {
+    g.save();
+    g.strokeStyle = accent;
+    g.lineWidth = Math.max(4, Math.round(W * 0.004));
+    g.lineCap = 'round';
+    const m = Math.round(W * 0.022), len = Math.round(W * 0.036);
+    for (const [x0, y0, dx, dy] of [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]]) {
+      g.beginPath(); g.moveTo(x0, y0 + dy * len); g.lineTo(x0, y0); g.lineTo(x0 + dx * len, y0); g.stroke();
+    }
+    g.restore();
+  }
+  const ov = !brand.overlayHidden && assetImg(brand.overlay);
+  if (ov) {
+    const op = Number(brand.overlayOpacity);
+    g.save();
+    g.globalAlpha = Number.isFinite(op) ? Math.max(0.05, Math.min(1, op)) : 1;
+    g.drawImage(ov, 0, 0, W, H);
+    g.restore();
+  }
 }
 function drawLogo(r) {
   const logo = assetImg(S.state.brand.logo);
   if (!logo) return;
-  const k = Math.min(r.w / logo.naturalWidth, r.h / logo.naturalHeight), w = logo.naturalWidth * k, h = logo.naturalHeight * k;
+  const side = Math.min(r.w, r.h);
   const right = r.x + r.w / 2 > W / 2;
-  g.drawImage(logo, right ? r.x + r.w - w : r.x, r.y + (r.h - h) / 2, w, h);
+  const dx = right ? r.x + r.w - side : r.x;
+  const dy = r.y + (r.h - side) / 2;
+  const sq = Math.min(logo.naturalWidth || side, logo.naturalHeight || side);
+  const sx = ((logo.naturalWidth || sq) - sq) / 2;
+  const sy = ((logo.naturalHeight || sq) - sq) / 2;
+  g.save();
+  rr(dx, dy, side, side, Math.round(side * 0.14));
+  g.clip();
+  g.drawImage(logo, sx, sy, sq, sq, dx, dy, side, side);
+  g.restore();
 }
 function drawShapeEl(e) {
   const r = px(e);
   g.save(); g.globalAlpha = e.opacity ?? 1; g.fillStyle = e.color || '#000000'; rr(r.x, r.y, r.w, r.h, e.radius || 0); g.fill(); g.restore();
 }
+function drawGamerHud() {
+  const hud = window.__gatherGamerHud;
+  if (!hud || !hud.on) return;
+  const F = stageFont();
+  const accent = S.state?.brand?.color || '#e11d48';
+  const parts = [];
+  if (hud.game) parts.push(hud.game);
+  if (hud.mode) parts.push(hud.mode);
+  const stats = `W ${hud.wins}  L ${hud.losses}  ·  K ${hud.kills}  D ${hud.deaths}`;
+  const tStr = hud.timerText || '';
+  g.save();
+  g.font = `700 15px ${F}`;
+  const leftTxt = parts.join(' · ') || 'LIVE GAME';
+  const leftW = g.measureText(leftTxt).width;
+  g.font = `700 14px "JetBrains Mono", monospace`;
+  const statW = g.measureText(stats).width;
+  const timeW = tStr ? g.measureText(tStr).width + 26 : 0;
+  const padX = 16, gap = 18;
+  const boxW = Math.min(W - 48, padX * 2 + 10 + leftW + gap + statW + timeW);
+  const boxH = 40;
+  const bx = 24, by = 22;
+  g.fillStyle = 'rgba(10, 14, 24, 0.84)';
+  rr(bx, by, boxW, boxH, 10);
+  g.fill();
+  g.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  g.lineWidth = 1;
+  g.stroke();
+  // Accent dot
+  g.fillStyle = accent;
+  g.beginPath(); g.arc(bx + 16, by + boxH / 2, 4, 0, Math.PI * 2); g.fill();
+  let cx = bx + 28;
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  g.font = `700 15px ${F}`;
+  g.fillStyle = '#f8fafc';
+  g.fillText(leftTxt, cx, by + boxH / 2);
+  cx += leftW + gap;
+  g.font = `600 13.5px "JetBrains Mono", monospace`;
+  g.fillStyle = '#cbd5e1';
+  g.fillText(stats, cx, by + boxH / 2);
+  cx += statW + gap;
+  if (tStr) {
+    g.fillStyle = accent;
+    g.font = `700 14px "JetBrains Mono", monospace`;
+    g.fillText(tStr, cx, by + boxH / 2);
+  }
+  g.restore();
+}
 function drawChrome() {
   g.textBaseline = 'middle';
   // The show title is no longer drawn on the stage: it lives in the header and on the watch page.
   if (window.__shopReady) { drawProduct(); drawPoll(); drawWatchBadge(); }
+  drawGamerHud();
   drawWaves();
 }
 // The program is painted tier by tier: stage → media → (brand frame) → overlays → chat → ticker → system.
@@ -1788,9 +1871,41 @@ function draw(now = performance.now()) {
   overlay('confetti', () => { if (window.__gatherConfettiUntil > wall) drawGoalConfetti(g, W, H, t, brand.color); });
   overlay('countdown', () => {
     if (!S.state.countdown?.on) return;
-    if (S.state.countdown.autoLive && S.state.countdown.target && S.state.countdown.target <= wall) { if (isHost()) setStage({ countdown: { ...S.state.countdown, on: false } }); }
-    else drawCountdownScreen(g, W, H, S.state.countdown, brand, font, S.feed.slice(-3), wall);
+    if (S.state.countdown.target && S.state.countdown.target <= wall && S.state.countdown.mode !== 'ending') {
+      if (S.state.countdown.chime && window.__gatherCdChimeFor !== S.state.countdown.target) {
+        window.__gatherCdChimeFor = S.state.countdown.target;
+        try { chime?.('chime'); } catch {}
+      }
+      if (S.state.countdown.autoLive) {
+        if (isHost()) setStage({ countdown: { ...S.state.countdown, on: false } });
+        return;
+      }
+    }
+    drawCountdownScreen(g, W, H, S.state.countdown, brand, font, S.feed.slice(-5), wall);
   });
+  if (showSafeGuides && !PASS) {
+    editorOnly((ctx) => {
+      const ax = W * SAFE.action, ay = H * SAFE.action;
+      const tx = W * SAFE.title, ty = H * SAFE.title;
+      ctx.setLineDash([8, 6]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+      ctx.strokeRect(ax, ay, W - ax * 2, H - ay * 2);
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.65)';
+      ctx.strokeRect(tx, ty, W - tx * 2, H - ty * 2);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.beginPath();
+      ctx.moveTo(W / 2 - 14, H / 2); ctx.lineTo(W / 2 + 14, H / 2);
+      ctx.moveTo(W / 2, H / 2 - 14); ctx.lineTo(W / 2, H / 2 + 14);
+      ctx.stroke();
+      ctx.font = '600 11px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.85)';
+      ctx.fillText('TITLE SAFE', tx + 8, ty + 16);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+      ctx.fillText('ACTION SAFE', ax + 8, ay + 16);
+    });
+  }
   drawScAlert(t);
   if (!PASS && sceneFade.active) {
     const raw = (t - sceneFade.from) / sceneFade.dur;
@@ -2145,13 +2260,13 @@ const ELEMENT_DEFAULTS = {
 const px720 = (x, y, w, h) => ({ x: x / 1280, y: y / 720, w: w / 1280, h: h / 720 });
 const TEMPLATES = [
   // Used automatically when someone presents: the slides fill the frame, cameras float on top.
-  { id: 'present-full', name: 'Full-screen slides', els: [
+  { id: 'present-full', name: 'Full-screen slides', cat: 'present', desc: 'Slides fill the frame with floating speaker cameras.', els: [
     { type: 'media', x: 0, y: 0, w: 1, h: 1, radius: 0, stack: true },
     { type: 'slot', index: 0, ...px720(1064, 32, 184, 136), radius: 12, pip: true, stack: true },
     { type: 'slot', index: 1, ...px720(1064, 184, 184, 136), radius: 12, pip: true, stack: true },
     { type: 'slot', index: 2, ...px720(1064, 336, 184, 136), radius: 12, pip: true, stack: true }] },
   // Used by "AI window on stage" while someone presents.
-  { id: 'screen-ai', name: 'Screen + AI', els: [
+  { id: 'screen-ai', name: 'Screen + AI', cat: 'present', desc: 'Presentation window paired with a live AI panel and camera.', els: [
     { type: 'media', ...px720(48, 48, 752, 520) }, { type: 'ai', ...px720(832, 48, 400, 352) },
     { type: 'slot', index: 0, ...px720(832, 424, 400, 144) },
     { type: 'banner', ...px720(48, 584, 752, 104) }, { type: 'logo', ...px720(832, 592, 400, 88) },
@@ -3167,21 +3282,52 @@ $('#stageToolbar')?.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-tb]');
   if (b) stageToolbarAction(b.dataset.tb);
 });
+let showSafeGuides = !!store.get('safeGuides', false);
+const syncSafeGuidesBtn = () => {
+  const b = $('#safeGuidesBtn');
+  if (!b) return;
+  b.classList.toggle('on', showSafeGuides);
+  b.setAttribute('aria-pressed', String(showSafeGuides));
+};
+$('#safeGuidesBtn')?.addEventListener('click', () => {
+  showSafeGuides = !showSafeGuides;
+  store.set('safeGuides', showSafeGuides);
+  syncSafeGuidesBtn();
+  requestStageRender();
+});
+syncSafeGuidesBtn();
+
 $('#editToggle').onclick = () => setEditing(!editor.on);
 $('#resetScene').onclick = () => { if (isHost()) resetScene(); };
 $$('[data-add]').forEach((b) => b.addEventListener('click', () => { if (!isHost()) return toast('Only the host can change the stage.', { err: true }); addElement(b.dataset.add); }));
+let activeTplCat = 'all';
 function renderTemplates() {
   const wrap = $('#tplList');
-  replaceKids(wrap, ...TEMPLATES.map((tpl) => {
+  if (!wrap) return;
+  const list = activeTplCat === 'all'
+    ? TEMPLATES
+    : TEMPLATES.filter((t) => (t.cat || 'talk') === activeTplCat);
+  replaceKids(wrap, ...list.map((tpl) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'tile tpl'; b.disabled = !isHost();
     const pv = scenePreview(tpl);
-    const nm = document.createElement('span'); nm.textContent = tpl.name;
+    const nm = document.createElement('span'); nm.className = 'sc-name'; nm.textContent = tpl.name;
     if (tpl.desc) b.dataset.tip = tpl.desc;
     b.append(pv, nm);
     b.onclick = () => applyTemplate(tpl);
     return b;
   }));
 }
+$('#tplTabs')?.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('[data-tpl-cat]');
+  if (!btn) return;
+  activeTplCat = btn.dataset.tplCat || 'all';
+  $$('#tplTabs [data-tpl-cat]').forEach((b) => {
+    const on = b === btn;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  renderTemplates();
+});
 // Saved layouts live in this browser (images included, so they work in any new studio).
 function savedLayouts() { return store.get('layouts', []); }
 function renderSaved() {
@@ -3293,7 +3439,7 @@ const assistant = createAssistant({
   elementsCopy, freeSpot, patchEl, autoGrow, appendLog, setTab, offerOpen, askProducer, noteActions: (id) => samChat?.noteActions(id) || []
 });
 // Sam in the chat: starters, the Sam button, and notes as the show goes -> ./sam-chat.js
-const samChat = createSamChat({ $, $$, S, store, isHost, upsertAI: (...a) => assistant.upsertAI(...a), askProducer, setStage, autoGrow });
+const samChat = createSamChat({ $, $$, S, store, isHost, upsertAI: (...a) => assistant.upsertAI(...a), askProducer, setStage, setTab, autoGrow });
 // Big moments (chat spikes, reaction bursts, super chats) clip themselves -> ./auto-moments.js
 const autoMoments = createAutoMoments({
   store, isHost, inStudio: () => !!S.studio,
@@ -3488,9 +3634,23 @@ function clearBrandImage(kind) {
 }
 for (const [kind, pick, file, clear] of [['bgImage', '#bgImgPick', '#bgImgFile', '#bgImgClear'], ['overlay', '#overlayPick', '#overlayFile', '#overlayClear'], ['logo', '#logoPick', '#logoFile', '#logoClear']]) {
   $(pick).onclick = () => { if (!isHost()) return toast('Only the host can change the brand.', { err: true }); $(file).click(); };
-  $(file).onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) brandImage(kind, f); };
+  $(file).onchange = (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (kind === 'logo' && typeof window.__gatherOpenLogoCrop === 'function') {
+      window.__gatherOpenLogoCrop(f);
+      return;
+    }
+    brandImage(kind, f);
+  };
   $(clear).onclick = () => clearBrandImage(kind);
 }
+$('#logoCropBtn')?.addEventListener('click', () => {
+  if (!isHost()) return toast('Only the host can change the brand.', { err: true });
+  const b = S.state?.brand || {}, imgs = savedBrandImgs();
+  const src = b.logo ? (assetImg(b.logo)?.src || imgs.logo || '') : '';
+  if (src && typeof window.__gatherOpenLogoCrop === 'function') window.__gatherOpenLogoCrop(src);
+});
 function buildBgSvg(accent, promptText) {
   const col = normalizeHex(accent) || '#3b82f6';
   const [r, gr, b] = hexRgb(col);
@@ -3516,7 +3676,8 @@ function placeLayer(type, pos, size) {
   const p = typeof pos === 'string' && pos ? pos : 'tr';
   const g8 = (v, n) => Math.round(v * n / GRID) * GRID / n;
   const bottomBand = p === 'bottom';
-  const w = bottomBand ? .5 : type === 'logo' ? size : .2, h = bottomBand ? .13 : type === 'logo' ? (size * W / 3) / H : .2;
+  const w = bottomBand ? .5 : type === 'logo' ? size : .2;
+  const h = bottomBand ? .13 : type === 'logo' ? (size * W) / H : .2;
   const mx = SAFE.action + GRID / W, my = SAFE.action + GRID / H;
   const x = bottomBand ? (1 - w) / 2 : p.includes('l') ? mx : 1 - mx - w;
   const y = bottomBand ? 1 - my - h : p.startsWith('b') ? 1 - my - h : my;
@@ -3539,6 +3700,7 @@ function renderBrandPanel() {
   $('#bgDim').value = b.dim ?? 0.25; $('#bgDim').disabled = !host;
   $('#logoSize').value = b.logoSize ?? 0.12; $('#logoSize').disabled = !host;
   $('#bgImgClear').hidden = !b.bgImage; $('#overlayClear').hidden = !b.overlay; $('#logoClear').hidden = !b.logo;
+  if ($('#logoCropBtn')) $('#logoCropBtn').hidden = !b.logo;
   $('#bgDimRow').hidden = !b.bgImage;
   $('#logoRow').hidden = !b.logo;
   const bgSrc = b.bgImage ? (assetImg(b.bgImage)?.src || imgs.bgImage || '') : '';
@@ -3554,7 +3716,7 @@ function renderBrandPanel() {
   if ($('#overlayPreviewLook')) {
     $('#overlayPreviewLook').src = ovSrc || svgDataUrl(buildOverlaySvg(b.color, S.state.streamType || 'live', S.state.title || 'LIVE STUDIO'));
   }
-  for (const id of ['#bgImgPick', '#overlayPick', '#logoPick', '#bgImgAiBtn', '#logoAiBtnLook', '#overlayAiBtnLook', '#emoteAiBtn']) {
+  for (const id of ['#bgImgPick', '#overlayPick', '#logoPick', '#logoCropBtn', '#bgImgAiBtn', '#logoAiBtnLook', '#overlayAiBtnLook', '#emoteAiBtn']) {
     if ($(id)) $(id).disabled = !host;
   }
   notifyBrandSync();
@@ -3616,30 +3778,79 @@ function drawCaptions(r) {
   const now = Date.now();
   const live = [...cap.lines.values()].filter((l) => now - l.t < (l.final ? 4000 : 6000)).sort((a, b) => a.t - b.t).slice(-2);
   if (!live.length) return;
-  const fs = c.size || 26, F = stageFont(), maxW = Math.max(120, r.w - 48), cx = r.x + r.w / 2, lh = fs * 1.3, many = cap.lines.size > 1;
+  const fs = c.size || 26, F = stageFont();
+  const padX = 20, padY = 10;
+  const boxMaxW = Math.max(160, Math.min(r.w - 24, W - 48));
+  const textMaxW = Math.max(120, boxMaxW - padX * 2);
+  const cx = r.x + r.w / 2, lh = fs * 1.32, many = cap.lines.size > 1;
+  g.save();
+  g.font = `600 ${fs}px ${F}`;
   const rows = [];
   for (const l of live) {
-    g.font = `600 ${fs}px ${F}`;
-    const words = wrapLines(l.text, maxW - (many ? 0 : 0));
-    const tail = words.slice(-2); // newest words stay visible
+    const prefix = many && l.name ? `${l.name}: ` : '';
+    const prefixW = prefix ? g.measureText(prefix).width : 0;
+    const rawWords = String(l.text || '').trim().split(/\s+/).filter(Boolean);
+    const wrapped = [];
+    let cur = '';
+    for (const w of rawWords) {
+      const limit = wrapped.length === 0 ? Math.max(60, textMaxW - prefixW) : textMaxW;
+      const cand = cur ? `${cur} ${w}` : w;
+      if (g.measureText(cand).width <= limit) {
+        cur = cand;
+      } else {
+        if (cur) wrapped.push(cur);
+        cur = w;
+      }
+    }
+    if (cur) wrapped.push(cur);
+    const tail = wrapped.slice(-2);
     tail.forEach((t, i) => rows.push({ name: i === 0 && many ? l.name : '', text: t }));
   }
   const shown = rows.slice(-3);
-  const blockH = shown.length * lh + 18;
-  const y0 = r.y + r.h - blockH;
-  g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
-  if (c.style === 'bar') { g.fillStyle = 'rgba(0,0,0,.72)'; rr(cx - maxW / 2 - 24, y0, maxW + 48, blockH, 10); g.fill(); }
-  shown.forEach((r, i) => {
-    const y = y0 + 9 + lh * (i + .5);
-    const label = r.name ? r.name + ': ' : '';
-    g.font = `600 ${fs}px ${F}`;
-    const full = g.measureText(label + r.text).width;
-    if (c.style === 'box') { g.fillStyle = 'rgba(0,0,0,.78)'; rr(cx - full / 2 - 12, y - lh / 2 + 2, full + 24, lh - 4, 6); g.fill(); }
-    if (c.style === 'plain') { g.shadowColor = 'rgba(0,0,0,.9)'; g.shadowBlur = 8; }
-    let x = cx - full / 2;
+  if (!shown.length) { g.restore(); return; }
+  let widest = 0;
+  for (const row of shown) {
+    const label = row.name ? `${row.name}: ` : '';
+    widest = Math.max(widest, g.measureText(label + row.text).width);
+  }
+  const innerW = Math.min(textMaxW, widest);
+  const bgW = Math.min(boxMaxW, innerW + padX * 2);
+  const blockH = shown.length * lh + padY * 2;
+  const y0 = Math.max(8, r.y + r.h - blockH);
+  g.textBaseline = 'middle';
+  if (c.style === 'bar') {
+    g.fillStyle = 'rgba(0,0,0,.76)';
+    rr(cx - bgW / 2, y0, bgW, blockH, 10);
+    g.fill();
+  }
+  shown.forEach((row, i) => {
+    const y = y0 + padY + lh * (i + 0.5);
+    const label = row.name ? `${row.name}: ` : '';
+    const labelW = label ? g.measureText(label).width : 0;
+    const textW = g.measureText(row.text).width;
+    const full = Math.min(textMaxW, labelW + textW);
+    if (c.style === 'box') {
+      const bw = Math.min(boxMaxW, full + 24);
+      g.fillStyle = 'rgba(0,0,0,.8)';
+      rr(cx - bw / 2, y - lh / 2 + 2, bw, lh - 4, 6);
+      g.fill();
+    }
+    if (c.style === 'plain') { g.shadowColor = 'rgba(0,0,0,.92)'; g.shadowBlur = 8; }
+    const leftEdge = Math.max(cx - bgW / 2 + padX, cx - full / 2);
+    g.save();
+    g.beginPath();
+    g.rect(cx - bgW / 2 + 8, y - lh / 2, bgW - 16, lh);
+    g.clip();
+    let x = leftEdge;
     g.textAlign = 'left';
-    if (label) { g.fillStyle = S.state.brand.color; g.fillText(label, x, y); x += g.measureText(label).width; }
-    g.fillStyle = '#ffffff'; g.fillText(r.text, x, y);
+    if (label) {
+      g.fillStyle = S.state.brand.color || '#ef4444';
+      g.fillText(label, x, y);
+      x += labelW;
+    }
+    g.fillStyle = '#ffffff';
+    g.fillText(row.text, x, y);
+    g.restore();
     g.shadowColor = 'transparent';
   });
   g.restore();
@@ -3735,6 +3946,14 @@ function renderHelp() {
 }
 $('#helpSearch').addEventListener('input', renderHelp);
 $('#helpSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const first = $('#helpResults .help-item'); first?.click(); } });
+$('#helpQuickGrid')?.addEventListener('click', (e) => {
+  const act = e.target.closest('[data-help-act]')?.dataset.helpAct;
+  if (!act) return;
+  if ($('#helpDlg')?.open) $('#helpDlg').close();
+  if (act === 'shortcuts') openShortcutsLightbox?.();
+  if (act === 'audio') openDlg('settingsDlg');
+  if (act === 'golive') openDlg('liveDlg');
+});
 
 // ---------------------------------------------------------------- recording → ./golive.js
 const liveMod = createGoLive({
@@ -3826,7 +4045,7 @@ function addMsg(msg) {
     body.push(txt);
   }
   if (msg.file?.id) body.push(attachFileCard(msg.file));
-  const fm = { id: msg.id, src: 'studio', name: msg.name, color: '', text: msg.text || (msg.file?.name ? `📎 ${msg.file.name}` : ''), ts: msg.ts, guestsOnly: scope !== 'every' };
+  const fm = { id: msg.id, from: msg.from, src: 'studio', name: msg.name, color: '', text: msg.text || (msg.file?.name ? `📎 ${msg.file.name}` : ''), ts: msg.ts, guestsOnly: scope !== 'every' };
   pushFeed(fm);
   setMsgData(li, fm);
   li.append(who, ...body, msgActions(fm));
@@ -4144,22 +4363,27 @@ function renderCrew() {
     if (!li) {
       li = document.createElement('li'); li.className = 'crew-card'; li.id = 'card-' + cssId(p.id); li.dataset.id = p.id;
       li.innerHTML = `<div class="crew-thumb"><video playsinline></video><div class="ini" hidden><span></span></div>`
-        + `<div class="crew-viz" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="crew-vu" aria-hidden="true"><i></i></div>`
-        + `<div class="crew-tools"><button type="button" class="icon-btn sm on-media ct-stage" aria-pressed="false">${ICON.stage}</button><button type="button" class="icon-btn sm on-media ct-mute" aria-label="Ask to mute">${ICON.mute}</button><button type="button" class="icon-btn sm on-media danger ct-kick" aria-label="Remove from studio">${ICON.kick}</button></div></div>`
-        + `<div class="crew-info"><div class="crew-name"><span class="nm"></span></div><div class="tagrow"></div><div class="crew-sub"></div></div>`; // status lives beside the picture, not on it
+        + `<div class="crew-viz" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="crew-vu" aria-hidden="true"><i></i></div></div>`
+        + `<div class="crew-info"><div class="crew-name"><span class="nm"></span></div><div class="tagrow"></div><div class="crew-sub"></div>`
+        + `<div class="crew-acts host-only"><button type="button" class="crew-act-btn ct-stage" aria-pressed="false" title="Toggle on stage">${ICON.stage}<span>Stage</span></button>`
+        + `<button type="button" class="crew-act-btn ct-mute" aria-label="Mute guest" title="Mute guest">${ICON.mute}<span>Mute</span></button>`
+        + `<button type="button" class="crew-act-btn danger ct-kick" aria-label="Remove from stream" title="Remove from stream">${ICON.kick}<span>Remove</span></button></div></div>`;
       const v = $('video', li);
-      // Started from code, not the autoplay attribute: browsers pause a muted *autoplay* video once it's out of view (a
-      // folded strip on a phone), and the stage draws every camera from these videos.
       if (p.me) { v.muted = true; const ov = outVideo(); if (ov) v.srcObject = new MediaStream([ov]); v.classList.toggle('mirror', !!S.videoFx.mirror); playEl(v); }
       else if (p.peer.stream.getTracks().length) { v.srcObject = p.peer.stream; playEl(v); }
       $('.ct-stage', li).addEventListener('click', () => toggleStage(p.id));
-      // the host clicks someone's picture to bring them on stage or send them backstage
-      $('.crew-thumb', li).addEventListener('click', (ev) => { if (isHost() && !ev.target.closest('.crew-tools')) toggleStage(p.id); });
+      $('.crew-thumb', li).addEventListener('click', () => { if (isHost()) toggleStage(p.id); });
       $('.ct-mute', li).addEventListener('click', () => { wsSend({ type: 'mute', id: p.id }); toast(`Muted ${p.name}.`); });
       $('.ct-kick', li).addEventListener('click', () => {
         const btn = $('.ct-kick', li);
-        if (!btn.classList.contains('confirm')) { btn.classList.add('confirm'); btn.setAttribute('aria-label', 'Click again to remove'); setTimeout(() => { btn.classList.remove('confirm'); btn.setAttribute('aria-label', 'Remove from studio'); }, 3000); return; }
-        wsSend({ type: 'kick', id: p.id }); toast(`${p.name} was removed. Lock the studio to keep them out.`);
+        if (!btn.classList.contains('confirm')) {
+          btn.classList.add('confirm');
+          const sp = $('span', btn); if (sp) sp.textContent = 'Confirm?';
+          btn.setAttribute('aria-label', 'Click again to remove');
+          setTimeout(() => { btn.classList.remove('confirm'); if (sp) sp.textContent = 'Remove'; btn.setAttribute('aria-label', 'Remove from stream'); }, 3000);
+          return;
+        }
+        wsSend({ type: 'kick', id: p.id }); toast(`${p.name} was removed from the stream.`);
       });
       list.insertBefore(li, add);
     }
@@ -4182,7 +4406,7 @@ function renderCrew() {
     else { span.textContent = initials(p.name); span.style.backgroundImage = ''; span.classList.remove('has-av'); }
     const tags = $('.tagrow', li); replaceKids(tags);
     const on = S.state.stage.includes(p.id);
-    tags.insertAdjacentHTML('beforeend', on ? '<span class="cstate on"><i></i>On stage</span>' : '<span class="cstate"><i></i>Backstage</span>'); // "Live" only ever means broadcasting
+    tags.insertAdjacentHTML('beforeend', on ? '<span class="cstate on"><i></i>On stage</span>' : '<span class="cstate"><i></i>Backstage</span>');
     $('.crew-thumb', li).classList.toggle('pickable', host);
     $('.crew-thumb', li).title = host ? (on ? `Click to send ${p.me ? 'yourself' : p.name} backstage` : `Click to put ${p.me ? 'yourself' : p.name} on stage`) : '';
     if (p.sharing) tags.insertAdjacentHTML('beforeend', '<span class="cstate pres">Presenting</span>');
@@ -4190,10 +4414,17 @@ function renderCrew() {
     if (p.hand) $('.crew-thumb', li).insertAdjacentHTML('beforeend', `<span class="hand-badge" role="status" aria-label="Hand raised"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg><span>Hand</span></span>`);
     li.classList.toggle('hand-up', !!p.hand);
     li.classList.toggle('on-stage', on);
-    $('.crew-tools', li).hidden = !host;
-    const st = $('.ct-stage', li); st.setAttribute('aria-label', on ? 'Take off stage' : 'Put on stage'); st.setAttribute('aria-pressed', String(on));
-    $('.ct-mute', li).hidden = !!p.me || !p.mic;
-    $('.ct-kick', li).hidden = !!p.me;
+    const acts = $('.crew-acts', li);
+    if (acts) acts.hidden = !host;
+    const st = $('.ct-stage', li);
+    if (st) {
+      st.setAttribute('aria-label', on ? 'Take off stage' : 'Put on stage');
+      st.setAttribute('aria-pressed', String(on));
+      st.classList.toggle('on', on);
+      const sp = $('span', st); if (sp) sp.textContent = on ? 'Off stage' : 'On stage';
+    }
+    const mt = $('.ct-mute', li); if (mt) { mt.hidden = !!p.me; mt.disabled = !p.mic; }
+    const kk = $('.ct-kick', li); if (kk) kk.hidden = !!p.me;
   }
   renderCrewSubs();
   add.hidden = people.length >= MAX;
@@ -4343,8 +4574,8 @@ function renderPresets() {
 }
 
 // ---------------------------------------------------------------- panels & controls
-// 5-tab rail: Chat, Stage (look: layouts/brand/overlays/music), Audience (show: watch/viewers/supers/stage/polls/gaming), Shop, AI.
-const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', music: 'look:music', audio: 'look:music', look: 'look:', stage: 'look:', audience: 'show:', play: 'show:gaming', queue: 'show:gaming', gaming: 'show:gaming', poll: 'show:polls', polls: 'show:polls', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
+// 6-tab rail: Chat, Stage (look: layouts/brand/overlays/music), Gaming (gaming), Audience (show: watch/viewers/supers/stage/polls), Shop, AI.
+const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', music: 'look:music', audio: 'look:music', look: 'look:', stage: 'look:', audience: 'show:', play: 'gaming', queue: 'gaming', gaming: 'gaming', poll: 'show:polls', polls: 'show:polls', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
 function openDlg(id) {
   for (const other of ['liveDlg', 'settingsDlg', 'helpDlg']) if (other !== id && $('#' + other).open) $('#' + other).close();
   const d = $('#' + id);
@@ -4354,18 +4585,18 @@ function openDlg(id) {
   if (id === 'helpDlg') { $('#helpSearch').value = ''; renderHelp(''); $('#helpSearch').focus(); }
 }
 function applyAudienceSub(sub) {
+  if (sub === 'gaming') return setTab('gaming');
   S.audSub = sub || S.audSub || 'watch';
   $$('.aud-seg [data-aud]').forEach((b) => {
     const on = b.dataset.aud === S.audSub;
     b.classList.toggle('on', on);
     b.setAttribute('aria-selected', String(on));
   });
-  if (S.audSub === 'polls' || S.audSub === 'gaming') {
-    $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== S.audSub));
+  if (S.audSub === 'polls') {
+    $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== 'polls'));
     return;
   }
   $$('.panel').forEach((p) => (p.hidden = p.dataset.panel !== 'show'));
-  // Each top-level section names its sub-tab in data-aud-group (studio-tools.js sets it on the sections it adds).
   const group = ['watch', 'viewers', 'supers', 'stage'].includes(S.audSub) ? S.audSub : 'watch';
   const body = $('#watchSec');
   if (body) {
@@ -4376,8 +4607,7 @@ function applyAudienceSub(sub) {
     }
   }
 }
-// panels.js: a jump chip for a section on another sub-tab switches to it; clearing "Find a setting" re-applies the sub-tab.
-document.addEventListener('gather:aud-jump', (e) => { if (e.detail?.group) setTab('show:' + e.detail.group); });
+document.addEventListener('gather:aud-jump', (e) => { if (e.detail?.group) setTab(e.detail.group === 'gaming' ? 'gaming' : 'show:' + e.detail.group); });
 document.addEventListener('gather:aud-sync', () => { if (S.tab === 'show') applyAudienceSub(S.audSub); });
 function setTab(tab) {
   const raw = TAB_ALIAS[tab] || tab;
@@ -4386,7 +4616,11 @@ function setTab(tab) {
   if (a.startsWith('dlg:')) return openDlg(a.slice(4));
   let panel = a, rail = a;
   if (a.startsWith('look:')) { S.lookSub = a.slice(5) || S.lookSub || 'layouts'; panel = S.lookSub; rail = 'look'; }
-  if (a.startsWith('show:')) { S.audSub = a.slice(5) || S.audSub || 'watch'; panel = (S.audSub === 'polls' || S.audSub === 'gaming') ? S.audSub : 'show'; rail = 'show'; }
+  if (a.startsWith('show:')) {
+    const sub = a.slice(5) || S.audSub || 'watch';
+    if (sub === 'gaming') { panel = 'gaming'; rail = 'gaming'; }
+    else { S.audSub = sub; panel = S.audSub === 'polls' ? 'polls' : 'show'; rail = 'show'; }
+  }
   S.tab = rail;
   document.body.classList.remove('panel-closed'); $('#panelToggle').setAttribute('aria-expanded', 'true');
   $$('.rail-btn').forEach((b) => { const on = b.dataset.tab === rail; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
@@ -4396,9 +4630,6 @@ function setTab(tab) {
   if (rail === 'chat') { S.unread = 0; $('#chatBadge').hidden = true; }
   if (panel !== 'layouts' && editor.on) setEditing(false);
 }
-// Phones (720px and narrower) get one column: the video, the controls right under it, the scenes strip, then the
-// panel tabs and the open panel (chat by default) filling the rest. Nothing slides over the video. The controls move
-// under the video here and back to the bottom of the window on wider screens.
 const phoneLayout = matchMedia('(max-width: 720px)');
 const dockEl = $('#dock'), dockHome = { parent: dockEl?.parentNode, next: dockEl?.nextSibling };
 function placeDock() {
@@ -4409,7 +4640,10 @@ function placeDock() {
 placeDock();
 phoneLayout.addEventListener('change', () => { placeDock(); setDeckClosed(store.get(deckKey(), phoneLayout.matches)); });
 $$('.rail-btn').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
-$$('.aud-seg [data-aud]').forEach((b) => b.addEventListener('click', () => { S.audSub = b.dataset.aud; setTab('show:' + b.dataset.aud); }));
+$$('.aud-seg [data-aud]').forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.aud === 'gaming') return setTab('gaming');
+  S.audSub = b.dataset.aud; setTab('show:' + b.dataset.aud);
+}));
 // Hide the panel to give the stage the room; any tab brings it back.
 $('#panelToggle').onclick = () => {
   const closed = document.body.classList.toggle('panel-closed');
@@ -4465,24 +4699,57 @@ function scenePreview(sc) {
   }
   return pv;
 }
+let activeSceneFilter = store.get('sceneFilter', 'all');
+function matchesSceneFilter(sc, filter) {
+  if (!filter || filter === 'all') return true;
+  if (filter === 'saved') return sc.kind === 'saved';
+  if (filter === 'core') {
+    if (sc.kind === 'builtin') return true;
+    return sc.kind === 'template' && (sc.cat === 'talk' || ['v-solo', 'v-stack', 'v-chat'].includes(sc.id));
+  }
+  if (filter === 'present') {
+    return sc.kind === 'template' && (sc.cat === 'present' || sc.cat === 'gaming' || sc.cat === 'shop' || ['v-present', 'v-ai'].includes(sc.id));
+  }
+  return true;
+}
+function syncSceneFilterUI() {
+  $$('#sceneFilter [data-sf]').forEach((b) => {
+    const on = b.dataset.sf === activeSceneFilter;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+$('#sceneFilter')?.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-sf]');
+  if (!b) return;
+  activeSceneFilter = b.dataset.sf || 'all';
+  store.set('sceneFilter', activeSceneFilter);
+  syncSceneFilterUI();
+  renderScenes();
+});
+syncSceneFilterUI();
+
 function renderScenes() {
   const strip = $('#sceneStrip');
   if (!strip) return;
   const active = activeSceneId(), host = isHost();
-  const chips = sceneList().map((sc, i) => {
+  const fullList = sceneList();
+  const visible = fullList.filter((sc) => matchesSceneFilter(sc, activeSceneFilter));
+  const chips = visible.map((sc) => {
+    const fullIdx = fullList.indexOf(sc);
     const b = document.createElement('button'); b.type = 'button';
     b.className = 'tile scene' + (sc.id === active ? ' on' : '') + (sc.kind === 'saved' ? ' saved' : '');
-    b.disabled = !host; b.title = `${sc.name}${i < 9 ? ` (${i + 1})` : ''}`;
+    b.disabled = !host; b.title = `${sc.name}${fullIdx >= 0 && fullIdx < 9 ? ` (${fullIdx + 1})` : ''}`;
     b.setAttribute('aria-pressed', String(sc.id === active));
     b.tabIndex = -1; // one tab stop for the whole strip; arrow keys move within it (see sceneKeys)
     const nm = document.createElement('span'); nm.className = 'sc-name'; nm.textContent = sc.name;
-    if (i < 9) { const k = document.createElement('kbd'); k.textContent = i + 1; nm.append(k); }
+    if (fullIdx >= 0 && fullIdx < 9) { const k = document.createElement('kbd'); k.textContent = fullIdx + 1; nm.append(k); }
     b.append(scenePreview(sc), nm);
     b.onclick = () => applyScene(sc);
     return b;
   });
   const save = document.createElement('button'); save.type = 'button'; save.className = 'tile scene add'; save.disabled = !host;
-  save.innerHTML = `<span class="sc-pv add-pv">${icon('plus')}</span><span class="sc-name">Save scene</span>`;
+  save.innerHTML = `<span class="sc-pv add-pv">${icon('plus')}</span><span class="sc-name">${activeSceneFilter === 'saved' && !chips.length ? 'Save current scene' : 'Save scene'}</span>`;
   save.onclick = () => { setTab('layouts'); $('#layoutName').focus(); };
   save.tabIndex = -1;
   const keep = strip.contains(document.activeElement) ? [...strip.children].indexOf(document.activeElement) : -1;
@@ -5867,12 +6134,22 @@ const sharedToolsApi = {
   setStage,
   setWatch,
   setShop,
+  setTab,
   shopCfg,
   watchCfg,
   brandPref,
   applyBrand: brandPref,
   brandDataUrl,
   getBrand: () => S.state?.brand || {},
+  getMyName: () => S.name || $('#myName')?.value?.trim() || store.get('name', '') || 'Your Name',
+  requestStageRender: () => requestStageRender(),
+  triggerReplay: () => $('#stageReplayBtn')?.click(),
+  triggerClip: () => $('#stageClipBtn')?.click(),
+  triggerShareGame: () => $('[data-present="game"]')?.click(),
+  applyGameScene: () => {
+    const sc = sceneList().find((x) => x.id === 'game' || x.id === 'present') || sceneList()[0];
+    if (sc) pickScene(sc.id);
+  },
   onBrandSync: (fn) => {
     if (typeof fn !== 'function') return;
     brandSyncSubs.push(fn);
@@ -5947,20 +6224,45 @@ const sharedToolsApi = {
   setMusicRate: (rate) => {
     if (bgMusic.el) bgMusic.el.playbackRate = Math.max(0.5, Math.min(2, Number(rate) || 1));
   },
-  playStreamBuffer: async (audioBuffer, { duck = false } = {}) => {
+  decodeAudioData: async (arrayBuffer) => {
+    const ctx = audioCtx();
+    return ctx.decodeAudioData(arrayBuffer.slice(0));
+  },
+  playStreamBuffer: async (audioBuffer, { duck = false, volume = 0.85, onEnded } = {}) => {
     try {
       const ctx = audioCtx();
       if (ctx.state === 'suspended') await ctx.resume();
       const src = ctx.createBufferSource();
       src.buffer = audioBuffer;
       const gOut = ctx.createGain();
-      gOut.gain.value = 0.85;
+      const clampedVol = Math.max(0, Math.min(1.5, Number.isFinite(Number(volume)) ? Number(volume) : 0.85));
+      gOut.gain.value = clampedVol;
       src.connect(gOut);
       const mix = mixInMedia(gOut, { duck, monitor: true });
-      src.onended = () => mix.dispose();
+      syncOutgoingAudio();
+      let disposed = false;
+      const cleanup = () => {
+        if (disposed) return;
+        disposed = true;
+        try { src.onended = null; } catch {}
+        mix.dispose();
+        syncOutgoingAudio();
+        try { onEnded?.(); } catch {}
+      };
+      src.onended = cleanup;
       src.start();
-      return () => { try { src.stop(); } catch {} mix.dispose(); };
-    } catch { return () => {}; }
+      const stop = () => { try { src.stop(); } catch {} cleanup(); };
+      stop.setVolume = (v) => {
+        const next = Math.max(0, Math.min(1.5, Number(v) || 0));
+        try { gOut.gain.setTargetAtTime(next, ctx.currentTime, 0.02); } catch {}
+      };
+      return stop;
+    } catch {
+      const noop = () => {};
+      noop.setVolume = () => {};
+      try { onEnded?.(); } catch {}
+      return noop;
+    }
   },
   duckMusicTemporarily: (ms = 4000) => {
     try {
@@ -5972,8 +6274,11 @@ const sharedToolsApi = {
   aidAddFiles,
   setTab,
   applyAdaptiveAccent,
+  chime,
+  requestStageRender,
 };
-try { initAudioStudio(sharedToolsApi); } catch (e) { console.warn('audio-studio init:', e); }
+const audioStudioApi = (() => { try { return initAudioStudio(sharedToolsApi); } catch (e) { console.warn('audio-studio init:', e); return null; } })();
+if (audioStudioApi) sharedToolsApi.audioClips = audioStudioApi.audioClips;
 try { initStudioTools(sharedToolsApi); } catch (e) { console.warn('studio-tools init:', e); }
 try { liveEvents.initLiveEvents({ ...sharedToolsApi, send: wsSend, inStudio: () => !!S.studio, requestStageRender }); } catch (e) { console.warn('live-events init:', e); }
 try { refreshSections(); } catch {}

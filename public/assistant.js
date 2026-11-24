@@ -69,7 +69,14 @@ export function createAssistant(app) {
     if (it.actions?.length) { const ul = document.createElement('ul'); ul.className = 'act-chips'; ul.append(...it.actions.map(actChip)); li.append(ul); }
     if (it.note) {
       const acts = noteActions?.(it.id) || [];
-      if (acts.length) { const row = document.createElement('div'); row.className = 'msg-tools'; row.append(...acts); li.append(row); }
+      const row = document.createElement('div'); row.className = 'msg-tools';
+      row.append(...acts);
+      if (host) {
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'btn sm ghost ai-del-btn'; del.textContent = 'Dismiss';
+        del.onclick = () => { const i = S.ai.items.findIndex((x) => x.id === it.id); if (i >= 0) { S.ai.items.splice(i, 1); renderAILog(); } };
+        row.append(del);
+      }
+      if (row.children.length) li.append(row);
       return li;
     }
     if (host && it.done && !it.error && it.text) {
@@ -80,7 +87,9 @@ export function createAssistant(app) {
       st.onclick = () => (on ? takeAnswerOff() : showAnswer(it.id));
       const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'btn sm ghost'; cp.textContent = 'Copy';
       cp.onclick = () => navigator.clipboard?.writeText(plainMd(it.text)).then(() => toast('Copied.'), () => toast('Couldn’t copy.', { err: true }));
-      row.append(st, cp); li.append(row);
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn sm ghost ai-del-btn'; del.textContent = 'Delete';
+      del.onclick = () => { const i = S.ai.items.findIndex((x) => x.id === it.id); if (i >= 0) { S.ai.items.splice(i, 1); renderAILog(); } };
+      row.append(st, cp, del); li.append(row);
     }
     return li;
   }

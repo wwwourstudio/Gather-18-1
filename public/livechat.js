@@ -120,18 +120,44 @@ export function createLiveChat(app) {
     if (mod.timeouts.some((x) => x.src === src && x.user === user && x.until > now)) return 'timed out';
     return '';
   }
+  function deleteMessage(m) {
+    if (!isHost() || !m?.id) return;
+    if (S.studio) wsSend({ type: 'chatDel', id: m.id });
+    const mod = structuredClone(modState());
+    if (!mod.hidden.includes(m.id)) mod.hidden.push(m.id);
+    const patch = { mod };
+    if (S.state.featured?.id === m.id) patch.featured = null;
+    setStage(patch);
+    $$(`#msgs li[data-fid="${cssEsc(m.id)}"]`).forEach((li) => li.remove());
+    const idx = S.feed.findIndex((x) => x.id === m.id);
+    if (idx >= 0) S.feed.splice(idx, 1);
+    renderChatMood();
+    if (m.src === 'youtube' && yt.liveChatId) {
+      ytModerate('hide', yt.liveChatId, m).catch(() => {});
+    }
+    toast('Message deleted.');
+  }
   function moderate(kind, m, secs) {
     if (!isHost()) return;
-    const mod = structuredClone(modState()), user = String(m.name).toLowerCase(), src = m.src || 'studio';
-    if (kind === 'hide') mod.hidden.push(m.id);
-    if (kind === 'unhide') { mod.hidden = mod.hidden.filter((x) => x !== m.id); mod.blocked = mod.blocked.filter((x) => !(x.src === src && x.user === user)); mod.timeouts = mod.timeouts.filter((x) => !(x.src === src && x.user === user)); }
-    if (kind === 'block') mod.blocked.push({ src, user });
-    if (kind === 'timeout') mod.timeouts.push({ src, user, until: Date.now() + secs * 1000 });
+    if (kind === 'delete') return deleteMessage(m);
+    const mod = structuredClone(modState()), user = String(m.name || m.user || '').toLowerCase(), src = m.src || 'studio';
+    if (kind === 'hide' && !mod.hidden.includes(m.id)) mod.hidden.push(m.id);
+    if (kind === 'unhide') {
+      mod.hidden = mod.hidden.filter((x) => x !== m.id);
+      mod.blocked = mod.blocked.filter((x) => !(x.src === src && x.user === user));
+      mod.timeouts = mod.timeouts.filter((x) => !(x.src === src && x.user === user));
+    }
+    if (kind === 'block' && !mod.blocked.some((x) => x.src === src && x.user === user)) mod.blocked.push({ src, user });
+    if (kind === 'timeout') {
+      mod.timeouts = mod.timeouts.filter((x) => !(x.src === src && x.user === user));
+      mod.timeouts.push({ src, user, until: Date.now() + secs * 1000 });
+    }
     const patch = { mod };
     const f = S.state.featured;
     if (kind !== 'unhide' && f && (f.id === m.id || (kind !== 'hide' && f.src === src && String(f.name).toLowerCase() === user))) patch.featured = null;
     setStage(patch);
-    const label = { hide: 'Message hidden', block: `${m.name} blocked`, timeout: `${m.name} timed out for ${secs >= 3600 ? secs / 3600 + ' h' : secs / 60 + ' min'}`, unhide: `${m.name} restored` }[kind];
+    renderModList();
+    const label = { hide: 'Message hidden', block: `${m.name} blocked`, timeout: `${m.name} timed out for ${secs >= 3600 ? secs / 3600 + ' h' : secs / 60 + ' min'}`, unhide: `${m.name} unblocked` }[kind];
     if (src === 'youtube' && kind !== 'unhide') {
       if (!yt.liveChatId) return toast(`${label} in gather. Connect YouTube in the Stream tab to also apply it on YouTube.`);
       ytModerate(kind, yt.liveChatId, m, secs)
@@ -156,6 +182,28 @@ export function createLiveChat(app) {
     timeoutPop.append(menu);
     document.body.append(timeoutPop);
     return timeoutPop;
+  }
+  function renderModList() {
+    const sec = $('#chatModSec'), list = $('#chatModList'), cnt = $('#chatModCount');
+    if (!sec || !list) return;
+    const mod = modState(), now = Date.now();
+    const rows = [
+      ...(mod.blocked || []).map((x) => ({ kind: 'Blocked', src: x.src, user: x.user })),
+      ...(mod.timeouts || []).filter((x) => x.until > now).map((x) => ({ kind: `${Math.ceil((x.until - now) / 60000)}m left`, src: x.src, user: x.user })),
+    ];
+    sec.hidden = !rows.length || !isHost();
+    if (cnt) cnt.textContent = String(rows.length);
+    list.replaceChildren(...rows.map((r) => {
+      const li = document.createElement('li'); li.className = 'chat-mod-row';
+      const info = document.createElement('span'); info.className = 'chat-mod-who';
+      info.innerHTML = `<b></b><small></small>`;
+      info.querySelector('b').textContent = r.user;
+      info.querySelector('small').textContent = `${r.kind} · ${r.src}`;
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn sm ghost'; btn.textContent = 'Unblock';
+      btn.onclick = () => moderate('unhide', { id: '', src: r.src, name: r.user });
+      li.append(info, btn);
+      return li;
+    }));
   }
   // Every chat line: avatar, name, time, a like button, then the message.
   const CHAT_HUES = [210, 262, 330, 20, 145, 190, 45, 290];
@@ -194,16 +242,25 @@ export function createLiveChat(app) {
     li.prepend(chatAvatar(name, av));
   }
   function msgActions(m) {
-    const bar = document.createElement('div'); bar.className = 'mact';
-    const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = txt; b.onclick = fn; return b; };
-    bar.append(mk('Show on stage', 'pill accent feat', () => {
+    const bar = document.createElement('div'); bar.className = 'mact host-only';
+    const mk = (txt, cls, fn, title = '') => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = txt;
+      if (title) b.title = title;
+      b.onclick = fn; return b;
+    };
+    const isSelf = m.src === 'studio' && m.from && m.from === S.id;
+    bar.append(mk('Stage', 'mact-btn accent feat', () => {
       const on = S.state.featured?.id === m.id;
       setStage({ featured: on ? null : { id: m.id, src: m.src, name: m.name, text: m.text, color: m.color || '' } });
-    }));
-    bar.append(mk('Hide', 'pill mod-hide', () => moderate('hide', m)));
-    const tm = mk('Time out', 'pill', (ev) => { timeoutFor = m; togglePopover(timeoutMenu(), ev.currentTarget, 'bottom'); });
-    tm.setAttribute('aria-haspopup', 'menu');
-    bar.append(tm, mk('Block', 'pill danger mod-block', () => moderate('block', m)), mk('Restore', 'pill mod-restore', () => moderate('unhide', m)));
+    }, 'Show or hide this message on stage'));
+    bar.append(mk('Delete', 'mact-btn danger mod-del', () => moderate('delete', m), 'Delete message'));
+    if (!isSelf) {
+      const tm = mk('Timeout', 'mact-btn mod-to', (ev) => { timeoutFor = m; togglePopover(timeoutMenu(), ev.currentTarget, 'bottom'); }, 'Time out sender');
+      tm.setAttribute('aria-haspopup', 'menu');
+      bar.append(tm);
+      bar.append(mk('Block', 'mact-btn danger mod-block', () => moderate('block', m), 'Block sender from chatting'));
+    }
+    bar.append(mk('Restore', 'mact-btn mod-restore', () => moderate('unhide', m), 'Restore message & unblock sender'));
     return bar;
   }
   function applyModeration(li) {
@@ -212,7 +269,7 @@ export function createLiveChat(app) {
     li.classList.toggle('modded', !!why);
     li.dataset.why = why;
   }
-  function applyModerationAll() { $$('#msgs li[data-fid]').forEach(applyModeration); }
+  function applyModerationAll() { $$('#msgs li[data-fid]').forEach(applyModeration); renderModList(); }
 
   // YouTube: the host signs in with Google (in this browser only), gather reads the broadcast's live chat,
   // relays new messages to the studio, and Hide / Time out / Block act on YouTube too.

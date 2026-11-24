@@ -75,16 +75,17 @@ export function createDesigner(app) {
     return fitCanvas(c, true);
   }
   async function squareLogo(data) {
-    const im = await loadImg(data), c = document.createElement('canvas'); c.width = c.height = 256;
+    const im = await loadImg(data), c = document.createElement('canvas'); c.width = c.height = 512;
     const sq = Math.min(im.naturalWidth, im.naturalHeight);
-    c.getContext('2d').drawImage(im, (im.naturalWidth - sq) / 2, (im.naturalHeight - sq) / 2, sq, sq, 0, 0, 256, 256);
+    c.getContext('2d').drawImage(im, (im.naturalWidth - sq) / 2, (im.naturalHeight - sq) / 2, sq, sq, 0, 0, 512, 512);
     return c.toDataURL('image/png');
   }
   /** The image engine everything uses: returns a ready-to-use data URL for the target. */
   async function designImage(t, prompt, refs = []) {
     const src = aiImageSource();
     if (!src) throw Object.assign(new Error('Add a Gemini key (free at aistudio.google.com) to design with AI. ChatGPT and Grok keys work too.'), { needKey: true });
-    const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: src.provider, apiKey: src.apiKey, prompt, purpose: AID_TARGETS[t].purpose, ...(refs.length ? { refs } : {}) }) });
+    const finalPrompt = t === 'logo' ? `${prompt}. Strict 1:1 square icon/emblem layout, centered composition with balanced padding, crisp vector-style edges.` : prompt;
+    const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'image', provider: src.provider, apiKey: src.apiKey, prompt: finalPrompt, purpose: AID_TARGETS[t].purpose, ...(refs.length ? { refs } : {}) }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j.data) throw new Error(j.error || 'The image request failed. Try again.');
     return t === 'overlay' ? cutOverlay(j.data) : t === 'logo' ? squareLogo(j.data) : fitImage(j.data);
@@ -92,11 +93,11 @@ export function createDesigner(app) {
   /** No key and no built-in one: the drawn templates, so a click never dead-ends. */
   async function templateImage(t) {
     const col = S.state.brand.color, title = AID.title() || S.name || 'Live';
-    if (t === 'logo') return rasterizeSvg(buildLogoSvg(col, title), 256, 256);
+    if (t === 'logo') return rasterizeSvg(buildLogoSvg(col, title), 512, 512);
     if (t === 'overlay') return rasterizeSvg(buildOverlaySvg(col, S.state.streamType || wiz.streamType || 'live', title), 1280, 720);
     return rasterizeSvg(buildBgSvg(col, AID.prompt[t] || title), 1280, 720);
   }
-  const aidPromptFor = (t) => AID.prompt[t] ?? `${{ cover: 'Cover art', backdrop: 'A studio backdrop', logo: 'A logo', overlay: 'A stage frame' }[t]} for “${AID.title() || 'my show'}”, a ${AID.kind()}`;
+  const aidPromptFor = (t) => AID.prompt[t] ?? `${{ cover: 'Cover art', backdrop: 'A studio backdrop', logo: 'A 1:1 square emblem logo', overlay: 'A stage frame' }[t]} for “${AID.title() || 'my show'}”, a ${AID.kind()}`;
   function aidRender() {
     const t = AID.target, src = aiImageSource();
     replaceKids($('#aidTarget'), ...AID.targets.map((k) => {

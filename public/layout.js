@@ -162,7 +162,7 @@ export function collisions(elements) {
 const P = (type, x, y, w, h, extra = {}) => ({ type, ...R(x, y, w, h), ...extra });
 export const PRESETS = [
   {
-    id: 'p-cinematic', name: 'Cinematic solo', desc: 'One camera in 2.39:1 letterbox, a lower third over the picture.',
+    id: 'p-cinematic', name: 'Cinematic solo', cat: 'talk', desc: 'One camera in 2.39:1 letterbox, a lower third over the picture.',
     els: [
       P('shape', 0, 0, 1280, 88, { color: '#000000', stack: true, label: 'Letterbox top' }),
       P('shape', 0, 632, 1280, 88, { color: '#000000', stack: true, label: 'Letterbox bottom' }),
@@ -176,7 +176,7 @@ export const PRESETS = [
     ],
   },
   {
-    id: 'p-interview', name: 'Interview panel', desc: 'Two 4:3 seats, the lower third and a sponsor slot on their own row.',
+    id: 'p-interview', name: 'Interview panel', cat: 'talk', desc: 'Two 4:3 seats, the lower third and a sponsor slot on their own row.',
     els: [
       P('slot', 48, 64, 576, 432, { index: 0, radius: 16 }),
       P('slot', 656, 64, 576, 432, { index: 1, radius: 16 }),
@@ -190,7 +190,7 @@ export const PRESETS = [
   },
   {
     // For gamers: the game edge to edge, the facecam in the corner, super chats and chat cards over the game.
-    id: 'p-game', name: 'Game + facecam', desc: 'The game full screen, your camera in a corner, alerts on top.',
+    id: 'p-game', name: 'Game + facecam', cat: 'gaming', desc: 'The game full screen, your camera in a corner, alerts on top.',
     els: [
       P('media', 0, 0, 1280, 720, { radius: 0, stack: true }),
       P('slot', 1000, 24, 256, 192, { index: 0, radius: 14, pip: true, stack: true }),
@@ -203,7 +203,7 @@ export const PRESETS = [
     ],
   },
   {
-    id: 'p-pip', name: 'Slides + speaker', desc: 'Full presentation with the speaker in a picture-in-picture corner.',
+    id: 'p-pip', name: 'Slides + speaker', cat: 'present', desc: 'Full presentation with the speaker in a picture-in-picture corner.',
     els: [
       P('media', 32, 32, 1216, 656, { radius: 12, stack: true }),
       P('slot', 952, 464, 272, 200, { index: 0, radius: 16, pip: true, stack: true }),
@@ -216,7 +216,7 @@ export const PRESETS = [
     ],
   },
   {
-    id: 'p-arena', name: 'AI arena', desc: 'Two debaters flank the AI judge, with a round clock on top.',
+    id: 'p-arena', name: 'AI arena', cat: 'gaming', desc: 'Two debaters flank the AI judge, with a round clock on top.',
     els: [
       P('text', 48, 32, 352, 48, { text: 'THE DEBATE', size: 28, bold: true, color: '#ffffff', align: 'left', bg: '' }),
       P('timer', 560, 32, 160, 48, { mode: 'countdown', size: 34, color: '#ffffff', bg: '' }),
@@ -232,7 +232,7 @@ export const PRESETS = [
     ],
   },
   {
-    id: 'p-chat', name: 'Chat-led show', desc: 'The audience drives it: a tall chat rail and a spotlight for super chats.',
+    id: 'p-chat', name: 'Chat-led show', cat: 'talk', desc: 'The audience drives it: a tall chat rail and a spotlight for super chats.',
     els: [
       P('slot', 48, 32, 720, 456, { index: 0, radius: 16 }),
       P('chat', 800, 32, 432, 656, { max: 10, size: 20, bg: true, fade: false }),
@@ -245,7 +245,7 @@ export const PRESETS = [
     ],
   },
   {
-    id: 'p-newsroom', name: 'Newsroom', desc: 'Anchor plus remote guest, a station bug, sponsor box and a live ticker.',
+    id: 'p-newsroom', name: 'Newsroom', cat: 'talk', desc: 'Anchor plus remote guest, a station bug, sponsor box and a live ticker.',
     els: [
       P('slot', 48, 32, 784, 488, { index: 0, radius: 12 }),
       P('slot', 864, 32, 368, 224, { index: 1, radius: 12 }),
@@ -255,6 +255,34 @@ export const PRESETS = [
       P('ticker', 0, 672, 1280, 48),
       P('captions', 160, 440, 960, 64, { stack: true }),
       P('featured', 864, 288, 368, 232, { stack: true, hidden: true }),
+    ],
+  },
+  {
+    id: 'p-shop-drop', name: 'Live drop showcase', cat: 'shop', desc: 'Host on the left, featured product media, live chat & Watch QR on the right.',
+    els: [
+      P('slot', 48, 40, 720, 480, { index: 0, radius: 16 }),
+      P('media', 800, 40, 432, 304, { radius: 14 }),
+      P('callin', 800, 368, 432, 152, { label: 'Scan to shop live' }),
+      P('banner', 48, 544, 720, 104),
+      P('timer', 800, 544, 200, 104, { mode: 'countdown', size: 32, color: '#ffffff', bg: '' }),
+      P('logo', 1032, 544, 200, 104),
+      P('ticker', 0, 672, 1280, 48),
+      P('captions', 64, 440, 688, 56, { stack: true }),
+      P('featured', 48, 360, 520, 144, { stack: true, hidden: true }),
+    ],
+  },
+  {
+    id: 'p-shop-split', name: 'Shop + product cam', cat: 'shop', desc: 'Dual camera for host + close-up product shot with deal banner & live chat.',
+    els: [
+      P('slot', 48, 40, 440, 472, { index: 0, radius: 16 }),
+      P('slot', 512, 40, 440, 472, { index: 1, radius: 16 }),
+      P('chat', 976, 40, 256, 472, { max: 8, size: 17, bg: true, fade: false }),
+      P('banner', 48, 536, 904, 112),
+      P('callin', 976, 536, 256, 112, { label: 'Buy live' }),
+      P('logo', 64, 56, 112, 40, { stack: true }),
+      P('ticker', 0, 672, 1280, 48),
+      P('captions', 160, 440, 760, 56, { stack: true }),
+      P('featured', 48, 368, 440, 136, { stack: true, hidden: true }),
     ],
   },
 ];

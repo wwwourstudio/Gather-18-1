@@ -21,8 +21,8 @@ const PANEL_INFO = {
   overlays: ['palette', 'Overlay packs, banners, countdowns & sponsors'],
   shop: ['shopping-bag', 'Live drops, stock counter & instant checkout'],
   polls: ['clapperboard', 'Watch page, viewers, Get paid, stage & audience'], // Audience → Polls: same header as Audience
-  gaming: ['clapperboard', 'Watch page, viewers, Get paid, stage & audience'], // Audience → Play
-  music: ['music', 'AI song maker, audio editor, soundboard & voiceovers'],
+  gaming: ['gamepad-2', 'Scoreboard, live counters, timer, queue, bounties & hype triggers'],
+  music: ['music', 'Background music, audio clips, AI songs & FX'],
 };
 const icon = (n) => `<svg class="i" aria-hidden="true"><use href="/icons.svg#i-${n}"/></svg>`;
 

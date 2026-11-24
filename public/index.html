@@ -55,8 +55,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- UI: one display face (Plus Jakarta Sans) + Inter. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
-<!-- Stage-only brand fonts (drawn into the program canvas, never used by the interface): loaded without blocking. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@600;700&family=JetBrains+Mono:wght@600;800&family=Playfair+Display:wght@700;800&family=Bebas+Neue&family=DM+Serif+Display&display=swap" media="print" onload="this.media='all'">
+<!-- Stage brand fonts (used in Typography preview cards and drawn into the program canvas). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@600;700&family=JetBrains+Mono:wght@600;800&family=Playfair+Display:wght@700;800&family=Bebas+Neue&family=DM+Serif+Display&display=swap">
 <link rel="stylesheet" href="/tokens.css">
 <link rel="stylesheet" href="/ui.css">
 <link rel="stylesheet" href="/style.css">
@@ -366,6 +366,10 @@
               <button type="button" class="btn sm" id="optPhoneChat" aria-expanded="false" aria-controls="optChatQr"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-qr-code"/></svg><span>On your phone</span></button>
             </div>
             <div class="chat-pop-qr" id="optChatQr" hidden><img alt="QR code for the pop-out chat" width="132" height="132"><small>Scan to read and answer viewer chat on your phone.</small></div>
+            <div class="chat-mod-sec" id="chatModSec" hidden>
+              <div class="chat-mod-head"><b>Blocked &amp; timed out</b><span class="num" id="chatModCount">0</span></div>
+              <ul class="chat-mod-list" id="chatModList"></ul>
+            </div>
           </div>
           <div class="chat-filter" id="chatFilter" role="tablist" aria-label="Show in the chat">
             <button type="button" role="tab" data-f="all" class="on" aria-selected="true">All</button>
@@ -627,6 +631,7 @@
           <div class="stage-edit-bar">
             <div class="row nowrap">
               <button type="button" class="btn primary grow" id="editToggle" aria-pressed="false">Edit on stage</button>
+              <button type="button" class="btn sm" id="safeGuidesBtn" aria-pressed="false" data-tip="Toggle broadcast safe-area guides">Guides</button>
               <button type="button" class="btn" id="resetScene"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg>Reset</button>
             </div>
             <div class="stage-toolbar" id="stageToolbar" role="toolbar" aria-label="Selected layer alignment and actions">
@@ -647,10 +652,11 @@
 
           <details class="psec" data-sec="templates" open><summary><b>Scene templates</b></summary><div class="psec-body"><div class="fld"><span class="dup">Scene templates</span>
             <div class="tpl-tabs" id="tplTabs" role="tablist" aria-label="Template categories">
-              <button type="button" role="tab" class="on" data-tpl-cat="all" aria-selected="true">All</button>
-              <button type="button" role="tab" data-tpl-cat="present" aria-selected="false">Present</button>
-              <button type="button" role="tab" data-tpl-cat="talk" aria-selected="false">Talk</button>
-              <button type="button" role="tab" data-tpl-cat="gaming" aria-selected="false">Gaming</button>
+              <button type="button" role="tab" class="tpl-tab on" data-tpl-cat="all" aria-selected="true">All</button>
+              <button type="button" role="tab" class="tpl-tab" data-tpl-cat="present" aria-selected="false">Present</button>
+              <button type="button" role="tab" class="tpl-tab" data-tpl-cat="talk" aria-selected="false">Talk</button>
+              <button type="button" role="tab" class="tpl-tab" data-tpl-cat="gaming" aria-selected="false">Gaming</button>
+              <button type="button" role="tab" class="tpl-tab" data-tpl-cat="shop" aria-selected="false">Shop</button>
             </div>
             <div class="tpls" id="tplList"></div></div>
           </div></details><details class="psec" data-sec="add" open><summary><b>Add layer to stage</b></summary><div class="psec-body"><div class="fld"><span class="dup">Add layer to stage</span>
@@ -746,8 +752,10 @@
                   <div class="row">
                     <button type="button" class="btn sm primary" id="logoAiBtnLook"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>Design with AI</button>
                     <button type="button" class="btn sm" id="logoPick"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-upload"/></svg>Upload</button>
+                    <button type="button" class="btn sm ghost" id="logoCropBtn" hidden>Crop 1:1</button>
                     <button type="button" class="btn ghost sm" id="logoClear" hidden>Remove</button>
                   </div>
+                  <p class="hint" style="margin:4px 0 0">Square 1:1 emblem · upload opens interactive crop &amp; zoom</p>
                 </div>
               </div>
             </div>
@@ -904,25 +912,55 @@
         </div>
       </section>
 
-      <!-- Audience: Play with me -->
-      <section class="panel" data-panel="gaming" hidden>
-        <header class="panel-head"><h2>Audience</h2><span class="panel-meta hint" id="queueCount"></span>
-          <div class="seg block sm aud-seg" role="tablist" aria-label="Audience sections">
-            <button type="button" role="tab" data-aud="watch">Watch</button>
-            <button type="button" role="tab" data-aud="viewers">Viewers</button>
-            <button type="button" role="tab" data-aud="supers">Get paid</button>
-            <button type="button" role="tab" data-aud="stage">Studio</button>
-            <button type="button" role="tab" data-aud="polls">Polls</button>
-            <button type="button" role="tab" data-aud="gaming" class="on" aria-selected="true">Play</button>
-          </div>
-        </header>
+      <!-- Gaming: Gamer Stream Control Center -->
+      <section class="panel host-only" data-panel="gaming" hidden>
+        <header class="panel-head"><h2>Gaming</h2><span class="panel-meta hint" id="queueCount"></span></header>
         <div class="panel-body form" id="queueSec">
-          <details class="psec" data-sec="gaming-queue" open><summary><b>Viewer queue</b></summary><div class="psec-body">
-            <label class="toggle-row"><span><b>Take players</b><small>Viewers join a queue with their gamertag from the watch page.</small></span><input type="checkbox" class="toggle" id="wpQueue" role="switch"></label>
-            <div class="row"><button type="button" class="btn sm primary" id="queueNext">Call next player</button><button type="button" class="btn sm ghost" id="queueClear">Clear queue</button></div>
-            <ol class="queue-list" id="queueList"></ol>
-            <p class="hint empty-note" id="queueEmptyHint">Turn on “Take players” and viewers can line up with their gamertag.</p>
+          <details class="psec" data-sec="gaming-quick" open><summary><b>Quick stream actions</b><span class="hint">1-click cuts &amp; hype</span></summary><div class="psec-body">
+            <div class="gm-action-grid" id="gmQuickActions">
+              <button type="button" class="gm-act-btn" data-gm="share-game"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg><span>Share game</span></button>
+              <button type="button" class="gm-act-btn" data-gm="replay"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg><span>Instant replay</span></button>
+              <button type="button" class="gm-act-btn" data-gm="clip"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg><span>Mark clip</span></button>
+              <button type="button" class="gm-act-btn" data-gm="predict"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bar-chart-2"/></svg><span>Prediction poll</span></button>
+              <button type="button" class="gm-act-btn" data-gm="scene-game"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-layout-dashboard"/></svg><span>Game + Cam</span></button>
+              <button type="button" class="gm-act-btn" data-gm="brb"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-clock"/></svg><span>BRB screen</span></button>
+            </div>
+            <div class="gm-sfx-row" id="gmHypeSfx">
+              <button type="button" class="btn sm ghost" data-gmsfx="airhorn">Airhorn</button>
+              <button type="button" class="btn sm ghost" data-gmsfx="applause">GG Clap</button>
+              <button type="button" class="btn sm ghost" data-gmsfx="fanfare">Victory</button>
+              <button type="button" class="btn sm ghost" data-gmsfx="glitch">Clutch</button>
+            </div>
           </div></details>
+
+          <details class="psec" data-sec="gaming-hud" open><summary><b>Live game HUD &amp; counters</b><span class="hint">overlay on stage</span></summary><div class="psec-body">
+            <label class="toggle-row"><span><b>Show game HUD on stage</b><small>Compact bar with your game, rank, counters &amp; match timer.</small></span><input type="checkbox" class="toggle" id="gmHudOn" role="switch"></label>
+            <div class="row2">
+              <label class="fld"><span>Game title</span><input class="input sm" id="gmGameTitle" maxlength="36" placeholder="e.g. Valorant, Elden Ring"></label>
+              <label class="fld"><span>Rank / Mode</span><input class="input sm" id="gmGameMode" maxlength="24" placeholder="e.g. Ranked · Solo"></label>
+            </div>
+            <div class="gm-counters" id="gmCounters">
+              <div class="gm-stat" data-stat="wins"><span>Wins</span><div class="gm-step"><button type="button" class="icon-btn sm" data-delta="-1" aria-label="Wins minus one">−</button><b class="num" id="gmStatWins">0</b><button type="button" class="icon-btn sm" data-delta="1" aria-label="Wins plus one">+</button></div></div>
+              <div class="gm-stat" data-stat="losses"><span>Losses</span><div class="gm-step"><button type="button" class="icon-btn sm" data-delta="-1" aria-label="Losses minus one">−</button><b class="num" id="gmStatLosses">0</b><button type="button" class="icon-btn sm" data-delta="1" aria-label="Losses plus one">+</button></div></div>
+              <div class="gm-stat" data-stat="kills"><span>Kills</span><div class="gm-step"><button type="button" class="icon-btn sm" data-delta="-1" aria-label="Kills minus one">−</button><b class="num" id="gmStatKills">0</b><button type="button" class="icon-btn sm" data-delta="1" aria-label="Kills plus one">+</button></div></div>
+              <div class="gm-stat" data-stat="deaths"><span>Deaths</span><div class="gm-step"><button type="button" class="icon-btn sm" data-delta="-1" aria-label="Deaths minus one">−</button><b class="num" id="gmStatDeaths">0</b><button type="button" class="icon-btn sm" data-delta="1" aria-label="Deaths plus one">+</button></div></div>
+            </div>
+            <div class="gm-watch-box">
+              <div class="gm-watch-top">
+                <span class="gm-watch-lbl">Match / Speedrun timer</span>
+                <b class="num gm-watch-time" id="gmTimerDisplay">00:00.0</b>
+              </div>
+              <div class="row">
+                <button type="button" class="btn sm primary" id="gmTimerToggle">Start</button>
+                <button type="button" class="btn sm" id="gmTimerSplit">Split</button>
+                <button type="button" class="btn sm ghost" id="gmTimerReset">Reset</button>
+                <span class="grow"></span>
+                <button type="button" class="btn sm ghost" id="gmStatsReset">Reset stats</button>
+              </div>
+              <div class="gm-splits" id="gmSplits" hidden></div>
+            </div>
+          </div></details>
+
           <details class="psec" data-sec="gaming-score" open><summary><b>Scoreboard</b><span class="hint">on stage &amp; the watch page</span></summary><div class="psec-body">
             <button type="button" class="btn sm primary" id="scoreAdd"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-plus"/></svg>Add a scoreboard to the stage</button>
             <div class="score-quick" id="scoreQuick" hidden>
@@ -932,10 +970,19 @@
               <div class="row"><button type="button" class="btn sm" data-sq="swap">Swap sides</button><button type="button" class="btn sm ghost" data-sq="reset">Reset</button></div>
             </div>
           </div></details>
+
+          <details class="psec" data-sec="gaming-queue" open><summary><b>Viewer queue</b></summary><div class="psec-body">
+            <label class="toggle-row"><span><b>Take players</b><small>Viewers join a queue with their gamertag from the watch page.</small></span><input type="checkbox" class="toggle" id="wpQueue" role="switch"></label>
+            <div class="row"><button type="button" class="btn sm primary" id="queueNext">Call next player</button><button type="button" class="btn sm ghost" id="queueClear">Clear queue</button></div>
+            <ol class="queue-list" id="queueList"></ol>
+            <p class="hint empty-note" id="queueEmptyHint">Turn on “Take players” and viewers can line up with their gamertag.</p>
+          </div></details>
+
           <details class="psec" data-sec="gaming-bounties" open><summary><b>Bounties</b><span class="hint">viewer-funded challenges</span></summary><div class="psec-body">
             <ul class="bounty-list" id="bountyList"></ul>
-            <p class="hint empty-note" id="bountyEmpty">Viewers pay for a challenge from the super chat tray (“🎯 Make it a bounty”). Accept it when the payment arrives and it shows on stream until you mark it done.</p>
+            <p class="hint empty-note" id="bountyEmpty">Viewers pay for a challenge from the super chat tray (“Make it a bounty”). Accept it when the payment arrives and it shows on stream until you mark it done.</p>
           </div></details>
+
           <details class="psec" data-sec="gaming-lobby" open><summary><b>Lobby &amp; rig</b><span class="hint">on the watch page</span></summary><div class="psec-body">
             <label class="fld"><span>Lobby / party code</span><input id="wpLobby" maxlength="40" placeholder="e.g. XK7-2PQ or discord.gg/yourserver" spellcheck="false"></label>
             <label class="fld"><span>Rig &amp; settings <em>one per line</em></span><textarea id="wpRig" rows="4" maxlength="400" placeholder="GPU: RTX 4080&#10;Mouse: Viper V3 · 800 DPI&#10;Sens: 0.35 · 103 FOV"></textarea></label>
@@ -988,6 +1035,7 @@
     <nav class="rail glass" aria-label="Studio panels">
       <button class="icon-btn stacked rail-btn on" data-tab="chat"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-message-square"/></svg><span class="caption">Chat</span><b class="dot-badge" id="chatBadge" hidden></b></button>
       <button class="icon-btn stacked rail-btn host-only" data-tab="look"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-palette"/></svg><span class="caption">Stage</span></button>
+      <button class="icon-btn stacked rail-btn host-only" data-tab="gaming"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-gamepad-2"/></svg><span class="caption">Gaming</span></button>
       <button class="icon-btn stacked rail-btn host-only" data-tab="show"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-clapperboard"/></svg><span class="caption">Audience</span></button>
       <button class="icon-btn stacked rail-btn host-only" data-tab="shop"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-shopping-bag"/></svg><span class="caption">Shop</span></button>
       <button class="icon-btn stacked rail-btn host-only" data-tab="ai"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><span class="caption">AI</span></button>
@@ -1261,23 +1309,83 @@
 <!-- ================= HELP ================= -->
 <dialog class="modal" id="helpDlg" aria-labelledby="helpH">
   <div class="modal-card glass raised wide help-card">
-    <div class="inv-glow" aria-hidden="true"></div>
-    <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
-    <h2 id="helpH">Help</h2>
+    <header class="help-head">
+      <div class="help-head-copy">
+        <h2 id="helpH">Studio Help &amp; Quick Guide</h2>
+        <p class="help-sub">Search any setting, jump straight to tools, or learn studio shortcuts.</p>
+      </div>
+      <form method="dialog"><button class="icon-btn sm modal-close" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button></form>
+    </header>
     <div class="form help-body">
+      <div class="composer-row help-search">
+        <svg class="i" aria-hidden="true"><use href="/icons.svg#i-search"/></svg>
+        <input id="helpSearch" placeholder="Search settings, echo, captions, gaming, overlays…" aria-label="Search help">
+      </div>
+      <div class="help-quick-grid" id="helpQuickGrid">
+        <button type="button" class="help-qcard" id="tourStart">
+          <span class="help-qic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-play"/></svg></span>
+          <div><b>Studio Tour</b><small>Guided walkthrough of the workspace</small></div>
+        </button>
+        <button type="button" class="help-qcard" data-help-act="shortcuts">
+          <span class="help-qic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-command"/></svg></span>
+          <div><b>Keyboard Shortcuts</b><small>M to mark clip, I for instant replay</small></div>
+        </button>
+        <button type="button" class="help-qcard" data-help-act="audio">
+          <span class="help-qic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></span>
+          <div><b>Mic &amp; Audio Check</b><small>Noise removal, echo &amp; auto-ducking</small></div>
+        </button>
+        <button type="button" class="help-qcard" data-help-act="golive">
+          <span class="help-qic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg></span>
+          <div><b>Go Live &amp; Multistream</b><small>Connect YouTube, Twitch &amp; Watch page</small></div>
+        </button>
+      </div>
+      <div id="helpPopWrap">
+        <h3 class="help-sec-h">Popular topics</h3>
+        <ul class="help-list" id="helpPopular"></ul>
+      </div>
+      <ul class="help-list" id="helpResults"></ul>
+      <p class="hint" id="helpNone" hidden>Nothing matches. Try another word, like “mic”, “gaming”, or “layout”.</p>
+    </div>
+  </div>
+</dialog>
 
-          <div class="composer-row help-search"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-search"/></svg><input id="helpSearch" placeholder="Try “echo”, “background”, “captions”…" aria-label="Search help"></div>
-          <div id="helpPopWrap"><h3 class="caps">Most searched</h3><ul class="help-list" id="helpPopular"></ul></div>
-          <ul class="help-list" id="helpResults"></ul>
-          <p class="hint" id="helpNone" hidden>Nothing matches. Try another word, like “mic” or “layout”.</p>
-          <button type="button" class="btn block" id="tourStart"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Take the studio tour</button>
-          <div class="help-tx">
-            <svg class="tx-emblem" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-              <path d="M12.2 3.2h4.2v4.1l3.7 1.3 4.6-.4 1.2 4.3-2.3 3.7-2.6 4.7-.7 3.7-3.4-1.5-4.1-4.8-3.8-.5-3.2-3.4-2.8-1.4.4-2.7 3.4.3V3.2h5.4Z" fill="var(--accent)" fill-opacity="0.24" stroke="var(--accent-text)" stroke-width="1.6" stroke-linejoin="round"/>
-              <path d="M14.2 10.1l.8 2.2h2.3l-1.8 1.3.7 2.2-2-1.4-2 1.4.7-2.2-1.8-1.3h2.3z" fill="#f59e0b"/>
-            </svg>
-            <span>Made in Texas · Operates in the United States only</span>
+<!-- ================= SQUARE LOGO CROPPER ================= -->
+<dialog class="modal" id="logoCropDlg" aria-labelledby="logoCropH">
+  <div class="modal-card glass raised logo-crop-card">
+    <header class="help-head">
+      <div class="help-head-copy">
+        <h2 id="logoCropH">Align Square Logo (1:1)</h2>
+        <p class="help-sub">Drag to reposition and zoom to frame your logo cleanly inside the square.</p>
+      </div>
+      <button type="button" class="icon-btn sm modal-close" id="logoCropClose" aria-label="Close"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-x"/></svg></button>
+    </header>
+    <div class="logo-crop-body">
+      <div class="logo-crop-stage" id="logoCropStage" data-bg="check">
+        <canvas id="logoCropCanvas" width="320" height="320" aria-label="Square logo crop preview"></canvas>
+        <div class="logo-crop-guide" aria-hidden="true"></div>
+      </div>
+      <div class="logo-crop-ctls">
+        <label class="fld">
+          <span class="row between"><span>Zoom</span><b class="num" id="logoCropZoomVal">100%</b></span>
+          <input type="range" id="logoCropZoom" min="0.5" max="3.5" step="0.02" value="1">
+        </label>
+        <div class="row between" style="gap:8px;flex-wrap:wrap">
+          <div class="seg sm" id="logoCropBgSeg" role="radiogroup" aria-label="Preview background">
+            <button type="button" data-cbg="check" class="on" aria-checked="true">Grid</button>
+            <button type="button" data-cbg="dark" aria-checked="false">Dark</button>
+            <button type="button" data-cbg="light" aria-checked="false">Light</button>
           </div>
+          <div class="row" style="gap:6px">
+            <button type="button" class="btn sm ghost" id="logoCropFit">Fit</button>
+            <button type="button" class="btn sm ghost" id="logoCropFill">Fill</button>
+            <button type="button" class="btn sm ghost" id="logoCropReset">Center</button>
+          </div>
+        </div>
+        <div class="row between" style="margin-top:4px">
+          <button type="button" class="btn sm ghost" id="logoCropCancel">Cancel</button>
+          <button type="button" class="btn sm primary" id="logoCropApply">Save square logo</button>
+        </div>
+      </div>
     </div>
   </div>
 </dialog>
