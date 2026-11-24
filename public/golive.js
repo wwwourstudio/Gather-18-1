@@ -25,6 +25,11 @@ export function createGoLive(app) {
     rumble: { name: 'Rumble', dot: '#85c742', url: '', hint: 'Rumble → Go Live → Stream URL and Stream key' },
     custom: { name: 'Other', dot: '#8b9bb8', url: '', hint: 'Any RTMP or RTMPS server URL and key' },
   };
+  // Each destination gets a shape. Auto: TikTok and Instagram are tall (9:16), everything else wide (16:9). On a
+  // 16:9 stage, tall destinations get the tall companion picture on a second relay lane; a 9:16 stage sends 9:16 to all.
+  const TALL_KINDS = new Set(['tiktok', 'instagram']);
+  const fmtOf = (d) => (d.fmt === '9:16' || d.fmt === '16:9' ? d.fmt : TALL_KINDS.has(d.kind) ? '9:16' : '16:9');
+  const laneOf = (d) => (S.state.aspect !== '9:16' && fmtOf(d) === '9:16' ? 'v' : 'h');
   S.relayOn = false;
   S.live = null;
   let L_STATUS = {}; // per destination (index in liveDests) while live: {state: 'live'|'failed', reason}
@@ -91,10 +96,11 @@ export function createGoLive(app) {
       return;
     }
     $$('.plat-tile[data-plat]').forEach((t) => t.classList.toggle('added', t.dataset.plat !== 'custom' && list.some((d) => d.kind === t.dataset.plat)));
+    setTimeout(renderTallPrev);
     replaceKids(box, ...list.map((d, i) => {
       const p = PLATFORMS[d.kind] || PLATFORMS.custom;
       const li = document.createElement('li'); li.className = 'dest' + (d.on ? '' : ' off');
-      li.innerHTML = `<div class="dest-top"><span class="pill caps src-${d.kind}"></span><label class="toggle-inline"><input type="checkbox" class="toggle sm" data-k="on"><span>Send</span></label><button type="button" class="icon-btn sm" data-del aria-label="Remove"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-trash-2"/></svg></button></div>
+      li.innerHTML = `<div class="dest-top"><span class="pill caps src-${d.kind}"></span><select class="dest-fmt" data-k="fmt" aria-label="Video shape for this destination"><option value="">Auto</option><option value="16:9">16:9 wide</option><option value="9:16">9:16 tall</option></select><label class="toggle-inline"><input type="checkbox" class="toggle sm" data-k="on"><span>Send</span></label><button type="button" class="icon-btn sm" data-del aria-label="Remove"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-trash-2"/></svg></button></div>
       <input data-k="url" spellcheck="false" aria-label="Server URL" placeholder="rtmps://…">
       <input data-k="key" type="password" autocomplete="off" spellcheck="false" aria-label="Stream key" placeholder="Stream key">
       <input data-k="watch" spellcheck="false" aria-label="Public watch link" placeholder="Watch link for viewers (optional)">
@@ -105,6 +111,10 @@ export function createGoLive(app) {
       li.querySelector('[data-k="url"]').value = d.url || '';
       li.querySelector('[data-k="key"]').value = d.key || '';
       li.querySelector('[data-k="watch"]').value = d.watch || '';
+      const fmtSel = li.querySelector('[data-k="fmt"]');
+      fmtSel.value = d.fmt || ''; fmtSel.options[0].textContent = `Auto · ${TALL_KINDS.has(d.kind) ? '9:16' : '16:9'}`;
+      fmtSel.disabled = live;
+      fmtSel.onchange = () => { const all = liveDests(); all[i] = { ...all[i], fmt: fmtSel.value }; saveDests(all); };
       const put = (inp) => { const all = liveDests(); all[i] = { ...all[i], [inp.dataset.k]: inp.type === 'checkbox' ? inp.checked : inp.value.trim() }; return all; };
       li.querySelectorAll('input').forEach((inp) => {
         inp.disabled = live;
@@ -118,6 +128,23 @@ export function createGoLive(app) {
       return li;
     }));
   }
+  // The 9:16 preview: shown while the Go live dialog is open and a destination takes the tall picture.
+  let prevTimer = 0;
+  function renderTallPrev() {
+    const box = $('#tallPrev'); if (!box) return;
+    const dlgOpen = !!$('#liveDlg')?.open;
+    const tallOnes = liveDests().filter((d) => d.on && laneOf(d) === 'v');
+    const show = dlgOpen && tallOnes.length > 0;
+    box.hidden = !show;
+    if (show) $('#tallPrevWho').textContent = [...new Set(tallOnes.map((d) => (PLATFORMS[d.kind] || PLATFORMS.custom).name))].join(', ');
+    app.useTall?.('preview', show);
+    clearInterval(prevTimer);
+    if (show) {
+      const c = $('#tallPrevCanvas'), cg = c.getContext('2d');
+      prevTimer = setInterval(() => { if (!$('#liveDlg')?.open) return renderTallPrev(); try { cg.drawImage(app.tallCanvas, 0, 0, c.width, c.height); } catch {} }, 200);
+    }
+  }
+  $('#liveDlg')?.addEventListener('close', renderTallPrev);
   $('#destAdd').onchange = (e) => {
     const kind = e.target.value; e.target.value = '';
     if (!kind) return;
@@ -178,82 +205,112 @@ export function createGoLive(app) {
   async function goLive() {
     if (S.live) return stopLive();
     if (!isHost() || !S.studio) return;
-    const all = liveDests(), ready = readyDests(), dests = ready;
+    const all = liveDests(), dests = readyDests();
     const idx = all.map((d, i) => [d, i]).filter(([d]) => d.on && /^rtmps?:\/\//i.test(d.url || '') && (d.key || d.kind === 'custom')).map(([, i]) => i);
     if (!dests.length) { setTab('stream'); return toast('Add a destination and its stream key first.', { err: true }); }
     L_STATUS = {};
     const mime = pickLiveMime();
     if (!mime || !canvas.captureStream) return toast('This browser can’t stream. Use Chrome or Edge.', { err: true });
-    S.live = { phase: 'connecting', names: dests.map((d) => (PLATFORMS[d.kind] || PLATFORMS.custom).name), warned: new Set(), t1: Date.now() };
+    // Group the destinations by shape: lane 'h' carries the program, lane 'v' the tall companion.
+    const lanes = ['h', 'v'].map((lane) => ({ lane, at: idx.filter((i) => laneOf(all[i]) === lane) })).filter((x) => x.at.length);
+    S.live = { phase: 'connecting', names: dests.map((d) => (PLATFORMS[d.kind] || PLATFORMS.custom).name), warned: new Set(), t1: Date.now(), lanes: [] };
     renderLive();
-    const Lc = S.live;
+    const L = S.live;
     // Never hang on "Connecting…": say we're waking the relay, then give up with a clear message.
-    Lc.wakeTimer = setInterval(() => { if (S.live !== Lc || Lc.phase !== 'connecting') return clearInterval(Lc.wakeTimer); renderLive(); }, 1000);
-    Lc.giveUp = setTimeout(() => {
-      if (S.live !== Lc || Lc.phase !== 'connecting') return;
-      try { Lc.ws?.close(4100); } catch {}
-      endLive(Lc);
+    L.wakeTimer = setInterval(() => { if (S.live !== L || L.phase !== 'connecting') return clearInterval(L.wakeTimer); renderLive(); }, 1000);
+    L.giveUp = setTimeout(() => {
+      if (S.live !== L || L.phase !== 'connecting') return;
+      for (const ln of L.lanes) { try { ln.ws?.close(4100); } catch {} }
+      endLive(L);
       toast('The live relay didn’t answer, so nothing went out. Try Go live again in a moment.', { err: true, ms: 10000, action: ['Try again', goLive] });
     }, CONNECT_TIMEOUT);
-    let url;
-    try { ({ url } = await api('relay', creds())); }
-    catch (e) { S.live = null; renderLive(); return toast(e.message, { err: true }); }
     audioCtx();
-    const L = S.live;
+    if (lanes.some((x) => x.lane === 'v')) app.useTall?.('live', true);
+    for (const x of lanes) {
+      try { await openLane(L, x.lane, x.at, mime); }
+      catch (e) {
+        if (S.live !== L) return;
+        if (!L.lanes.length && x === lanes[lanes.length - 1]) { endLive(L); return toast(e.message, { err: true }); }
+        toast(`Couldn’t start the ${x.lane === 'v' ? '9:16' : '16:9'} stream: ${e.message}`, { err: true });
+      }
+    }
+  }
+  /** One relay connection carrying one picture (wide or tall) to its destinations. */
+  async function openLane(L, lane, at, mime) {
+    const { url } = await api('relay', { ...creds(), lane });
+    if (S.live !== L) return;
+    const all = liveDests();
+    const ln = { lane, at, ws: null, rec: null, vs: null, open: true };
+    L.lanes.push(ln);
     // A built-in relay answers on this same site (/relay/live): turn the path into a wss:// address.
-    const ws = new WebSocket(url.startsWith('/') ? (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + url : url); ws.binaryType = 'arraybuffer'; L.ws = ws;
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'start', video: mime.video, dests: dests.map((d) => ({ url: d.url, key: d.key })) }));
+    const ws = new WebSocket(url.startsWith('/') ? (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + url : url); ws.binaryType = 'arraybuffer'; ln.ws = ws;
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'start', video: mime.video, dests: at.map((i) => ({ url: all[i].url, key: all[i].key })) }));
     ws.onmessage = (ev) => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'ready') startFeed(L, mime);
+      if (m.t === 'ready') startFeed(L, ln, mime);
       else if (m.t === 'dest') {
-        const at = idx[m.i]; if (at == null) return;
-        L_STATUS[at] = { state: m.state, reason: m.reason || '' };
-        const nm = (PLATFORMS[all[at]?.kind] || PLATFORMS.custom).name;
+        const i = at[m.i]; if (i == null) return;
+        L_STATUS[i] = { state: m.state, reason: m.reason || '' };
+        const nm = (PLATFORMS[all[i]?.kind] || PLATFORMS.custom).name;
         if (m.state === 'failed') { L.failed = [...(L.failed || []), nm]; toast(`Not reaching ${nm}: ${m.reason}. The other destinations keep going.`, { err: true, ms: 10000 }); }
         renderDests(true); renderLive();
       }
       else if (m.t === 'live' && L.phase === 'connecting') {
         clearTimeout(L.giveUp);
         L.phase = 'live'; L.t0 = Date.now(); L.timer = setInterval(renderLive, 1000); renderDock();
-        setTimeout(() => { if (S.live !== L) return; const ok = L.names.filter((n) => !(L.failed || []).includes(n)); toast(ok.length ? `You’re live on ${ok.join(' and ')}.${L.failed?.length ? ` ${L.failed.join(' and ')} failed.` : ''}` : 'The relay is running, but no destination accepted the stream.', { err: !ok.length || !!L.failed?.length }); }, 1500);
-        setStage({ live: { on: true, since: L.t0, links: dests.map((d) => ({ kind: d.kind, url: watchUrl(d) })).filter((x) => x.url) } });
+        setTimeout(() => {
+          if (S.live !== L) return;
+          const ok = L.names.filter((n) => !(L.failed || []).includes(n));
+          const both = L.lanes.length > 1 ? ' Tall destinations get the 9:16 picture.' : '';
+          toast(ok.length ? `You’re live on ${ok.join(' and ')}.${L.failed?.length ? ` ${L.failed.join(' and ')} failed.` : ''}${both}` : 'The relay is running, but no destination accepted the stream.', { err: !ok.length || !!L.failed?.length });
+        }, 1500);
+        const ready = readyDests();
+        setStage({ live: { on: true, since: L.t0, links: ready.map((d) => ({ kind: d.kind, url: watchUrl(d) })).filter((x) => x.url) } });
         autoRecordStart();
       }
-      else if (m.t === 'stats') { L.stats = m; renderLive(); }
+      else if (m.t === 'stats') { if (lane === 'h' || !L.lanes.some((x) => x.lane === 'h')) L.stats = m; renderLive(); }
       else if (m.t === 'warn' && !L.warned.has(m.message)) { L.warned.add(m.message); toast('Streaming problem: ' + m.message, { err: true }); }
       else if (m.t === 'error') toast(m.message, { err: true });
     };
     ws.onclose = (ev) => {
+      ln.open = false;
+      try { ln.rec?.state !== 'inactive' && ln.rec?.stop(); } catch {}
+      ln.vs?.getTracks().forEach((t) => t.stop());
       if (S.live !== L) return;
       const expected = L.phase === 'stopping';
+      if (L.lanes.some((x) => x.open)) { // the other shape keeps going
+        if (!expected) toast(`The ${lane === 'v' ? '9:16' : '16:9'} stream stopped; the other one is still live.`, { err: true });
+        if (lane === 'v') app.useTall?.('live', false);
+        return;
+      }
       endLive(L);
       if (!expected) toast(ev.code === 1006 ? 'The stream stopped: lost the connection to the relay.' : 'The stream stopped.', { err: true });
       else toast('Stream ended.');
     };
   }
-  function startFeed(L, mime) {
-    const vs = canvas.captureStream(30);
+  function startFeed(L, ln, mime) {
+    const src = ln.lane === 'v' ? app.tallCanvas : canvas;
+    const vs = src.captureStream(30);
     const stream = new MediaStream([...vs.getVideoTracks(), ...app.recDest.stream.getAudioTracks()]);
     let rec;
-    try { rec = new MediaRecorder(stream, { mimeType: mime.mimeType, videoBitsPerSecond: 4_500_000, audioBitsPerSecond: 160_000, videoKeyFrameIntervalDuration: 2000 }); }
-    catch (e) { toast('Could not start the stream: ' + e.message, { err: true }); L.ws.close(1000); return; }
+    try { rec = new MediaRecorder(stream, { mimeType: mime.mimeType, videoBitsPerSecond: ln.lane === 'v' ? 3_500_000 : 4_500_000, audioBitsPerSecond: 160_000, videoKeyFrameIntervalDuration: 2000 }); }
+    catch (e) { toast('Could not start the stream: ' + e.message, { err: true }); ln.ws.close(1000); return; }
     rec.ondataavailable = async (e) => {
-      if (!e.data.size || L.ws.readyState !== 1) return;
-      L.ws.send(await e.data.arrayBuffer());
-      const behind = L.ws.bufferedAmount;
+      if (!e.data.size || ln.ws.readyState !== 1) return;
+      ln.ws.send(await e.data.arrayBuffer());
+      const behind = ln.ws.bufferedAmount;
       L.slow = behind > 4_000_000;
       if (behind > 40_000_000) { toast('Your upload can’t keep up, so the stream was stopped. Try a wired connection.', { err: true }); stopLive(); }
     };
     rec.start(250);
-    Object.assign(L, { rec, vs });
+    Object.assign(ln, { rec, vs });
   }
   function stopLive() {
     const L = S.live;
     if (!L || L.phase === 'stopping') return;
     L.phase = 'stopping'; renderLive();
-    try { L.rec?.state !== 'inactive' && L.rec?.stop(); } catch {}
-    setTimeout(() => { try { L.ws?.close(1000); } catch {} }, 600);
+    for (const ln of L.lanes) { try { ln.rec?.state !== 'inactive' && ln.rec?.stop(); } catch {} }
+    setTimeout(() => { for (const ln of L.lanes) { try { ln.ws?.close(1000); } catch {} } }, 600);
     setTimeout(() => { if (S.live === L) endLive(L); }, 4000);
   }
   /** Settings → Auto-record every live show: a local recording starts with the stream and stops when it ends. */
@@ -266,8 +323,11 @@ export function createGoLive(app) {
     if (S.rec?.auto) { try { S.rec.recorder.stop(); } catch {} }
     clearInterval(L.timer); clearTimeout(L.giveUp); clearInterval(L.wakeTimer); L_STATUS = {};
     if (L.phase === 'live' || L.t0) setStage({ live: null });
-    try { L.rec?.state !== 'inactive' && L.rec?.stop(); } catch {}
-    L.vs?.getTracks().forEach((t) => t.stop());
+    for (const ln of L.lanes || []) {
+      try { ln.rec?.state !== 'inactive' && ln.rec?.stop(); } catch {}
+      ln.vs?.getTracks().forEach((t) => t.stop());
+    }
+    app.useTall?.('live', false);
     S.live = null; renderLive(); renderDock();
   }
   $('#liveBtn').onclick = goLive;

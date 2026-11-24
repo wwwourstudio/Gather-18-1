@@ -5718,3 +5718,13 @@ body.pre .views-pill { display: none; }
 }
 /* The composer orb and chip dots hold still: one more spinning gradient costs frames on slow machines. */
 .composer-box .sam-btn .orb, .sam-chip::before { animation: none; }
+
+/* Go live: per-destination shape and the 9:16 preview */
+.dest-top .dest-fmt { height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--fill); color: var(--ink-2); font: 600 12px/1 var(--font-ui); margin-left: auto; }
+.tall-prev { display: flex; gap: 14px; align-items: center; margin: 12px 0 0; padding: 12px; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--fill); }
+.tall-prev[hidden] { display: none; }
+.tall-prev canvas { flex: none; width: 90px; height: 160px; border-radius: 10px; background: #000; box-shadow: 0 0 0 1px rgba(255, 255, 255, .1), 0 12px 30px -14px rgba(0, 0, 0, .8); }
+.tall-prev figcaption { display: grid; gap: 4px; min-width: 0; }
+.tall-prev figcaption b { font-size: 13px; color: var(--ink); }
+.tall-prev figcaption span { font-size: 12px; font-weight: 600; color: var(--accent-text); }
+.tall-prev figcaption small { font-size: 12px; line-height: 1.4; color: var(--ink-3); }

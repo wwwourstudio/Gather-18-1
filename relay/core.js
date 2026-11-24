@@ -40,7 +40,8 @@ function createRelay({ secret, max = 3, transcode = 'auto', ffmpeg = 'ffmpeg', l
 
   let live = 0;
   const used = new Map(); // token nonce → expiry: tokens are single-use
-  const studios = new Map(); // studio → its open socket: one stream per studio
+  const studios = new Map(); // studio:lane → its open socket: one stream per studio per lane (16:9 and 9:16)
+  const laneKey = (c) => c.s + ':' + (c.l === 'v' ? 'v' : 'h');
   const releaseStudio = (s, ws) => { if (studios.get(s) === ws) studios.delete(s); };
   const wss = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 * 1024 });
   function handleUpgrade(req, socket, head, pathname) {
@@ -50,10 +51,10 @@ function createRelay({ secret, max = 3, transcode = 'auto', ffmpeg = 'ffmpeg', l
     if (live >= MAX) { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return; }
     // Each token works once, and each studio streams once at a time, so a leaked token can't fill the relay.
     if (used.has(claim.n || u.searchParams.get('t'))) { socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); return; }
-    if (studios.has(claim.s)) { socket.end('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n'); return; }
+    if (studios.has(laneKey(claim))) { socket.end('HTTP/1.1 409 Conflict\r\nConnection: close\r\n\r\n'); return; }
     used.set(claim.n || u.searchParams.get('t'), claim.e);
     for (const [k, e] of used) if (e < Date.now()) used.delete(k);
-    wss.handleUpgrade(req, socket, head, (ws) => { studios.set(claim.s, ws); run(ws, claim); });
+    wss.handleUpgrade(req, socket, head, (ws) => { studios.set(laneKey(claim), ws); run(ws, claim); });
   }
 
   function run(ws, claim) {
@@ -66,7 +67,7 @@ function createRelay({ secret, max = 3, transcode = 'auto', ffmpeg = 'ffmpeg', l
     const finish = (why) => {
       if (ended) return; ended = true; live--;
       clearTimeout(firstMsg); clearTimeout(idle);
-      releaseStudio(claim.s, ws);
+      releaseStudio(laneKey(claim), ws);
       if (ff) { try { ff.stdin.end(); } catch {} setTimeout(() => ff && ff.kill('SIGKILL'), 5000).unref(); }
       log.log(`[relay] ${claim.s} ended: ${why}`);
     };

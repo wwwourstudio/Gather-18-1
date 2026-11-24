@@ -63,6 +63,8 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
   await a.fill('#destList li:nth-child(2) [data-k="key"]', sinks[1].key); await a.press('#destList li:nth-child(2) [data-k="key"]', 'Tab');
   await a.fill('#destList li:nth-child(1) [data-k="watch"]', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'); await a.press('#destList li:nth-child(1) [data-k="watch"]', 'Tab');
   await a.fill('#destList li:nth-child(2) [data-k="watch"]', 'https://www.twitch.tv/gathershow'); await a.press('#destList li:nth-child(2) [data-k="watch"]', 'Tab');
+  // The second destination takes the tall picture: one Go live sends 16:9 to the first and 9:16 to the second.
+  await a.selectOption('#destList li:nth-child(2) [data-k="fmt"]', '9:16');
   const w = await mk();
   // The watch page shows the studio directly (WebRTC from the host) even before going live on any platform.
   await w.goto(B + '/w/' + code);
@@ -75,17 +77,19 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
   console.log('  live; video path:', codecPath);
   await a.waitForTimeout(7000);
   console.log('  stats:', await a.textContent('#liveStats'), '| header:', await a.textContent('#liveTop'));
-  await a.screenshot({ path: path.join(process.argv[2] || TMP, 'live-on-air.png') });
+  check('both shapes are live on their own relay lanes', await a.evaluate(() => window.__gather.live?.lanes?.map((l) => l.lane).sort().join() === 'h,v'));
+  // Screenshots are for people, not checks: a sandbox that can't load web fonts must not fail the run.
+  await a.screenshot({ path: path.join(process.argv[2] || TMP, 'live-on-air.png'), timeout: 8000 }).catch(() => {});
   await w.waitForFunction(() => /^Live · /.test(document.getElementById('wLiveText').textContent), null, { timeout: 8000 }).catch(() => {});
   const tabs = await w.evaluate(() => [...document.querySelectorAll('#wTabs button')].map((b) => b.textContent));
   await w.click('#wTabs button:has-text("YouTube")'); await w.waitForSelector('#wPlayer iframe', { timeout: 8000 });
   const src = await w.getAttribute('#wPlayer iframe', 'src');
   check('watch page offers direct plus both platforms, and plays YouTube when picked', src.startsWith('https://www.youtube.com/embed/dQw4w9WgXcQ') && tabs.length === 3 && /Direct/.test(tabs[0]) && await w.isVisible('#wLive'), `${src} | ${tabs.join(', ')}`);
-  await w.screenshot({ path: path.join(process.argv[2] || TMP, 'live-watch-page.png') });
+  await w.screenshot({ path: path.join(process.argv[2] || TMP, 'live-watch-page.png'), timeout: 8000 }).catch(() => {});
   const keyOnWatch = await w.evaluate(async (c) => JSON.stringify(await (await fetch('/api/studio?action=watch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ studio: c }) })).json()), code);
   const feedOnWatch = await w.evaluate(async (c) => JSON.stringify(await (await fetch('/api/studio?action=wfeed&studio=' + c)).json()), code);
   check('the public watch info and feed have no stream keys', !sinks.some((x) => keyOnWatch.includes(x.key) || feedOnWatch.includes(x.key)));
-  await a.click('#liveBtn');
+  await a.evaluate(() => document.querySelector('#liveBtn').click()); // direct: a busy page never looks "stable" to Playwright
   await a.waitForFunction(() => !window.__gather.live, null, { timeout: 10000 });
   for (const s of sinks) await exited(s.proc, 10000);
   const notLive = await w.waitForFunction(() => !/^Live · /.test(document.getElementById('wLiveText').textContent), null, { timeout: 8000 }).then(() => true).catch(() => false);
@@ -95,6 +99,8 @@ const check = (name, cond, detail = '') => { console.log(`${cond ? 'ok  ' : 'FAI
     try { info = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height:format=duration', '-of', 'json', s.file]).toString()); } catch (e) { info = { error: e.message.slice(0, 120) }; }
     const v = info.streams?.find((x) => x.codec_type === 'video'), au = info.streams?.find((x) => x.codec_type === 'audio'), dur = Number(info.format?.duration || 0);
     check(`destination ${i + 1} received H.264 video and AAC audio (${dur.toFixed(1)} s)`, v?.codec_name === 'h264' && au?.codec_name === 'aac' && dur > 4, JSON.stringify(info).slice(0, 200));
+    const [ww, hh] = i === 0 ? [1280, 720] : [720, 1280];
+    check(`destination ${i + 1} got the ${i === 0 ? '16:9' : '9:16'} picture (${v?.width}x${v?.height})`, v?.width === ww && v?.height === hh);
   }
   const leaked = toGather.some((body) => sinks.some((s) => body.includes(s.key)));
   check('stream keys never reach gather’s server', !leaked);

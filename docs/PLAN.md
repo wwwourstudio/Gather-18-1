@@ -65,3 +65,24 @@ In order of value for effort:
 2. B1 clip buffer, then B2 phone studio, then B4 and B5 cleanups and B6 layout fixes.
 3. The Live and People tabs, Sam recap, and one notification queue.
 4. AI highlight clips (it reuses B1), then cart, then XP rewards.
+
+---
+
+# Plan, round 2 (after B1–B7)
+
+Done since round 1: notification bar, phone studio, calmer scene cards, studio dock, Sam inside the studio chat,
+the watch page glow.
+
+**Only the site owner can do:** set `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `HOUSE_AI_PROVIDER` and `HOUSE_AI_KEY` in hosting.
+
+| # | What | How | Done when |
+|---|------|-----|-----------|
+| R1 ✅ | **Vertical and widescreen at once** | The compositor draws each frame twice: the 16:9 program, then a 9:16 companion on a second canvas. Built-in layouts reflow (stack instead of side by side); custom scenes map to the matching vertical template (slides → Vertical presentation, AI → Vertical AI, chat → Vertical + chat, 2+ people → Stacked duo, else Vertical solo); lower third, ticker and logo move to their vertical spots. Each destination gets a format (Auto: TikTok and Instagram tall, the rest wide). Go live opens one relay lane per format; the relay allows one stream per studio *per lane*. A "Tall preview" shows the companion. | TikTok gets 9:16 and YouTube 16:9 from one Go live; tests cover the lane split and the companion render. |
+| R2 | **Watch page Live and People tabs** | Live: the running poll, prediction, auction or drop as one card plus the play-with-me line. People: who's here, top fans, moderators. | Tabs show real data from the feed; test. |
+| R3 | **@Sam recap** | A viewer types "@Sam recap" or taps "What did I miss?": Sam summarises the last 10 minutes of captions and chat. | Answer in the watch chat; test with a mocked AI. |
+| R4 | **Instant replay** | The host taps Replay: the last 30 s from the clip buffer plays on stage as a media layer, then the scene comes back. | Replay plays and returns; test. |
+| R5 | **Auto highlight clips** | Chat spikes, super chats and big reactions mark a moment by themselves (rate-limited) and show in Moments. | Moments appear without a click; test. |
+| R6 | **Cart** | Viewers add several shop items, then pay once with Stripe Checkout. | One checkout for many items; pay test with the Stripe mock. |
+| R7 | **Spend XP** | Viewers spend XP on a highlighted message or a song request. | XP goes down and the reward shows; test. |
+
+Order: R1 → R2 → R3 → R4 → R5 → R6 → R7. After each: `npm run check`, the affected suites, commit, push to main.

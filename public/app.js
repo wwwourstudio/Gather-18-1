@@ -93,6 +93,7 @@ if (!store.get('cleanStageV3', false)) {
 
 const MAX = 6;
 let W = 1280, H = 720; // swapped to 720x1280 for the vertical stage
+let PASS = null; // { vertical, els, layout } while the tall companion is being drawn (see drawTall)
 const DEFAULT_TITLE = 'The conversation studio';
 /** A new show is named after its host ("Maya's show") instead of a placeholder that reads like a real title. */
 const autoTitle = () => { const first = String(S.name || '').trim().split(/\s+/)[0]; return first ? `${first}’s show`.slice(0, 60) : ''; };
@@ -1345,11 +1346,25 @@ function cardVideo(id) { return $(`#card-${cssId(id)} video`); }
 
 // ---------------------------------------------------------------- canvas stage
 const canvas = $('#stageCanvas');
-const g = canvas.getContext('2d');
+const g0 = canvas.getContext('2d');
+// `g` is the context draw() paints on. It is a thin proxy so a second pass can paint the tall companion canvas
+// with the very same code (and modules that were handed `g` follow along). Bound methods are cached per context.
+let gCur = g0;
+const gBound = new WeakMap();
+const g = new Proxy(g0, {
+  get(_, k) {
+    const c = gCur, v = c[k];
+    if (typeof v !== 'function') return v;
+    let m = gBound.get(c); if (!m) gBound.set(c, (m = new Map()));
+    let f = m.get(k); if (!f) m.set(k, (f = v.bind(c)));
+    return f;
+  },
+  set(_, k, v) { gCur[k] = v; return true; },
+});
 const fadeSnap = document.createElement('canvas');
 const fadeSnapCtx = fadeSnap.getContext('2d');
 let sceneFade = { active: false, from: 0, dur: 240 };
-const tileAnim = new Map(); // participant id -> { x, y, w, h, r, sx, sy, sw, sh, sr, tx, ty, tw, th, tr, t0, dur }
+let tileAnim = new Map(); // participant id -> { x, y, w, h, r, sx, sy, sw, sh, sr, tx, ty, tw, th, tr, t0, dur }
 let lastAnimW = 0, lastAnimH = 0;
 
 function smoothTileRect(id, target, now) {
@@ -1530,7 +1545,8 @@ function drawTile(p, rect, t) {
 const fillBlur = new Map(); // tile id → small canvas
 function drawFitVideo(el, x, y, w, h, id) {
   const vw = el.videoWidth, vh = el.videoHeight, ratio = (w / h) / (vw / vh);
-  if (ratio > 0.9 && ratio < 1.11) { // close enough: fill, losing at most ~5% per side
+  // The tall companion crops a wide camera to its centre, the way vertical streams frame a face.
+  if ((ratio > 0.9 && ratio < 1.11) || (PASS?.vertical && ratio < 1)) { // close enough: fill, losing at most ~5% per side
     const s = Math.max(w / vw, h / vh), sw = w / s, sh = h / s;
     g.drawImage(el, (vw - sw) / 2, (vh - sh) / 2, sw, sh, x, y, w, h);
     return;
@@ -1650,10 +1666,10 @@ function drawChrome() {
 // The program is painted tier by tier: stage → media → (brand frame) → overlays → chat → ticker → system.
 const TIER_Z = Object.fromEntries(TIERS.map((x) => [x.id, x.z]));
 /** The scene's elements, with any missing system element (lower third, ticker, logo…) at its default spot. */
-function stageElements() { return ensureSystem(S.state.elements || [], isVertical(), () => 'sys'); }
+function stageElements() { return PASS ? PASS.els : ensureSystem(S.state.elements || [], isVertical(), () => 'sys'); }
 function draw(now = performance.now()) {
   const t = now;
-  syncAspect();
+  if (!PASS) syncAspect();
   if (lastAnimW !== W || lastAnimH !== H) { tileAnim.clear(); lastAnimW = W; lastAnimH = H; }
   drawBackground(t);
   const inStudio = !!S.studio;
@@ -1668,13 +1684,14 @@ function draw(now = performance.now()) {
   const stageIds = inStudio ? S.state.stage : [myId()];
   const onStage = stageIds.map((id) => byId.get(id)).filter(Boolean);
   const onStageIds = new Set(onStage.map((p) => p.id));
-  const custom = S.state.layout === 'custom';
+  const lay = PASS ? PASS.layout : S.state.layout;
+  const custom = lay === 'custom';
   const hasMedia = custom && els.some((e) => e.type === 'media');
   for (const id of tileAnim.keys()) {
     if (id === '__media__') { if (!hasMedia) tileAnim.delete(id); }
     else if (!onStageIds.has(id)) tileAnim.delete(id);
   }
-  if (!onStage.length) {
+  if (!onStage.length && !PASS) {
     editorOnly((c) => { c.fillStyle = 'rgba(255,255,255,.7)'; c.font = '600 22px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('Add someone to the stage from “In the studio”.', W / 2, H / 2); });
   }
   // Built-in layouts place cameras automatically. Single-video solo fills edge-to-edge with zero margin.
@@ -1689,7 +1706,7 @@ function draw(now = performance.now()) {
       camRects = [fullRect];
     } else {
       const bottom = hasTicker ? tick.y * H : H;
-      const rects = layoutRects(onStage.length, custom ? 'split' : S.state.layout, { x: 0, y: 0, w: W, h: bottom });
+      const rects = layoutRects(onStage.length, custom ? 'split' : lay, { x: 0, y: 0, w: W, h: bottom });
       camRects = [];
       onStage.forEach((p, i) => {
         if (!rects[i]) return;
@@ -1722,7 +1739,7 @@ function draw(now = performance.now()) {
     else drawCountdownScreen(g, W, H, S.state.countdown, brand, font, S.feed.slice(-3), wall);
   });
   drawScAlert(t);
-  if (sceneFade.active) {
+  if (!PASS && sceneFade.active) {
     const raw = (t - sceneFade.from) / sceneFade.dur;
     if (raw >= 1 || fadeSnap.width !== W || fadeSnap.height !== H) sceneFade.active = false;
     else {
@@ -1813,6 +1830,58 @@ const accentOf = () => normalizeHex(S.state?.brand?.color) || '#3b82f6';
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
 function contrastInk(hex) { const n = parseInt(hex.slice(1), 16); const [r, gg, b] = [n >> 16, (n >> 8) & 255, n & 255]; return (0.299 * r + 0.587 * gg + 0.114 * b) > 170 ? '#111827' : '#ffffff'; }
 
+// ---------------------------------------------------------------- the tall companion (9:16 next to the 16:9 program)
+// Going live to TikTok or Instagram and YouTube at once: every frame is drawn a second time on a 720x1280 canvas.
+// Built-in layouts reflow by themselves (layoutRects stacks people on a portrait stage); a custom scene maps to the
+// vertical template with the same parts, and the lower third, ticker and logo move to their vertical spots.
+const tallCanvas = document.createElement('canvas'); tallCanvas.width = 720; tallCanvas.height = 1280;
+const tallCtx = tallCanvas.getContext('2d');
+const tall = {
+  users: new Set(), // who needs it: 'live', 'preview'
+  wanted: () => tall.users.size > 0 && S.state.aspect !== '9:16',
+  anim: new Map(), key: '', cache: null, err: false,
+};
+/** The tall version of the current scene: { layout, els }. Cached until the scene changes. */
+function tallScene() {
+  const src = S.state.elements || [], layout = S.state.layout;
+  const n = (S.state.stage || []).length;
+  const key = `${S.state.scene}|${layout}|${n}|${src.map((e) => e.type + (e.hidden ? '-' : '') + (e.id || '')).join(',')}`;
+  if (tall.key === key && tall.cache) return tall.cache;
+  const on = (t) => src.some((e) => !e.hidden && e.type === t);
+  let out;
+  if (layout !== 'custom' || !src.some((e) => !isSystem(e))) {
+    out = { layout: layout === 'custom' ? 'grid' : layout, els: [] };
+  } else {
+    const id = on('media') ? 'v-present' : on('ai') ? 'v-ai' : on('chat') ? 'v-chat' : n >= 2 ? 'v-stack' : 'v-solo';
+    const tpl = V_TEMPLATES.find((x) => x.id === id) || V_TEMPLATES[0];
+    out = { layout: 'custom', els: tpl.els.map((e, i) => withDefaults({ ...e, id: 'tall-' + i })) };
+  }
+  // The scene's system parts (lower third, ticker, logo…) at their vertical spots, hidden where the scene hides them.
+  let k = 0;
+  out.els = ensureSystem(out.els, true, () => 'tall-sys-' + k++).map((e) => {
+    if (!isSystem(e)) return e;
+    const s = src.find((x) => x.type === e.type);
+    return s?.hidden ? { ...e, hidden: true } : e;
+  });
+  tall.key = key; tall.cache = out;
+  return out;
+}
+/** Turn the companion on or off for one user ('live', 'preview', 'rec'). */
+function useTall(who, on) { if (on) tall.users.add(who); else tall.users.delete(who); tall.err = false; requestStageRender(); }
+window.__gatherTall = { canvas: tallCanvas, use: useTall, scene: () => tallScene() };
+function drawTall(now) {
+  const keep = { W, H, tileAnim, lastAnimW, lastAnimH, camRects };
+  const sc = tallScene();
+  PASS = { vertical: true, els: sc.els, layout: sc.layout };
+  gCur = tallCtx; W = 720; H = 1280; tileAnim = tall.anim; lastAnimW = 720; lastAnimH = 1280;
+  try { tallCtx.setTransform(1, 0, 0, 1, 0, 0); draw(now); }
+  catch (e) { if (!tall.err) { tall.err = true; console.warn('tall companion failed to draw:', e); } }
+  finally {
+    gCur = g0; PASS = null;
+    ({ W, H, tileAnim, lastAnimW, lastAnimH, camRects } = keep);
+  }
+}
+
 // Render loop: rAF-driven while visible (full refresh rate during layout/presenter transitions, adaptive
 // 30 fps steady-state to preserve CPU); background worker fallback keeps recordings alive in hidden tabs.
 let lastFrame = 0, nextFrame = 0, frameGap = 1000 / 30, stageRafId = 0, stageDirty = false;
@@ -1833,6 +1902,7 @@ function drawProgram(now = performance.now()) {
   S.local.pres?.draw?.();
   draw(now);
   flushEditorLayers();
+  if (tall.wanted()) drawTall(now);
   const cost = performance.now() - t0;
   const onAir = !!(S.rec || S.live || S.viewers?.size); // direct watch-page viewers count as on air
   const animating = isStageAnimating(now);
@@ -2043,7 +2113,7 @@ const V_TEMPLATES = [
   { id: 'v-chat', name: 'Vertical + chat', els: [{ type: 'slot', index: 0, x: .04, y: .06, w: .92, h: .56, radius: 16 }, { type: 'chat', x: .04, y: .65, w: .92, h: .28, max: 6, size: 24, bg: true }] },
 ];
 const TPL = Object.fromEntries([...TEMPLATES, ...V_TEMPLATES].map((t) => [t.id, t]));
-const isVertical = () => S.state.aspect === '9:16';
+const isVertical = () => (PASS ? PASS.vertical : S.state.aspect === '9:16');
 const BUILTINS = [
   { id: 'b-solo', name: 'Solo', layout: 'solo' },
   { id: 'b-split', name: 'Side by side', layout: 'split' },
@@ -3600,7 +3670,7 @@ $('#helpSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { c
 // ---------------------------------------------------------------- recording → ./golive.js
 const liveMod = createGoLive({
   $, $$, store, S, isHost, toast, fmtTime, copy, get recDest() { return recDest; }, audioCtx, api, creds,
-  wsSend, setStage, canvas, renderGoogle, renderDock, setTab, get watchLinkUrl() { return watchLinkUrl; }
+  wsSend, setStage, canvas, renderGoogle, renderDock, setTab, get watchLinkUrl() { return watchLinkUrl; }, tallCanvas, useTall
 });
 const { liveDests, readyDests } = liveMod;
 function renderSocialMatrix(...args) { return liveMod.renderSocialMatrix(...args); }

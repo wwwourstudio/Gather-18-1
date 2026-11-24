@@ -441,3 +441,19 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
 - **Phone chat sheet.** The chat fills the sheet, with the composer at the bottom.
 - **Notification bar.** Back-to-back notifications swap text in place, so the page below doesn't jump.
 - **Test note.** This sandbox renders without a GPU, so the studio runs at about 6 fps here, and did before this round too. The composer orb holds still to save frames. `store` clicks the Chat tab directly, because Playwright's "wait until stable" can starve on a page this slow. `live` and `livebuiltin` time out waiting for web fonts in this sandbox, on the previous commits as well.
+
+## R1: vertical and widescreen at the same time
+- **Compositor.** Every frame is drawn twice when a tall destination is live, or while its preview is open: the 16:9 program, then a 720x1280 companion on its own canvas.
+  - The drawing context is a small proxy, so the same draw code, and the modules that were handed `g`, paints either canvas.
+  - Each picture keeps its own tile animations.
+- **Reflow.**
+  - Built-in layouts stack people on the tall stage.
+  - Custom scenes map to the vertical template with the same parts: slides → Vertical presentation, AI → Vertical AI, chat → Vertical + chat, 2+ on stage → Stacked duo, else Vertical solo.
+  - The lower third, ticker and logo move to their vertical spots, hidden where the scene hides them.
+  - Cameras crop to their centre in the tall picture.
+- **Go live.**
+  - Each destination has a shape menu: Auto (TikTok and Instagram 9:16, the rest 16:9), 16:9 or 9:16.
+  - Go live opens one relay lane per shape. The relay allows one stream per studio per lane, and the token carries the lane.
+  - If one lane drops, the other keeps going.
+  - The dialog shows a live 9:16 preview while a tall destination is on.
+- **Verified.** `live` streams to two local RTMP servers at once. The first receives 1280x720 and the second 720x1280, both H.264 + AAC, and no stream key reaches gather or the relay log. `livebuiltin` passes too.
