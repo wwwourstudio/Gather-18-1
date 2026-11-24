@@ -355,7 +355,7 @@ function msgEl(m) {
   li.dataset.id = m.id; li.dataset.name = m.name; if (m.sc) li.dataset.sc = m.sc;
   if (m.sys) { li.className = 'sys'; li.textContent = m.text; return li; } // auction results, giveaway winners
   if (m.paid) li.className = 'paid' + (m.status === 'answered' ? ' answered' : '') + (m.status === 'pending' ? ' pending' : '');
-  else li.className = 'row' + (m.q ? ' q' : '') + (m.ai ? ' sam' : '') + (m.samQ ? ' samq' : '') + (m.host ? ' host' : '');
+  else li.className = 'row' + (m.q ? ' q' : '') + (m.ai ? ' sam' : '') + (m.samQ ? ' samq' : '') + (m.host ? ' host' : '') + (m.hl ? ' hl' : '') + (m.reward === 'song' ? ' song' : '');
   const mine = sess?.named && m.name === sess.name;
   if (mine) li.classList.add('me');
   if (!mine && sess?.named && new RegExp('@' + sess.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(m.text)) li.classList.add('mention');
@@ -876,6 +876,7 @@ $('#wCompose').addEventListener('submit', async (e) => {
     if (naming) await naming.catch(() => {});
     await ensureSession(); renderMe();
     if (/^@sam\b/i.test(text)) return askSam(text);
+    if (W.reward) return spendReward(text);
     const asking = $('#wAsk').getAttribute('aria-pressed') === 'true';
     const re = W.reply ? { n: W.reply.name, t: String(W.reply.text || '').slice(0, 80) } : undefined;
     const r = await api('wsend', { ...creds(), type: asking ? 'question' : 'chat', text, re });
@@ -893,6 +894,41 @@ $('#wCompose').addEventListener('submit', async (e) => {
     showErr('#wErr', err.message);
   }
 });
+
+// ---------------------------------------------------------------- Spend XP: a highlighted message or a song request
+const REWARD_UI = { highlight: { label: '✨ Highlighted message · 100 XP', hint: 'Your message, highlighted for everyone' }, song: { label: '🎵 Song request · 250 XP', hint: 'Artist and song' } };
+function setReward(r) {
+  W.reward = r && REWARD_UI[r] ? r : null;
+  $('#wRewardChip').hidden = !W.reward;
+  if (W.reward) { $('#wRewardChipText').textContent = REWARD_UI[W.reward].label; $('#wText').placeholder = REWARD_UI[W.reward].hint; $('#wText').focus(); }
+  else $('#wText').placeholder = 'Say something…';
+  $$('.wv-reward').forEach((b) => b.classList.toggle('on', b.dataset.reward === W.reward));
+}
+async function refreshXp() {
+  if (!sess?.named) { $('#wXpServer').textContent = 'Sign in to earn'; return; }
+  try { const r = await api('wxp', creds()); W.serverXp = r.xp; $('#wXpServer').textContent = `${r.xp.toLocaleString()} XP`; } catch {}
+}
+async function spendReward(text) {
+  try {
+    const r = await api('wspend', { ...creds(), reward: W.reward, text });
+    $('#wText').value = '';
+    W.shown.add(r.msg.id + ':');
+    W.recentChat = [...W.recentChat, r.msg].slice(-80);
+    $('#wMsgs').append(msgEl(r.msg)); $('#wMsgs').scrollTop = $('#wMsgs').scrollHeight;
+    toast(W.reward === 'song' ? 'Song request sent to the host.' : 'Your message is highlighted.');
+    setReward(null);
+    W.serverXp = r.xp; $('#wXpServer').textContent = `${r.xp.toLocaleString()} XP`;
+  } catch (err) { showErr('#wErr', err.message); }
+}
+$$('.wv-reward').forEach((b) => b.addEventListener('click', async () => {
+  if (W.reward === b.dataset.reward) return setReward(null);
+  await ensureSession().catch(() => {});
+  if (!sess?.named) { ACCT.then = () => b.click(); return openSignIn(); }
+  setReward(b.dataset.reward); setTab('chat'); refreshXp();
+}));
+$('#wRewardChipX').onclick = () => setReward(null);
+setInterval(() => { if (!document.hidden && sess?.named) refreshXp(); }, 30000);
+setTimeout(refreshXp, 2500);
 
 // ---------------------------------------------------------------- Sam in the chat
 // Anyone can @Sam in chat (or tap Ask Sam): the question and Sam's answer show for everyone. Sam answers from what

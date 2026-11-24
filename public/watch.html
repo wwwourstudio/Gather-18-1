@@ -290,6 +290,11 @@
                   <div class="wv-pt-h"><b>Your status</b><em class="num" id="wPtXp">0 XP</em></div>
                   <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">Earn XP for priority play-with-me queue &amp; prediction stakes</small></div></div>
                   <div class="wv-pt-prog"><i id="wPtProg"></i></div>
+                  <div class="wv-rewards" id="wRewards" aria-label="Spend XP">
+                    <div class="wv-pt-h"><b>Spend XP</b><em class="num" id="wXpServer" title="XP you've earned on this show">…</em></div>
+                    <button type="button" class="wv-reward" data-reward="highlight"><span aria-hidden="true">✨</span><b>Highlight a message</b><em class="num">100 XP</em></button>
+                    <button type="button" class="wv-reward" data-reward="song"><span aria-hidden="true">🎵</span><b>Request a song</b><em class="num">250 XP</em></button>
+                  </div>
                 </section>
               </div>
             </div>
@@ -472,6 +477,7 @@
       </section>
 
       <form class="wv-compose" id="wCompose" autocomplete="off">
+        <div class="wv-reward-chip" id="wRewardChip" hidden><span id="wRewardChipText"></span><button type="button" id="wRewardChipX" aria-label="Cancel the reward">×</button></div>
         <div class="wv-compose-party" id="wComposeParty">
         </div>
         <div class="wv-guest-bar" id="wGuestBar" hidden>

@@ -2084,7 +2084,7 @@ function addExternal(m) {
   if (em && em.length <= 24 && /^(\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f|\s)+$/u.test(em)) for (const e of [...em.matchAll(/\p{Extended_Pictographic}/gu)].slice(0, 4)) reactFloat(e[0]);
   pushFeed(m);
   const li = document.createElement('li');
-  li.className = 'msg ext' + (m.paid ? ' paid' : '');
+  li.className = 'msg ext' + (m.paid ? ' paid' : '') + (m.hl ? ' hl' : '') + (m.reward === 'song' ? ' song' : '');
   setMsgData(li, m);
   const who = document.createElement('div'); who.className = 'who';
   const badge = document.createElement('span'); badge.className = 'pill caps src-' + m.src; badge.textContent = m.src === 'watch' ? 'Watch' : SRC_NAME[m.src] || m.src;

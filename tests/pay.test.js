@@ -106,6 +106,7 @@ const mock = http.createServer((req, res) => {
     const bagRows = (rep?.rows || []).filter((r) => r.kind === 'sale');
     check('the sales report has the bag as one $55 line', bagRows.length === 1 && bagRows[0].cents === 5500 && /2× Show tee, Cap/.test(bagRows[0].title), JSON.stringify(bagRows));
 
+
     await page.waitForSelector('#wScPop:not([hidden]) .wv-scpop-amt', { timeout: 8000 }).catch(() => {});
     const pop = await page.$eval('#wScPop', (el) => ({ hidden: el.hidden, text: el.textContent, tier: el.dataset.tier })).catch(() => ({}));
     check('a super chat pop-up shows in the chat with amount and name', !pop.hidden && /\$25/.test(pop.text || '') && /Riley/.test(pop.text || '') && pop.tier === 'amber', JSON.stringify(pop));
@@ -122,6 +123,19 @@ const mock = http.createServer((req, res) => {
     check('the tray: card only (no app picker, no “I’ve paid”), one Pay button, its own message box and voice recorder', !dock.picker && !dock.paid && /^Pay \$/.test(dock.pay) && dock.msg && dock.rec && /Card, Apple Pay or Google Pay/.test(dock.note), JSON.stringify(dock));
     await page.fill('#wTipMsg', 'Shout out to the chat!');
     await page.screenshot({ path: process.argv[2] + '/pay-tray.png' });
+    // Spend XP: Riley's $25 super chat earned XP on the server; rewards spend it, and run out.
+    const bal = await post('wxp', { studio: code, vid: v.vid, vtok: v.vtok });
+    const hl = await post('wspend', { studio: code, vid: v.vid, vtok: v.vtok, reward: 'highlight', text: 'Best show on the internet' });
+    await sleep(5200);
+    const song = await post('wspend', { studio: code, vid: v.vid, vtok: v.vtok, reward: 'song', text: 'Daft Punk – One More Time' });
+    await sleep(5200);
+    const broke = await post('wspend', { studio: code, vid: v.vid, vtok: v.vtok, reward: 'song', text: 'Another one' });
+    check('XP buys a highlighted message and a song request, then runs out', bal.xp >= 350 && hl.msg?.hl && hl.xp === bal.xp - 100 && song.msg?.reward === 'song' && song.xp === bal.xp - 350 && broke.status === 402, JSON.stringify({ bal: bal.xp, hl: hl.xp, song: song.xp, broke: broke.status }));
+    await sleep(2100);
+    const chatNow = (await feed(code)).chat || [];
+    check('…and everyone sees them in the chat', chatNow.some((m) => m.hl && /Best show/.test(m.text)) && chatNow.some((m) => m.reward === 'song' && /Song request: Daft Punk/.test(m.text)));
+    const cheat = await post('wspend', { studio: code, vid: v.vid, vtok: 'forged', reward: 'highlight', text: 'x' });
+    check('a forged viewer can’t spend', cheat.status === 401);
     console.log('errors', JSON.stringify(errs));
   } catch (e) { console.log('FAIL threw: ' + (e.stack || e)); ok = false; }
   await browser.close(); mock.close();

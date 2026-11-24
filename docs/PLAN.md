@@ -83,6 +83,6 @@ the watch page glow.
 | R4 ✅ | **Instant replay** | The host taps Replay: the last 30 s from the clip buffer plays on stage as a media layer, then the scene comes back. | Replay plays and returns; test. |
 | R5 ✅ | **Auto highlight clips** | Chat spikes, super chats and big reactions mark a moment by themselves (rate-limited) and show in Moments. | Moments appear without a click; test. |
 | R6 ✅ | **Cart** | Viewers add several shop items, then pay once with Stripe Checkout. | One checkout for many items; pay test with the Stripe mock. |
-| R7 | **Spend XP** | Viewers spend XP on a highlighted message or a song request. | XP goes down and the reward shows; test. |
+| R7 ✅ | **Spend XP** | Viewers spend XP on a highlighted message or a song request. | XP goes down and the reward shows; test. |
 
 Order: R1 → R2 → R3 → R4 → R5 → R6 → R7. After each: `npm run check`, the affected suites, commit, push to main.

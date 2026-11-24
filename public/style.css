@@ -5731,3 +5731,7 @@ body.pre .views-pill { display: none; }
 
 /* Mark clip and Replay side by side on the stage */
 #stageClip { display: flex; gap: 6px; }
+
+/* Viewer rewards in the studio chat */
+#msgs .msg.ext.hl { background: color-mix(in srgb, #fbbf24 12%, transparent); box-shadow: inset 3px 0 0 #fbbf24; border-radius: 10px; }
+#msgs .msg.ext.song { background: color-mix(in srgb, #a855f7 14%, transparent); box-shadow: inset 3px 0 0 #a855f7; }

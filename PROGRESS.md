@@ -498,3 +498,16 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - Up to 10 lines of up to 9 each.
   - When Stripe confirms, `wshopdone` takes every line out of stock, posts one "Just bought 2× …" per line, and keeps the bag as one line in the sales report.
 - **Tests.** `pay` checks the stock limit, one checkout at the server's prices ($55 for 2× $20 + $15, even with a forged $0.01), nothing leaving stock before payment, stock after payment, and one sales line.
+
+## R7: spend XP
+- **Party → Your status → Spend XP.** ✨ Highlight a message (100 XP) or 🎵 Request a song (250 XP).
+  - Picking one puts a chip in the message box, and sending spends the XP.
+  - Highlighted messages glow amber and song requests purple, on the watch page and in the studio chat.
+  - Sam flags each song request to the host, with "Show on stage".
+- **Server.**
+  - Rewards spend the XP kept per show on the server (earned by chatting, voting, predicting, super chats and auction wins).
+  - `wspend` checks the balance and takes it inside a lock, so it can't go below zero or be raced.
+  - It is rate-limited to one reward every 5 s.
+  - `wxp` reads the balance.
+- **Tests.** `pay` checks that a $25 super chat's XP buys a highlight and a song request and then runs out (402), that both show in the chat, and that a forged viewer can't spend.
+- **Open point.** The watch page still has the older on-device XP counter (used for prediction wagers) next to the server balance. Merging them into one number is a follow-up.

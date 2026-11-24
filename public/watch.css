@@ -2644,3 +2644,19 @@ html.chat-only .wv > :not(.wv-main):not(.wv-backdrop):not(dialog):not(.wv-drawer
 
 /* Bag: one checkout */
 .wv-bag-pay { margin-top: 10px; height: 44px; border-radius: 12px; font-weight: 700; }
+
+/* Spend XP */
+.wv-rewards { display: grid; gap: 6px; margin-top: 10px; }
+.wv-reward { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.16); background: rgba(255, 255, 255, 0.035); color: var(--ink); font: 600 13px/1.2 var(--font-ui); cursor: pointer; text-align: left; transition: border-color .15s, background-color .15s, transform .12s; }
+.wv-reward b { flex: 1; font-weight: 600; }
+.wv-reward em { font-style: normal; font-size: 12px; font-weight: 700; color: #fbbf24; }
+.wv-reward:hover { border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.07); }
+.wv-reward:active { transform: scale(.98); }
+.wv-reward.on { border-color: #fbbf24; background: rgba(251, 191, 36, 0.12); }
+.wv-reward-chip { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 5px 6px 5px 12px; border-radius: 999px; background: rgba(251, 191, 36, 0.14); border: 1px solid rgba(251, 191, 36, 0.4); color: #fde68a; font: 700 12px/1 var(--font-ui); width: fit-content; }
+.wv-reward-chip[hidden] { display: none; }
+.wv-reward-chip button { width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, 0.25); color: inherit; cursor: pointer; }
+#wMsgs li.row.hl { background: linear-gradient(90deg, rgba(251, 191, 36, 0.16), rgba(251, 191, 36, 0.04)); box-shadow: inset 3px 0 0 #fbbf24; border-radius: 12px; animation: wv-hl-in .6s ease both; }
+#wMsgs li.row.song { background: linear-gradient(90deg, rgba(168, 85, 247, 0.18), rgba(168, 85, 247, 0.04)); box-shadow: inset 3px 0 0 #a855f7; }
+@keyframes wv-hl-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { #wMsgs li.row.hl { animation: none; } }

@@ -77,6 +77,13 @@ export function createSamChat(app) {
     lastChat = Date.now(); quietSaid = 0;
     if (!on() || !m || m.src === 'studio' || m.src === 'ai') return;
     const text = String(m.text || '').trim();
+    if (m.reward === 'song') { // a viewer spent XP on a song request: make sure the host sees it
+      const song = text.replace(/^🎵\s*Song request:\s*/, '');
+      note(`🎵 ${m.name || 'A viewer'} spent 250 XP on a song request: “${song.slice(0, 100)}”`, [
+        { label: 'Show on stage', run: () => setStage({ featured: { id: m.id || 'song-' + Date.now(), src: m.src || 'watch', name: m.name || 'Viewer', text: `🎵 ${song}` } }) },
+      ], { gap: 0 });
+      return;
+    }
     if (text.length < 8 || !/\?\s*$|^(how|what|why|when|where|who|can|could|do|does|is|are|will|would|should)\b/i.test(text)) return;
     if (Date.now() - lastQuestion < 45e3) return;
     lastQuestion = Date.now();
