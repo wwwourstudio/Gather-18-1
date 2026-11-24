@@ -60,7 +60,8 @@ const signUp = async (page, name) => {
     check('viewer: emote renders as an image', await wait(v, () => [...document.querySelectorAll('#wMsgs img.emote')].some((i) => i.src.startsWith('data:image'))));
 
     // Host: sees the question and the player; calls the next player.
-    await a.click('[data-tab="chat"]');
+    // A direct click: on a slow software-rendered page Playwright's "stable" wait can starve (see PROGRESS.md).
+    await a.evaluate(() => document.querySelector('.rail-btn[data-tab="chat"]').click());
     check('host: the question is flagged in the studio chat', await wait(a, () => [...document.querySelectorAll('#msgs .msg.ext')].some((li) => /Question/.test(li.textContent) && /GPU/.test(li.textContent))));
     await a.click('[data-tab="show"]'); await a.click('.aud-seg:visible [data-aud="gaming"]'); await a.click('#queueNext');
     check('viewer: told they are up, with a join button', await wait(v, () => /You’re up/.test(document.querySelector('#wCards [data-card="queue"]')?.textContent || ''), null, 20000));

@@ -440,3 +440,4 @@ Five reviewers (flow, visual, layout, interaction/accessibility, simplification)
   - Sam posts short notes with action buttons: a hello, going live, viewer questions ("Show on stage" / "Draft an answer") and a quiet chat. Notes cost no AI request, and AI settings → "Notes in the chat" turns them off.
 - **Phone chat sheet.** The chat fills the sheet, with the composer at the bottom.
 - **Notification bar.** Back-to-back notifications swap text in place, so the page below doesn't jump.
+- **Test note.** This sandbox renders without a GPU, so the studio runs at about 6 fps here, and did before this round too. The composer orb holds still to save frames. `store` clicks the Chat tab directly, because Playwright's "wait until stable" can starve on a page this slow. `live` and `livebuiltin` time out waiting for web fonts in this sandbox, on the previous commits as well.

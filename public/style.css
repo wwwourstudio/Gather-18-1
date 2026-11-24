@@ -5716,3 +5716,5 @@ body.pre .views-pill { display: none; }
 @media (max-width: 720px) {
   body:not(.pre) .main > .side .composer { position: static; bottom: auto; background: transparent; padding-bottom: 10px; }
 }
+/* The composer orb and chip dots hold still: one more spinning gradient costs frames on slow machines. */
+.composer-box .sam-btn .orb, .sam-chip::before { animation: none; }
