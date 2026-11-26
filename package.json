@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "build": "esbuild src/mood-chart.jsx --bundle --format=esm --target=es2022 --minify --outfile=public/mood-chart.js && node scripts/check.js",
-    "build:charts": "esbuild src/mood-chart.jsx --bundle --format=esm --target=es2022 --minify --outfile=public/mood-chart.js",
+    "build": "node scripts/build-assets.js && node scripts/check.js",
+    "build:assets": "node scripts/build-assets.js",
+    "build:charts": "esbuild src/mood-chart.js --bundle --format=esm --target=es2022 --minify --outfile=public/mood-chart.js",
+    "build:cloud": "esbuild src/firebase-client.js --bundle --format=esm --target=es2022 --minify --outfile=public/firebase-client.js",
     "lint": "node scripts/check.js",
     "test": "node tests/run.js",
     "check": "node scripts/check.js",
@@ -24,12 +26,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.3.0",
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
+    "@google/genai": "^3.6.1",
     "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
+    "firebase": "^13.4.0",
     "ioredis": "5.4.1",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "react-is": "^19.3.1",
-    "recharts": "^3.11.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

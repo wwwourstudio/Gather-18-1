@@ -291,6 +291,7 @@ function render(info) {
   tip.setAttribute('aria-disabled', String(!w.supers));
   tip.dataset.tip = w.supers ? 'Super chat' : 'Tips aren’t on for this show';
   if (!w.supers && !$('#wTipDock').hidden) closeTipDock();
+  else if (w.supers && !$('#wTipDock').hidden) superChat?.syncLive?.();
   $('#wMic').hidden = w.voice === false || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
   $('#wChatState').textContent = !info.found ? '' : w.chat === false ? 'Chat off' : w.slow ? `Slow · ${w.slow}s` : '';
   $('#wCompose').hidden = !info.found || w.chat === false;
@@ -558,6 +559,16 @@ function renderPeople(info) {
     }));
   }
   $('#wTeamWrap').hidden = !team.length;
+  applyPeopleFilter();
+}
+
+function applyPeopleFilter() {
+  const q = ($('#wPeopleSearch')?.value || '').trim().toLowerCase();
+  for (const sel of ['#wFans li', '#wTeam li']) {
+    for (const li of $$(sel)) {
+      li.hidden = !!q && !li.textContent.toLowerCase().includes(q);
+    }
+  }
 }
 
 function renderTops(items) {
@@ -1692,6 +1703,17 @@ async function placeBid(a, amt, btn) {
   } catch (e) { toast(e.message, true); poll(); }
   finally { btn.disabled = false; }
 }
+async function confirmShopOrder(orderId) {
+  for (let i = 0; i < 8; i++) {
+    try {
+      const res = await api('wshopdone', { ...creds(), orderId });
+      if (res.status === 'paid') return { ok: true, res };
+      if (res.status === 'expired') return { ok: false, expired: true };
+    } catch {}
+    await new Promise((r) => setTimeout(r, i < 3 ? 900 : 1400));
+  }
+  return { ok: false, pending: true };
+}
 async function payAuction(a, btn) {
   try {
     btn.disabled = true;
@@ -1709,10 +1731,14 @@ async function payAuction(a, btn) {
       shopCheckoutMount = await stripe.initEmbeddedCheckout({
         fetchClientSecret: async () => r.clientSecret,
         onComplete: async () => {
-          try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
+          const barTitle = host.querySelector('.wv-co-bar b');
+          if (barTitle) barTitle.textContent = 'Confirming payment with Stripe…';
+          const done = await confirmShopOrder(r.orderId);
           try { shopCheckoutMount?.destroy(); } catch {}
           shopCheckoutMount = null; host.hidden = true; replaceKids(host);
-          toast(`Paid! ${a.title} is yours.`);
+          if (done.expired) toast('Checkout expired before payment completed.', true);
+          else toast(done.ok ? `Paid! ${a.title} is yours.` : 'Payment received — confirming your auction order shortly.');
+          poll();
         },
       });
       shopCheckoutMount.mount($('#wCoMount'));
@@ -1918,7 +1944,7 @@ new ResizeObserver(() => { const p = $('#wHostAbout'); $('#wHostMore').hidden = 
 function renderRoom(info) {
   const on = !!info.found;
   const names = on ? (info.here || []) : [], n = on ? info.viewers || 0 : 0;
-  $('#wHere').hidden = !on || n < 1;
+  $('#wHere').hidden = !on || names.length < 1;
   const key = names.join('|');
   if ($('#wHereAvs').dataset.k !== key) {
     $('#wHereAvs').dataset.k = key;
@@ -1930,10 +1956,97 @@ function renderRoom(info) {
   $('#wPin').hidden = !pin;
   $('#wPinText').textContent = pin;
   $('#wPinBy').textContent = `Pinned by ${info.host?.name || 'the host'}`;
+
+  // Sync People hero presence stack & Live show snapshot card
+  const peopleTotal = $('#wPeopleTotal');
+  const displayN = Math.max(n, names.length, on ? 1 : 0);
+  if (peopleTotal) peopleTotal.textContent = `${displayN.toLocaleString()} watching now`;
+  const stack = $('#wPeopleAvStack');
+  if (stack) {
+    const stackNames = names.length ? names.slice(0, 5) : [info.host?.name || 'Host'];
+    const sk = stackNames.join('|') + ':' + displayN;
+    if (stack.dataset.k !== sk) {
+      stack.dataset.k = sk;
+      const dots = stackNames.map((nm) => {
+        const s = document.createElement('span');
+        s.className = 'wv-pav';
+        s.textContent = initialsOf(nm);
+        s.title = nm;
+        s.style.background = nameColor(nm);
+        return s;
+      });
+      const overflow = Math.max(0, displayN - stackNames.length);
+      if (overflow > 0) {
+        const m = document.createElement('span');
+        m.className = 'wv-pav more num';
+        m.textContent = `+${overflow > 99 ? '99' : overflow}`;
+        dots.push(m);
+      }
+      replaceKids(stack, ...dots);
+    }
+  }
+  if ($('#wPulseEmpty')) {
+    const hasDetails = !$('#wPin').hidden || !$('#wHere').hidden || !$('#wFansWrap').hidden || !$('#wTeamWrap').hidden || !$('#wTopsWrap').hidden;
+    $('#wPulseEmpty').hidden = hasDetails;
+  }
+  const liveStatus = $('#wLiveShowStatus');
+  const liveNote = $('#wLiveShowNote');
+  if (liveStatus) {
+    liveStatus.textContent = info.live?.on
+      ? `On air · ${displayN.toLocaleString()} watching`
+      : W.direct?.state === 'live'
+        ? `Live direct · ${displayN.toLocaleString()} watching`
+        : `${info.title || 'Live show'} · Ready`;
+  }
+  if (liveNote) {
+    liveNote.textContent = pin || info.watch?.about || 'Earn +1 XP every minute you watch and unlock priority queue & chat highlights.';
+  }
   $('#wMsgs').dataset.welcome = '';
   renderWelcome(info);
   syncRailStrip();
 }
+
+// Wire enhanced Live & People sidebar hub actions
+$$('#wLiveHub .wv-lr-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    sendReact(btn.dataset.lreact || '🔥');
+    btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
+  });
+});
+$('#wLiveActTip')?.addEventListener('click', () => {
+  setTab('chat');
+  if (!$('#wTipBtn')?.hidden) openTipDock(true);
+  else toast('Super Chat opens when the host enables tips for this show.');
+});
+$('#wLiveActAsk')?.addEventListener('click', () => {
+  setTab('chat');
+  const ask = $('#wAsk');
+  if (ask && ask.getAttribute('aria-pressed') !== 'true') ask.click();
+  $('#wText')?.focus();
+});
+$('#wLiveActClip')?.addEventListener('click', () => {
+  const clip = $('#wClip');
+  if (clip && !clip.hidden) clip.click();
+  else toast('30s clips unlock once the live stream video is running.');
+});
+$('#wLiveActRoom')?.addEventListener('click', () => {
+  $('[data-sc-tab="room"]')?.click();
+  $('#wPaneRoom')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+$('#wLiveShareBtn')?.addEventListener('click', () => {
+  if ($('#wShareTop')) $('#wShareTop').click();
+  else navigator.clipboard?.writeText(location.href).then(() => toast('Show link copied!'));
+});
+$('#wPeopleInviteBtn')?.addEventListener('click', () => {
+  navigator.clipboard?.writeText(location.href)
+    .then(() => toast('Watch party link copied — share it with friends!'))
+    .catch(() => { if ($('#wShareTop')) $('#wShareTop').click(); });
+});
+$('#wPeopleRoomBtn')?.addEventListener('click', () => {
+  $('[data-sc-tab="room"]')?.click();
+  $('#wPaneRoom')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+$('#wPeopleSearch')?.addEventListener('input', applyPeopleFilter);
 
 $('#wGuest').onclick = () => {
   W.guestThen = ACCT.then; ACCT.then = null;
@@ -2024,11 +2137,14 @@ async function buyProductInline(drop, sale) {
       shopCheckoutMount = await stripe.initEmbeddedCheckout({
         fetchClientSecret: async () => r.clientSecret,
         onComplete: async () => {
-          try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
+          const barTitle = host.querySelector('.wv-co-bar b');
+          if (barTitle) barTitle.textContent = 'Confirming payment with Stripe…';
+          const done = await confirmShopOrder(r.orderId);
           try { shopCheckoutMount?.destroy(); } catch {}
           shopCheckoutMount = null;
           host.hidden = true; replaceKids(host);
-          toast(`Order confirmed! Thanks for grabbing ${drop.title}.`);
+          if (done.expired) toast('Checkout expired before payment completed.', true);
+          else toast(done.ok ? `Order confirmed! Thanks for grabbing ${drop.title}.` : 'Payment received — your order is finalizing.');
           poll();
         },
       });
@@ -2067,11 +2183,14 @@ async function checkoutBag(lines, total, onPaid) {
     shopCheckoutMount = await stripe.initEmbeddedCheckout({
       fetchClientSecret: async () => r.clientSecret,
       onComplete: async () => {
-        try { await api('wshopdone', { ...creds(), orderId: r.orderId }); } catch {}
+        const barTitle = host.querySelector('.wv-co-bar b');
+        if (barTitle) barTitle.textContent = 'Confirming payment with Stripe…';
+        const done = await confirmShopOrder(r.orderId);
         try { shopCheckoutMount?.destroy(); } catch {}
         shopCheckoutMount = null; host.hidden = true; replaceKids(host);
+        if (done.expired) { toast('Checkout expired before payment completed.', true); return; }
         const n = lines.reduce((a, l) => a + l.qty, 0);
-        toast(`Order confirmed! Thanks for grabbing ${n} item${n === 1 ? '' : 's'}.`);
+        toast(done.ok ? `Order confirmed! Thanks for grabbing ${n} item${n === 1 ? '' : 's'}.` : 'Payment received — your order is finalizing.');
         onPaid?.(); poll();
       },
     });

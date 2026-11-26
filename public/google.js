@@ -13,7 +13,10 @@ const auth = { token: '', exp: 0, scopes: new Set() };
 
 export function configureGoogle(id) { clientId = String(id || ''); }
 export const googleConfigured = () => !!clientId;
-export const googleSignedIn = (key) => !!auth.token && Date.now() < auth.exp && (!key || auth.scopes.has(SCOPES[key]));
+export const googleSignedIn = (key) => {
+  if (key === 'drive' && window.gatherCloud?.hasDriveToken?.()) return true;
+  return !!auth.token && Date.now() < auth.exp && (!key || auth.scopes.has(SCOPES[key]));
+};
 
 function loadGis() {
   gis ||= new Promise((res, rej) => {
@@ -43,6 +46,13 @@ export async function googleSignInToken() {
 
 /** An access token covering `keys` (e.g. ['drive']). Opens Google's consent popup when needed, so call from a click. */
 export async function googleToken(keys) {
+  if (keys.length === 1 && keys[0] === 'drive' && window.gatherCloud?.hasDriveToken?.()) {
+    const t = window.gatherCloud.getDriveToken();
+    auth.token = t;
+    auth.exp = Date.now() + 45 * 60 * 1000;
+    auth.scopes.add(SCOPES.drive);
+    return t;
+  }
   if (!clientId) throw new Error('Google sign-in isn’t set up on this server yet (GOOGLE_CLIENT_ID).');
   const want = keys.map((k) => SCOPES[k]);
   if (auth.token && Date.now() < auth.exp - 60_000 && want.every((s) => auth.scopes.has(s))) return auth.token;
@@ -53,8 +63,10 @@ export async function googleToken(keys) {
       client_id: clientId, scope, include_granted_scopes: true,
       callback: (r) => {
         if (r.error) return rej(new Error(r.error === 'access_denied' ? 'Google access was not allowed.' : `Google sign-in failed: ${r.error_description || r.error}`));
-        auth.token = r.access_token; auth.exp = Date.now() + (Number(r.expires_in) || 3600) * 1000;
+        const expSec = Number(r.expires_in) || 3600;
+        auth.token = r.access_token; auth.exp = Date.now() + expSec * 1000;
         auth.scopes = new Set(String(r.scope || scope).split(' '));
+        if (auth.scopes.has(SCOPES.drive)) window.gatherCloud?.setDriveToken?.(auth.token, expSec);
         const missing = want.filter((s) => !auth.scopes.has(s));
         if (missing.length) return rej(new Error('Google sign-in finished without the permission gather needs. Try again and tick every box.'));
         res(auth.token);
@@ -67,6 +79,7 @@ export async function googleToken(keys) {
 export async function googleSignOut() {
   if (auth.token) { try { (await loadGis()).revoke(auth.token, () => {}); } catch {} }
   auth.token = ''; auth.exp = 0; auth.scopes = new Set();
+  window.gatherCloud?.setDriveToken?.('', 0);
 }
 
 async function gfetch(url, opts = {}) {

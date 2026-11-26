@@ -266,37 +266,49 @@
           </nav>
 
           <div class="wv-dock-body">
-            <!-- Party: ONE unified Room Meter + Top Fans + XP & Priority status -->
+            <!-- Party: 4-column wide Watch Party Hub (Hype + Avatars | Top Fans | Your Status | Spend XP) — zero vertical scroll -->
             <div class="wv-sc-pane wv-party-v2" id="wPaneParty" role="tabpanel">
-              <div class="wv-room-meter" id="wRoomMeter" data-mood="idle">
+              <section class="wv-room-meter wv-pt-card" id="wRoomMeter" data-mood="idle" aria-label="Watch party hype">
                 <div class="wv-rm-top">
                   <div class="wv-rm-lbl">
-                    <b>Room meter</b>
+                    <b>Watch party</b>
                     <span class="wv-rm-state" id="wRoomLvl">Calm</span>
                     <span class="wv-rm-pct num" id="wRoomPct">50%</span>
                   </div>
-                  <button type="button" class="wv-pt-hypeit" id="wPtHypeIt"><span aria-hidden="true">🔥</span> Hype it</button>
+                  <button type="button" class="wv-pt-hypeit" id="wPtHypeIt"><span aria-hidden="true">🔥</span> Hype</button>
                 </div>
                 <div class="wv-rm-track" role="meter" aria-label="Room meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" id="wRoomTrack"><i id="wRoomBar" style="width:50%"></i></div>
-                <small class="wv-rm-meta" id="wRoomMeta">Live energy synced with chat velocity &amp; reactions</small>
-              </div>
-
-              <div class="wv-party-split">
-                <section class="wv-pt-clean" aria-label="Top fans">
-                  <div class="wv-pt-h"><b>Top fans</b><em id="wPtFansSub">XP &amp; super chats</em></div>
-                  <ol class="wv-pt-board" id="wPtBoard"></ol>
-                </section>
-                <section class="wv-pt-clean" aria-label="Your XP and perks">
-                  <div class="wv-pt-h"><b>Your status</b><em class="num" id="wPtXp">0 XP</em></div>
-                  <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">Earn XP for priority play-with-me queue &amp; prediction stakes</small></div></div>
-                  <div class="wv-pt-prog"><i id="wPtProg"></i></div>
-                  <div class="wv-rewards" id="wRewards" aria-label="Spend XP">
-                    <div class="wv-pt-h"><b>Spend XP</b><em class="num" id="wXpServer" title="XP you've earned on this show">…</em></div>
-                    <button type="button" class="wv-reward" data-reward="highlight"><span aria-hidden="true">✨</span><b>Highlight a message</b><em class="num">100 XP</em></button>
-                    <button type="button" class="wv-reward" data-reward="song"><span aria-hidden="true">🎵</span><b>Request a song</b><em class="num">250 XP</em></button>
+                <div class="wv-party-avrow" id="wPartyAvRow">
+                  <div class="wv-party-avs" id="wPartyAvs" aria-label="Viewers in watch party"></div>
+                  <span class="wv-party-avmeta" id="wPartyAvMeta">Live room</span>
+                  <div class="wv-party-qreacts" role="group" aria-label="Quick reactions">
+                    <button type="button" class="wv-pt-qreact" data-qreact="🔥" aria-label="Send fire reaction">🔥</button>
+                    <button type="button" class="wv-pt-qreact" data-qreact="❤️" aria-label="Send heart reaction">❤️</button>
+                    <button type="button" class="wv-pt-qreact" data-qreact="👏" aria-label="Send clap reaction">👏</button>
                   </div>
-                </section>
-              </div>
+                </div>
+                <small class="wv-rm-meta" id="wRoomMeta" hidden>Live energy synced with chat velocity &amp; reactions</small>
+              </section>
+
+              <section class="wv-pt-clean wv-pt-card" aria-label="Top fans">
+                <div class="wv-pt-h"><b>Top fans</b><em id="wPtFansSub">XP &amp; super chats</em></div>
+                <ol class="wv-pt-board" id="wPtBoard"></ol>
+              </section>
+
+              <section class="wv-pt-clean wv-pt-card" aria-label="Your XP and perks">
+                <div class="wv-pt-h"><b>Your status</b><em class="num" id="wPtXp">0 XP</em></div>
+                <div class="wv-pt-badge" id="wPtBadge"><span id="wPtBadgeIc" aria-hidden="true">👀</span><div><b id="wPtBadgeName">Just arrived</b><small id="wPtBadgeNext">5 min to “Tuned in”</small></div></div>
+                <div class="wv-pt-prog"><i id="wPtProg"></i></div>
+                <small class="wv-pt-subnote" id="wPtWatchMeta">+1 XP every minute you watch &amp; react</small>
+              </section>
+
+              <section class="wv-pt-clean wv-pt-card wv-rewards wv-rewards-card" id="wRewards" aria-label="Spend XP">
+                <div class="wv-pt-h"><b>Spend XP</b><em class="num" id="wXpServer" title="XP you've earned on this show">…</em></div>
+                <div class="wv-rewards-list">
+                  <button type="button" class="wv-reward" data-reward="highlight"><span aria-hidden="true">✨</span><b>Highlight message</b><em class="num">100 XP</em></button>
+                  <button type="button" class="wv-reward" data-reward="song"><span aria-hidden="true">🎵</span><b>Request a song</b><em class="num">250 XP</em></button>
+                </div>
+              </section>
             </div>
 
             <!-- AI Catch-up: "Missed 10 minutes?" -->
@@ -421,8 +433,31 @@
       </ol>
       <button class="wv-newer" id="wNewer" type="button" hidden>New messages ↓</button>
 
-      <!-- Consolidated Pulse Tab: Pinned Note, Who's Here & Top Supporters -->
+      <!-- Consolidated People Tab: Watch Party Presence, Search, Pinned Note, Roster & Supporters -->
       <section class="wv-pulsepanel" id="wPulsePanel" hidden aria-label="Room roster and supporters">
+        <div class="wv-people-hero" id="wPeopleHero">
+          <div class="wv-ph-top">
+            <div>
+              <span class="caps">Watch party</span>
+              <b class="wv-ph-count num" id="wPeopleTotal">1 watching</b>
+            </div>
+            <div class="wv-party-avs" id="wPeopleAvStack" aria-hidden="true"></div>
+          </div>
+          <div class="wv-ph-acts">
+            <button type="button" class="wv-hub-btn primary" id="wPeopleInviteBtn">
+              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-user-plus"/></svg>
+              <span>Invite friends</span>
+            </button>
+            <button type="button" class="wv-hub-btn" id="wPeopleRoomBtn">
+              <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-users"/></svg>
+              <span>Friend room</span>
+            </button>
+          </div>
+          <div class="wv-people-search-wrap">
+            <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-search"/></svg>
+            <input type="search" class="wv-people-search" id="wPeopleSearch" placeholder="Filter people, mods &amp; top fans…" aria-label="Filter people in the room">
+          </div>
+        </div>
 
         <div class="wv-pin" id="wPin" hidden>
           <span class="wv-pin-ic" aria-hidden="true">📌</span>
@@ -447,17 +482,58 @@
           <ul class="wv-team-list" id="wTeam"></ul>
         </div>
         <div class="wv-pulse-empty" id="wPulseEmpty">
-          <span>Pinned notes, live room roster, and top supporters appear here as viewers join and interact.</span>
+          <span>Invite friends or send a chat message to light up the watch party roster and supporter board.</span>
         </div>
       </section>
 
-      <!-- Consolidated Interactive Stage Tab Panel: Polls, Pinned Product Drops, Play-with-me Queue -->
+      <!-- Consolidated Interactive Live Tab Panel: Viewer Actions, Live Stage Cards & Show Pulse -->
       <section class="wv-stagepanel" id="wStagePanel" hidden aria-label="Interactive stage">
+        <div class="wv-live-hub" id="wLiveHub">
+          <div class="wv-live-hub-h">
+            <span class="caps">Quick reactions</span>
+            <span class="wv-live-hub-sub">Tap to float on stream</span>
+          </div>
+          <div class="wv-live-reacts" role="group" aria-label="Send live reaction">
+            <button type="button" class="wv-lr-btn" data-lreact="🔥" aria-label="Fire">🔥<span>Hype</span></button>
+            <button type="button" class="wv-lr-btn" data-lreact="❤️" aria-label="Love">❤️<span>Love</span></button>
+            <button type="button" class="wv-lr-btn" data-lreact="👏" aria-label="Clap">👏<span>Clap</span></button>
+            <button type="button" class="wv-lr-btn" data-lreact="🎉" aria-label="Celebrate">🎉<span>GG</span></button>
+            <button type="button" class="wv-lr-btn" data-lreact="😂" aria-label="Laugh">😂<span>LOL</span></button>
+          </div>
+          <div class="wv-live-actions" role="group" aria-label="Live viewer tools">
+            <button type="button" class="wv-live-act" id="wLiveActTip">
+              <span class="wv-la-ic" aria-hidden="true">💸</span>
+              <span><b>Super Chat</b><small>Highlight on stage</small></span>
+            </button>
+            <button type="button" class="wv-live-act" id="wLiveActAsk">
+              <span class="wv-la-ic" aria-hidden="true">✋</span>
+              <span><b>Ask Host</b><small>Flag a question</small></span>
+            </button>
+            <button type="button" class="wv-live-act" id="wLiveActClip">
+              <span class="wv-la-ic" aria-hidden="true">✂️</span>
+              <span><b>30s Clip</b><small>Capture moment</small></span>
+            </button>
+            <button type="button" class="wv-live-act" id="wLiveActRoom">
+              <span class="wv-la-ic" aria-hidden="true">🤝</span>
+              <span><b>Friend Room</b><small>Private side chat</small></span>
+            </button>
+          </div>
+        </div>
+
         <div class="wv-cards" id="wCards"></div>
         <div class="wv-stage-empty" id="wStageEmpty">
           <svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>
-          <b>No active stage cards</b>
-          <span>Live polls, predictions, featured shop drops, and the viewer game queue appear here as the host launches them.</span>
+          <b>Live stage moments</b>
+          <span>Polls, predictions, featured shop drops, giveaways, and the play-with-me queue appear right here when launched.</span>
+        </div>
+
+        <div class="wv-live-showcard" id="wLiveShowCard">
+          <div class="wv-lsc-top">
+            <span class="wv-lsc-dot" aria-hidden="true"></span>
+            <b id="wLiveShowStatus">Ready in the watch room</b>
+            <button type="button" class="wv-lsc-share" id="wLiveShareBtn">Share</button>
+          </div>
+          <p class="wv-lsc-note" id="wLiveShowNote">Earn +1 XP every minute you watch and unlock priority queue &amp; chat highlights.</p>
         </div>
       </section>
 
@@ -515,18 +591,20 @@
             <p class="wv-tipnote" id="wTipNote"></p>
             <p class="wv-err" id="wTipErr" role="alert" hidden></p>
           </div>
-          <div class="wv-inputwrap">
-            <input class="input" id="wText" maxlength="300" placeholder="Say something…" aria-label="Chat message" enterkeyhint="send">
-            <button class="wv-tipbtn" id="wTipBtn" type="button" aria-label="Super chat: tip the streamer" aria-expanded="false" aria-controls="wTipDock" data-tip="Super chat" hidden>$</button>
-            <button class="wv-send" id="wSend" type="submit" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-send"/></svg></button>
-          </div>
-          <div class="wv-tools">
-            <button class="wv-me" id="wMe" type="button" aria-label="Change your chat name" data-tip="Change your name"></button>
-            <span class="wv-sp"></span>
-            <button class="wv-tool sam" id="wSamBtn" type="button" aria-label="Ask Sam, the show’s AI" data-tip="Ask Sam"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
-            <button class="wv-tool" id="wAsk" type="button" aria-pressed="false" aria-label="Ask as a question" data-tip="Wave a question to the host"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg></button>
-            <button class="wv-tool" id="wMic" type="button" aria-label="Ask with your voice" data-tip="Ask with your voice" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></button>
-            <button class="wv-tool" id="wEmoji" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Emoji" data-tip="Emoji"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-smile"/></svg></button>
+          <div class="wv-composer-box">
+            <div class="wv-inputwrap">
+              <input class="input" id="wText" maxlength="300" placeholder="Say something…" aria-label="Chat message" enterkeyhint="send">
+            </div>
+            <div class="wv-tools">
+              <button class="wv-me" id="wMe" type="button" aria-label="Change your chat name" data-tip="Change your name"></button>
+              <span class="wv-sp"></span>
+              <button class="wv-tipbtn" id="wTipBtn" type="button" aria-label="Super chat: tip the streamer" aria-expanded="false" aria-controls="wTipDock" data-tip="Super chat" hidden>$</button>
+              <button class="wv-tool sam" id="wSamBtn" type="button" aria-label="Ask Sam, the show’s AI" data-tip="Ask Sam"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg></button>
+              <button class="wv-tool" id="wAsk" type="button" aria-pressed="false" aria-label="Ask as a question" data-tip="Wave a question to the host"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg></button>
+              <button class="wv-tool" id="wMic" type="button" aria-label="Ask with your voice" data-tip="Ask with your voice" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-mic"/></svg></button>
+              <button class="wv-tool" id="wEmoji" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Emoji" data-tip="Emoji"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-smile"/></svg></button>
+              <button class="wv-send" id="wSend" type="submit" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-send"/></svg></button>
+            </div>
           </div>
         </div>
         <p class="wv-err" id="wErr" role="alert" hidden></p>

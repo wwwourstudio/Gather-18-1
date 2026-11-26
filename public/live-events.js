@@ -214,14 +214,19 @@ function drawRaid(g, W, H, raid, c, font, now) {
 }
 
 /** Called by the stage renderer every frame. */
-export function draw(g, W, H, brand, font, now = Date.now()) {
+export function draw(g, W, H, brand, font, now = Date.now(), mode = 'live') {
   const c = resolveCardColors(brand);
   const st = L.api?.getState?.() || {};
+  const activeMode = mode || st.streamType || 'live';
   let y = H - Math.round(H * 0.16); // stack above name tags / lower thirds
-  if (L.auction) y -= drawAuction(g, W, H, L.auction, c, font, now, y);
-  if (L.giveaway) drawGiveaway(g, W, H, L.giveaway, c, font, now, y);
-  if (st.shoutout) drawShoutout(g, W, H, st.shoutout, c, font, now);
-  if (st.raid) drawRaid(g, W, H, st.raid, c, font, now);
+  if (activeMode === 'shopping') {
+    if (L.auction) y -= drawAuction(g, W, H, L.auction, c, font, now, y);
+    if (L.giveaway) drawGiveaway(g, W, H, L.giveaway, c, font, now, y);
+  }
+  if (activeMode === 'gamer') {
+    if (st.shoutout) drawShoutout(g, W, H, st.shoutout, c, font, now);
+    if (st.raid) drawRaid(g, W, H, st.raid, c, font, now);
+  }
 }
 
 /** Server messages ('auction' / 'giveaway'), from the poll or as the result of the host's own action. */

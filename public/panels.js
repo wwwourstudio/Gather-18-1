@@ -13,18 +13,28 @@ const store = {
 };
 
 const PANEL_INFO = {
-  chat: ['message-square', 'Studio & viewer chat in one stream'],
-  ai: ['sparkles', 'Built-in AI producer, scene builder & director'],
-  show: ['clapperboard', 'Watch page, viewers, Get paid, stage & audience'],
-  layouts: ['palette', 'Arrange the stage: layouts, scenes & direct editing'],
-  brand: ['palette', 'Brand kit, palette, backgrounds, logo & typography'],
-  overlays: ['palette', 'Overlay packs, banners, countdowns & sponsors'],
+  chat: ['message-square', 'Studio chat, live feeds & AI co-host'],
+  ai: ['sparkles', 'Built-in AI producer, voice & live vision'],
+  show: ['clapperboard', 'Watch page, viewers, payments, studio & polls'],
+  polls: ['clapperboard', 'Watch page, viewers, payments, studio & polls'],
+  layouts: ['palette', 'Layouts, Scene AI, branding, overlays & music'],
+  'scene-ai': ['palette', 'Layouts, Scene AI, branding, overlays & music'],
+  brand: ['palette', 'Layouts, Scene AI, branding, overlays & music'],
+  overlays: ['palette', 'Layouts, Scene AI, branding, overlays & music'],
+  music: ['palette', 'Layouts, Scene AI, branding, overlays & music'],
   shop: ['shopping-bag', 'Live drops, stock counter & instant checkout'],
-  polls: ['clapperboard', 'Watch page, viewers, Get paid, stage & audience'], // Audience → Polls: same header as Audience
-  gaming: ['gamepad-2', 'Scoreboard, live counters, timer, queue, bounties & hype triggers'],
-  music: ['music', 'Background music, audio clips, AI songs & FX'],
+  gaming: ['gamepad-2', 'Scoreboard, live counters, timer, queue & bounties'],
+  controller: ['layout-dashboard', '3D glass remote, multi-cam, AI & live alerts'],
 };
 const icon = (n) => `<svg class="i" aria-hidden="true"><use href="/icons.svg#i-${n}"/></svg>`;
+
+function getPanelJumpTargets(p) {
+  const detailsSecs = $$('details.psec', p).filter((d) => !d.parentElement.closest('details.psec'));
+  const jumpSecs = $$('[data-jump]', p).filter((el) => !el.closest('details.psec'));
+  const combined = [...jumpSecs, ...detailsSecs];
+  combined.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  return combined;
+}
 
 // ---------------------------------------------------------------- headers, search and jump chips
 function upgradeHeaders() {
@@ -52,8 +62,7 @@ function upgradeHeaders() {
     }
     // Remove static subtitles now covered by the unified header line
     const meta = $('.panel-meta', head); if (meta && !meta.id) meta.remove();
-    const secs = $$('details.psec', p).filter((d) => !d.parentElement.closest('details.psec'));
-    if (secs.length >= 3) addFinder(p, secs);
+    addFinder(p, getPanelJumpTargets(p));
   }
 }
 
@@ -66,43 +75,87 @@ function saveSectionState(d, open) {
 }
 
 function addFinder(p, secs) {
-  const bar = document.createElement('div'); bar.className = 'ph-tools';
-  const find = document.createElement('label'); find.className = 'ph-find';
-  find.innerHTML = `${icon('search')}<input type="search" placeholder="Find a setting" aria-label="Find a setting in this panel" spellcheck="false">`;
-  const chips = document.createElement('div'); chips.className = 'ph-chips'; chips.setAttribute('role', 'list');
-  for (const s of secs) {
-    const label = $('summary b', s)?.textContent.trim(); if (!label) continue;
-    const c = document.createElement('button'); c.type = 'button'; c.className = 'ph-chip'; c.textContent = label.replace(/&amp;/g, '&');
-    if (s.dataset.sec) c.dataset.sec = s.dataset.sec;
-    c.onclick = () => {
-      if (s.hidden && s.dataset.audGroup) p.dispatchEvent(new CustomEvent('gather:aud-jump', { bubbles: true, detail: { group: s.dataset.audGroup } }));
-      if (!s.open) { toggle(s, true); saveSectionState(s, true); }
-      requestAnimationFrame(() => s.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
-      s.classList.remove('ph-flash'); void s.offsetWidth;
-      s.classList.add('ph-flash'); setTimeout(() => s.classList.remove('ph-flash'), 1200);
-    };
-    chips.append(c);
+  const head = $('.panel-head', p);
+  if (!head) return;
+  const panelName = p.dataset.panel || '';
+  const isChat = panelName === 'chat';
+
+  // Relocate built-in tab/filter navs (.look-seg, .aud-seg, #chatFilter) into the Shop-style horizontal scrolling bar
+  const existingNav = $('.look-seg, .aud-seg, #chatFilter', p);
+
+  const bar = document.createElement('div');
+  bar.className = 'ph-tools';
+  const find = document.createElement('label');
+  find.className = 'ph-find';
+  const placeholder = isChat ? 'Search messages…' : 'Find a setting';
+  find.innerHTML = `${icon('search')}<input type="search" placeholder="${placeholder}" aria-label="${placeholder}" spellcheck="false">`;
+  bar.append(find);
+
+  let navRow = null;
+  if (existingNav) {
+    existingNav.classList.add('ph-scroll-nav');
+    bar.append(existingNav);
+    navRow = existingNav;
+  } else {
+    const chips = document.createElement('div');
+    chips.className = 'ph-chips';
+    chips.setAttribute('role', 'list');
+    for (const s of secs) {
+      const label = s.dataset.jump || $('summary b', s)?.textContent.trim();
+      if (!label) continue;
+      const c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'ph-chip';
+      c.textContent = label.replace(/&amp;/g, '&');
+      if (s.dataset.sec) c.dataset.sec = s.dataset.sec;
+      if (s.dataset.jump) c.dataset.jumpTarget = s.dataset.jump;
+      c.onclick = () => {
+        if (s.hidden && s.dataset.audGroup) p.dispatchEvent(new CustomEvent('gather:aud-jump', { bubbles: true, detail: { group: s.dataset.audGroup } }));
+        if (s.tagName === 'DETAILS' && !s.open) { toggle(s, true); saveSectionState(s, true); }
+        requestAnimationFrame(() => s.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+        s.classList.remove('ph-flash'); void s.offsetWidth;
+        s.classList.add('ph-flash'); setTimeout(() => s.classList.remove('ph-flash'), 1200);
+      };
+      chips.append(c);
+    }
+    if (chips.childElementCount > 0) {
+      bar.append(chips);
+      navRow = chips;
+    }
   }
-  bar.append(find, chips);
-  $('.panel-head', p).after(bar);
+
+  head.after(bar);
 
   const empty = document.createElement('p');
   empty.className = 'ph-empty hint';
-  empty.textContent = 'No matching settings in this panel.';
+  empty.textContent = isChat ? 'No matching messages in chat.' : 'No matching settings in this panel.';
   empty.hidden = true;
   $('.panel-body', p)?.append(empty);
 
   const input = $('input', find);
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
-    const liveSecs = $$('details.psec', p).filter((d) => !d.parentElement.closest('details.psec'));
+    if (isChat) {
+      const msgs = $$('#msgs > li.msg', p);
+      let hits = 0;
+      for (const m of msgs) {
+        const hit = !q || m.textContent.toLowerCase().includes(q);
+        m.classList.toggle('chat-search-hide', !hit);
+        if (hit) hits++;
+      }
+      empty.hidden = !q || hits > 0;
+      return;
+    }
+    const liveTargets = getPanelJumpTargets(p);
     let hits = 0;
-    for (const s of liveSecs) {
+    for (const s of liveTargets) {
       const hit = !q || s.textContent.toLowerCase().includes(q);
       s.hidden = !hit;
       if (hit) hits++;
-      if (q && hit && !s.open) { s.open = true; s.dataset.autoOpened = '1'; }
-      if (!q && s.dataset.autoOpened) { s.open = false; delete s.dataset.autoOpened; }
+      if (s.tagName === 'DETAILS') {
+        if (q && hit && !s.open) { s.open = true; s.dataset.autoOpened = '1'; }
+        if (!q && s.dataset.autoOpened) { s.open = false; delete s.dataset.autoOpened; }
+      }
     }
     const themes = $('#brandThemes', p);
     if (themes) {
@@ -110,7 +163,7 @@ function addFinder(p, secs) {
       themes.hidden = !thHit;
       if (thHit) hits++;
     }
-    chips.hidden = !!q;
+    if (navRow && navRow.classList.contains('ph-chips')) navRow.hidden = !!q;
     empty.hidden = !q || hits > 0;
     if (!q && p.dataset.panel === 'show') p.dispatchEvent(new CustomEvent('gather:aud-sync', { bubbles: true }));
   });
@@ -305,12 +358,12 @@ export function initPanels(api) {
   const applyBrand = api.applyBrand || ((patch) => api.setStage({ brand: patch }));
 
   // brand themes + brand from logo, at the top of Look → Brand
-  const kit = $('#brandKit');
+  const kit = $('#brandKitSec') || $('#brandKit');
   if (kit && !$('#brandThemes')) {
-    const sec = document.createElement('div'); sec.className = 'bt-wrap'; sec.id = 'brandThemes';
-    sec.innerHTML = `<div class="bt-head"><b>Themes</b><small>One tap restyles colours, type, banners, animation, frames and panels</small></div><div class="bt-grid" role="list"></div>
+    const sec = document.createElement('details'); sec.className = 'psec bt-wrap'; sec.id = 'brandThemes'; sec.dataset.sec = 'brand-themes'; sec.open = true;
+    sec.innerHTML = `<summary><b>Themes &amp; logo palette</b><span class="hint">one-tap show styling</span></summary><div class="psec-body"><div class="bt-grid" role="list"></div>
       <div class="bt-logo"><button type="button" class="btn sm" id="btLogoBtn">${icon('upload')}Brand from my logo</button><small>We pull your colours from it and set it as your on-stage logo</small><input type="file" id="btLogoFile" accept="image/*" hidden></div>
-      <div class="bt-pal" id="btPal" hidden></div>`;
+      <div class="bt-pal" id="btPal" hidden></div></div>`;
     kit.after(sec);
     const grid = $('.bt-grid', sec);
     for (const t of THEMES) {
@@ -381,8 +434,8 @@ export function initPanels(api) {
   // AI quick actions at the top of the AI panel
   const aiBody = $('.ai-body');
   if (aiBody && !$('#aiQuick')) {
-    const q = document.createElement('div'); q.className = 'ai-quick host-only'; q.id = 'aiQuick';
-    q.innerHTML = '<div class="bt-head"><b>Quick actions</b><small>One tap. Sam does the rest.</small></div><div class="aq-grid"></div>';
+    const q = document.createElement('details'); q.className = 'psec ai-quick host-only'; q.id = 'aiQuick'; q.dataset.sec = 'ai-quick'; q.open = true;
+    q.innerHTML = '<summary><b>Quick actions</b><span class="hint">one tap · Sam does the rest</span></summary><div class="psec-body"><div class="aq-grid"></div></div>';
     const acts = [
       ['sparkles', 'Design an overlay', () => api.designer('overlay')],
       ['image', 'Make a thumbnail', () => api.designer('thumb')],
@@ -400,6 +453,7 @@ export function initPanels(api) {
     }
     aiBody.prepend(q);
   }
+  smoothSections();
 }
 
 /** Run after other modules add sections (studio-tools, live-events): their sections get smooth folding, and each
@@ -409,14 +463,14 @@ export function refreshSections() {
   for (const p of $$('.panel')) {
     const head = $('.panel-head.ph2', p);
     if (!head) continue;
-    const secs = $$('details.psec', p).filter((d) => !d.parentElement.closest('details.psec'));
     const old = $('.ph-tools', p);
-    if (old && $$('.ph-chip', old).length === secs.filter((s) => $('summary b', s)?.textContent.trim()).length) continue;
+    if (old && $('.ph-scroll-nav', old)) continue; // Panels with tab/filter nav keep their live nav intact
+    const secs = getPanelJumpTargets(p);
+    const expectedCount = secs.filter((s) => s.dataset.jump || $('summary b', s)?.textContent.trim()).length;
+    if (old && $$('.ph-chip', old).length === expectedCount) continue;
     const q = $('.ph-tools input', p)?.value || '';
     old?.remove(); $('.ph-empty', p)?.remove();
-    if (secs.length >= 3) {
-      addFinder(p, secs);
-      if (q) { const inp = $('.ph-tools input', p); inp.value = q; inp.dispatchEvent(new Event('input')); }
-    }
+    addFinder(p, secs);
+    if (q) { const inp = $('.ph-tools input', p); if (inp) { inp.value = q; inp.dispatchEvent(new Event('input')); } }
   }
 }

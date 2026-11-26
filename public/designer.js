@@ -317,7 +317,9 @@ export function createDesigner(app) {
     finally { busy(btn, false); }
   };
   function cover(gx, img, x, y, w, h) {
-    const k = Math.max(w / img.naturalWidth, h / img.naturalHeight), dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return;
+    const k = Math.max(w / iw, h / ih), dw = iw * k, dh = ih * k;
     gx.save(); gx.beginPath(); gx.rect(x, y, w, h); gx.clip(); gx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); gx.restore();
   }
   function drawThumb() {

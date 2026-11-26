@@ -1,0 +1,400 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---- Global Hardened Primitives ----
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isVerifiedOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function userParentExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    // ---- Validation Blueprints (Anti-Update-Gap) ----
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'displayName', 'autoPrune', 'autoSyncCloudClips', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'photoURL', 'autoPrune', 'autoSyncCloudClips',
+          'aiName', 'aiVoice', 'aiVoiceName', 'sceneAiEnabled', 'createdAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid == request.auth.uid && data.uid == uid && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() <= 80
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.autoPrune is bool
+        && data.autoSyncCloudClips is bool
+        && (!('aiName' in data) || (data.aiName is string && data.aiName.size() <= 24))
+        && (!('aiVoice' in data) || (data.aiVoice is string && data.aiVoice in ['gemini', 'gemini-podcast', 'browser', 'openai', 'off']))
+        && (!('aiVoiceName' in data) || (data.aiVoiceName is string && data.aiVoiceName.size() <= 32))
+        && (!('sceneAiEnabled' in data) || data.sceneAiEnabled is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'driveFolderId', 'driveFolderName', 'updatedAt'])
+        && data.uid is string && data.uid == request.auth.uid && data.uid == uid && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && (!('driveFolderId' in data) || (data.driveFolderId is string && data.driveFolderId.size() <= 128))
+        && (!('driveFolderName' in data) || (data.driveFolderName is string && data.driveFolderName.size() <= 80))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentSettings(data, uid) {
+      return data.keys().hasAll([
+          'ownerId',
+          'stripe', 'paypal', 'venmo', 'cashapp', 'kofi', 'patreon', 'bmc',
+          'stripeOn', 'paypalOn', 'venmoOn', 'cashappOn', 'kofiOn', 'patreonOn', 'bmcOn',
+          'supersEnabled', 'bountiesEnabled', 'minAmount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'stripe', 'paypal', 'venmo', 'cashapp', 'kofi', 'patreon', 'bmc',
+          'stripeOn', 'paypalOn', 'venmoOn', 'cashappOn', 'kofiOn', 'patreonOn', 'bmcOn',
+          'supersEnabled', 'bountiesEnabled', 'minAmount', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == uid && isValidId(data.ownerId)
+        && data.stripe is string && data.stripe.size() <= 160 && (data.stripe == '' || data.stripe.matches('^https://(buy|donate)\\.stripe\\.com/[A-Za-z0-9_\\-]{4,120}$'))
+        && data.paypal is string && data.paypal.size() <= 40 && (data.paypal == '' || (!data.paypal.matches('.*\\.\\..*') && data.paypal.matches('^[A-Za-z0-9._\\-]{1,40}$')))
+        && data.venmo is string && data.venmo.size() <= 30 && (data.venmo == '' || data.venmo.matches('^[A-Za-z0-9_\\-]{2,30}$'))
+        && data.cashapp is string && data.cashapp.size() <= 20 && (data.cashapp == '' || data.cashapp.matches('^[A-Za-z][A-Za-z0-9_]{0,19}$'))
+        && data.kofi is string && data.kofi.size() <= 40 && (data.kofi == '' || (!data.kofi.matches('.*\\.\\..*') && data.kofi.matches('^[A-Za-z0-9._\\-]{1,40}$')))
+        && data.patreon is string && data.patreon.size() <= 40 && (data.patreon == '' || (!data.patreon.matches('.*\\.\\..*') && data.patreon.matches('^[A-Za-z0-9._\\-]{1,40}$')))
+        && data.bmc is string && data.bmc.size() <= 40 && (data.bmc == '' || (!data.bmc.matches('.*\\.\\..*') && data.bmc.matches('^[A-Za-z0-9._\\-]{1,40}$')))
+        && data.stripeOn is bool
+        && data.paypalOn is bool
+        && data.venmoOn is bool
+        && data.cashappOn is bool
+        && data.kofiOn is bool
+        && data.patreonOn is bool
+        && data.bmcOn is bool
+        && data.supersEnabled is bool
+        && data.bountiesEnabled is bool
+        && data.minAmount is number && data.minAmount >= 1 && data.minAmount <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavedScene(data, uid) {
+      return data.keys().hasAll(['ownerId', 'name', 'layout', 'savedAt', 'lastUsedAt', 'archived', 'autoArchived', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'ownerId', 'name', 'desc', 'participants', 'layout', 'elements', 'media',
+          'savedAt', 'lastUsedAt', 'archived', 'autoArchived', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == uid && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+        && (!('desc' in data) || (data.desc is string && data.desc.size() <= 50))
+        && (!('participants' in data) || (data.participants is list && data.participants.size() <= 12 && (data.participants.size() == 0 || data.participants[0] is string)))
+        && data.layout is string && data.layout.size() <= 40
+        && (!('elements' in data) || (data.elements is list && data.elements.size() <= 24 && (data.elements.size() == 0 || data.elements[0] is map)))
+        && (!('media' in data) || (data.media is string && data.media.size() <= 80))
+        && data.savedAt is number && data.savedAt >= 0
+        && data.lastUsedAt is number && data.lastUsedAt >= 0
+        && data.archived is bool
+        && data.autoArchived is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAiTrigger(data, uid) {
+      return data.keys().hasAll(['ownerId', 'phrase', 'actionType', 'targetId', 'targetLabel', 'enabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'phrase', 'actionType', 'targetId', 'targetLabel', 'enabled', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == uid && isValidId(data.ownerId)
+        && data.phrase is string && data.phrase.size() >= 1 && data.phrase.size() <= 60
+        && data.actionType is string && data.actionType in ['scene', 'media', 'banner']
+        && data.targetId is string && data.targetId.size() <= 120
+        && data.targetLabel is string && data.targetLabel.size() <= 120
+        && data.enabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSmartHighlight(data, uid) {
+      return data.keys().hasAll(['ownerId', 'speaker', 'snippet', 'elapsedMs', 'durationSec', 'added', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'speaker', 'snippet', 'elapsedMs', 'durationSec', 'added', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == uid && isValidId(data.ownerId)
+        && data.speaker is string && data.speaker.size() >= 1 && data.speaker.size() <= 60
+        && data.snippet is string && data.snippet.size() >= 1 && data.snippet.size() <= 160
+        && data.elapsedMs is number && data.elapsedMs >= 0
+        && data.durationSec is number && data.durationSec >= 1 && data.durationSec <= 600
+        && data.added is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCloudClip(data, uid) {
+      return data.keys().hasAll([
+          'ownerId', 'label', 'fileName', 'aspect', 'durationSec',
+          'sizeBytes', 'mimeType', 'syncStatus', 'capturedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'label', 'fileName', 'driveFileId', 'driveWebViewLink', 'driveFolderId',
+          'aspect', 'durationSec', 'sizeBytes', 'mimeType', 'syncStatus', 'capturedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == uid && isValidId(data.ownerId)
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 80
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 120
+        && (!('driveFileId' in data) || (data.driveFileId is string && data.driveFileId.size() <= 128))
+        && (!('driveWebViewLink' in data) || (data.driveWebViewLink is string && data.driveWebViewLink.size() <= 500))
+        && (!('driveFolderId' in data) || (data.driveFolderId is string && data.driveFolderId.size() <= 128))
+        && data.aspect is string && data.aspect in ['16:9', '9:16']
+        && data.durationSec is number && data.durationSec >= 0 && data.durationSec <= 300
+        && data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 536870912
+        && data.mimeType is string && data.mimeType.size() >= 1 && data.mimeType.size() <= 64
+        && data.syncStatus is string && data.syncStatus in ['local', 'syncing', 'synced', 'error']
+        && data.capturedAt is number && data.capturedAt >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMediaLibraryItem(data, uid) {
+      return data.keys().hasAll(['ownerId', 'name', 'kind', 'added', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'ownerId', 'name', 'kind', 'url', 'mimeType', 'sizeBytes',
+          'driveFileId', 'driveWebViewLink', 'added', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == uid && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.kind is string && data.kind in ['pdf', 'video', 'audio', 'image', 'link', 'youtube']
+        && (!('url' in data) || (data.url is string && data.url.size() <= 600))
+        && (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 80))
+        && (!('sizeBytes' in data) || (data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 536870912))
+        && (!('driveFileId' in data) || (data.driveFileId is string && data.driveFileId.size() <= 128))
+        && (!('driveWebViewLink' in data) || (data.driveWebViewLink is string && data.driveWebViewLink.size() <= 500))
+        && data.added is number && data.added >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // ---- Users Root Collection ----
+    match /users/{uid} {
+      allow get: if isOwner(uid) && isValidId(uid);
+      allow list: if false;
+      allow create: if isVerifiedOwner(uid)
+        && isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedOwner(uid)
+        && isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'photoURL', 'autoPrune', 'autoSyncCloudClips',
+          'aiName', 'aiVoice', 'aiVoiceName', 'sceneAiEnabled', 'updatedAt'
+        ]);
+      allow delete: if isVerifiedOwner(uid) && isValidId(uid);
+
+      // ---- Split Private PII Subcollection ----
+      match /private/{docId} {
+        allow get: if isOwner(uid) && isValidId(uid) && docId == 'info';
+        allow list: if false;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && docId == 'info'
+          && isValidUserPrivate(incoming(), uid)
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && docId == 'info'
+          && isValidUserPrivate(incoming(), uid)
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'driveFolderId', 'driveFolderName', 'updatedAt'])
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && docId == 'info';
+      }
+
+      // ---- Host Direct Payment Settings Subcollection ----
+      match /paymentSettings/{docId} {
+        allow get: if isOwner(uid) && isValidId(uid) && docId == 'default';
+        allow list: if false;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && docId == 'default'
+          && isValidPaymentSettings(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && docId == 'default'
+          && isValidPaymentSettings(incoming(), uid)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'stripe', 'paypal', 'venmo', 'cashapp', 'kofi', 'patreon', 'bmc',
+            'stripeOn', 'paypalOn', 'venmoOn', 'cashappOn', 'kofiOn', 'patreonOn', 'bmcOn',
+            'supersEnabled', 'bountiesEnabled', 'minAmount', 'updatedAt'
+          ])
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && docId == 'default' && userParentExists(uid);
+      }
+
+      // ---- Saved Scenes Subcollection ----
+      match /scenes/{sceneId} {
+        allow get: if isOwner(uid) && isValidId(uid) && isValidId(sceneId);
+        allow list: if isOwner(uid) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(sceneId)
+          && isValidSavedScene(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(sceneId)
+          && isValidSavedScene(incoming(), uid)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'desc', 'participants', 'layout', 'elements', 'media',
+              'lastUsedAt', 'archived', 'autoArchived', 'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['lastUsedAt', 'archived', 'autoArchived', 'updatedAt'])
+          )
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && isValidId(sceneId) && userParentExists(uid);
+      }
+
+      // ---- AI Triggers Subcollection ----
+      match /triggers/{triggerId} {
+        allow get: if isOwner(uid) && isValidId(uid) && isValidId(triggerId);
+        allow list: if isOwner(uid) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(triggerId)
+          && isValidAiTrigger(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(triggerId)
+          && isValidAiTrigger(incoming(), uid)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['enabled', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['phrase', 'actionType', 'targetId', 'targetLabel', 'enabled', 'updatedAt'])
+          )
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && isValidId(triggerId) && userParentExists(uid);
+      }
+
+      // ---- Smart Highlights Subcollection ----
+      match /highlights/{highlightId} {
+        allow get: if isOwner(uid) && isValidId(uid) && isValidId(highlightId);
+        allow list: if isOwner(uid) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(highlightId)
+          && isValidSmartHighlight(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(highlightId)
+          && isValidSmartHighlight(incoming(), uid)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['added', 'updatedAt'])
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && isValidId(highlightId) && userParentExists(uid);
+      }
+
+      // ---- Cloud Clips Subcollection ----
+      match /cloudClips/{clipId} {
+        allow get: if isOwner(uid) && isValidId(uid) && isValidId(clipId);
+        allow list: if isOwner(uid) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(clipId)
+          && isValidCloudClip(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(clipId)
+          && isValidCloudClip(incoming(), uid)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'driveFileId', 'driveWebViewLink', 'driveFolderId', 'sizeBytes', 'syncStatus', 'updatedAt'
+            ]) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['label', 'fileName', 'updatedAt'])
+          )
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && isValidId(clipId) && userParentExists(uid);
+      }
+
+      // ---- Media Library Subcollection ----
+      match /mediaLibrary/{itemId} {
+        allow get: if isOwner(uid) && isValidId(uid) && isValidId(itemId);
+        allow list: if isOwner(uid) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(itemId)
+          && isValidMediaLibraryItem(incoming(), uid)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && userParentExists(uid);
+        allow update: if isVerifiedOwner(uid)
+          && isValidId(uid)
+          && isValidId(itemId)
+          && isValidMediaLibraryItem(incoming(), uid)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'url', 'mimeType', 'sizeBytes', 'driveFileId', 'driveWebViewLink', 'updatedAt'
+          ])
+          && userParentExists(uid);
+        allow delete: if isVerifiedOwner(uid) && isValidId(uid) && isValidId(itemId) && userParentExists(uid);
+      }
+    }
+  }
+}

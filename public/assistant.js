@@ -11,16 +11,18 @@ export function createAssistant(app) {
   // The host's own Claude, ChatGPT, Gemini or Grok key. Answers stream into the AI panel; any answer can be put on
   // stage (the AI window shows the pinned answer, or the latest one). Guests receive the conversation read-only.
   S.ai = { items: [], busy: false };
-  S.aiProv = store.get('aiProv', 'claude');
-  const AI_DEFAULT_MODEL = { claude: 'claude-opus-5-5', openai: 'gpt-5.5', gemini: 'newest Gemini Flash (automatic)', grok: 'grok-4.7' };
+  S.aiProv = store.get('aiProv', 'gemini');
+  const AI_DEFAULT_MODEL = { claude: 'claude-opus-5-5', openai: 'gpt-5.5', gemini: 'gemini-4-hydrogen', grok: 'grok-4.7' };
   const aiSync = new Map(); // id -> timer, so streaming answers reach guests a few times a second, not per token
   function upsertAI(item, local = true) {
     if (!item?.id) return;
-    if (item.id === 'clear') { S.ai.items = []; renderAILog(); return; }
+    if (item.id === 'clear') { S.ai.items = []; renderAILog(); window.__gatherOnSrtChange?.(); return; }
     const i = S.ai.items.findIndex((x) => x.id === item.id);
-    if (i >= 0) S.ai.items[i] = { ...S.ai.items[i], ...item }; else S.ai.items.push({ ...item });
+    if (i >= 0) S.ai.items[i] = { ...S.ai.items[i], ...item, ts: S.ai.items[i].ts || item.ts || Date.now() };
+    else S.ai.items.push({ ...item, ts: item.ts || Date.now() });
     if (S.ai.items.length > 40) S.ai.items.splice(0, S.ai.items.length - 40);
     renderAILog();
+    if (item.done || item.role === 'user') window.__gatherOnSrtChange?.();
     if (!local || !S.studio || !isHost()) return;
     const send = () => { aiSync.delete(item.id); const cur = S.ai.items.find((x) => x.id === item.id); if (cur) wsSend({ type: 'ai', item: cur }); };
     if (item.done) { clearTimeout(aiSync.get(item.id)); send(); }
@@ -66,6 +68,21 @@ export function createAssistant(app) {
     const txt = document.createElement('div'); txt.className = 'txt'; txt.textContent = plainMd(it.text || '') || (it.done ? '' : ' ');
     if (!it.done) txt.classList.add('streaming');
     li.append(who, txt);
+    if (it.sources?.length) {
+      const srcRow = document.createElement('div');
+      srcRow.className = 'ai-sources';
+      for (const s of it.sources.slice(0, 6)) {
+        if (!s?.uri || !/^https?:\/\//i.test(s.uri)) continue;
+        const a = document.createElement('a');
+        a.className = 'ai-source-chip';
+        a.href = s.uri;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = s.title || s.uri;
+        srcRow.append(a);
+      }
+      if (srcRow.children.length) li.append(srcRow);
+    }
     if (it.actions?.length) { const ul = document.createElement('ul'); ul.className = 'act-chips'; ul.append(...it.actions.map(actChip)); li.append(ul); }
     if (it.note) {
       const acts = noteActions?.(it.id) || [];

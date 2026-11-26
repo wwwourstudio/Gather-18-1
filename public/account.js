@@ -102,15 +102,17 @@ export function createAccount(app) {
   function renderUser() {
     const b = $('#userBtn'), u = acct.user;
     b.classList.toggle('signed', !!u);
-    b.title = u ? `Signed in as ${u.email}` : 'Sign in';
+    document.body.classList.toggle('signed-in', !!u);
+    b.setAttribute('aria-label', u ? `Account menu (${u.name || u.email})` : 'Account menu');
+    b.removeAttribute('title');
     const av = $('#userAv');
     av.style.backgroundImage = u?.avatar ? `url("${u.avatar}")` : '';
     av.textContent = u ? (u.avatar ? '' : initials(u.name)) : '';
     $('#userIcon').toggleAttribute('hidden', !!u);
     $('#userLabel').textContent = u ? u.name : 'Sign in';
     const chev = $('#userChev');
-    if (chev) chev.toggleAttribute('hidden', !u);
-    if (!u) closeUserMenu();
+    if (chev) chev.removeAttribute('hidden');
+    if ($('#umGuestCard')) $('#umGuestCard').hidden = !!u;
     if (u) {
       const prof = store.get('creatorProfile', {});
       const umAv = $('#umAv');
@@ -325,12 +327,31 @@ export function createAccount(app) {
   const acErr = (id, msg) => { const e = $(id); e.textContent = msg; e.hidden = !msg; };
   $('#userBtn').onclick = (e) => {
     e.stopPropagation();
-    if (!acct.user) return openAccount();
     toggleUserMenu();
   };
+  $('#umSignInBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeUserMenu();
+    openAccount('in');
+  });
+  $('#umSignUpBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeUserMenu();
+    openAccount('up');
+  });
+  $('#mobSignUpBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openAccount('up');
+  });
   $$('#userMenuPop [data-um-tab]').forEach((b) => b.addEventListener('click', () => {
     closeUserMenu();
-    openAccount('in', b.dataset.umTab);
+    const tab = b.dataset.umTab;
+    if (tab === 'shortcuts' && !acct.user) {
+      openAccount('shortcuts');
+      setTimeout(() => $('#shortcutsSearch')?.focus(), 30);
+      return;
+    }
+    openAccount('in', tab);
   }));
   $('#umStartShow')?.addEventListener('click', () => { closeUserMenu(); openWizard('now'); });
   $('#umStudioSettings')?.addEventListener('click', () => { closeUserMenu(); $('#settingsTop')?.click(); });

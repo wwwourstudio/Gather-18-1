@@ -17,6 +17,17 @@ export function createWatchParty(app) {
     if (now[0] === W.watched && W.watched > 0) toast(`${now[1]} New badge: ${now[2]}`);
     awardXp(1);
   }, 60_000);
+  const AV_COLORS = ['#38bdf8', '#f472b6', '#a78bfa', '#34d399', '#fbbf24', '#fb7185', '#60a5fa'];
+  function avColor(name) {
+    let h = 0; const s = String(name || 'G');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return AV_COLORS[h % AV_COLORS.length];
+  }
+  function avInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '★';
+    return parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : parts[0].slice(0, 2).toUpperCase();
+  }
   function renderPartyMe() {
     if (!$('#wPtXp')) return;
     $('#wPtXp').textContent = `${W.xp.toLocaleString()} XP`;
@@ -24,6 +35,8 @@ export function createWatchParty(app) {
     $('#wPtBadgeIc').textContent = ic; $('#wPtBadgeName').textContent = name;
     $('#wPtBadgeNext').textContent = nxt ? `${nxt[0] - W.watched} min to “${nxt[2]}”` : `${W.watched} min watched · top badge`;
     $('#wPtProg').style.width = (nxt ? Math.round((W.watched - m0) / (nxt[0] - m0) * 100) : 100) + '%';
+    const meta = $('#wPtWatchMeta');
+    if (meta) meta.textContent = W.watched > 0 ? `${W.watched}m in party · +1 XP/min` : '+1 XP/min watching & reacting';
   }
   function renderParty(info) {
     // Top fans: super chats count most, then chat; from what this show's chat holds right now.
@@ -55,15 +68,65 @@ export function createWatchParty(app) {
         return li;
       });
       if (myRank >= 3) { const li = document.createElement('li'); li.className = 'me'; li.append(Object.assign(document.createElement('span'), { className: 'wv-pt-medal num', textContent: `#${myRank + 1}` }), Object.assign(document.createElement('b'), { textContent: 'You' }), Object.assign(document.createElement('em'), { className: 'num', textContent: rows[myRank].xp ? `${rows[myRank].xp} XP` : `${rows[myRank].msgs} msgs` })); items.push(li); }
-      if (!items.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Say hi, win predictions, or send a super chat to top the board.'; items.push(li); }
+      if (!items.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Chat, react, or tip to claim #1.'; items.push(li); }
       replaceKids($('#wPtBoard'), ...items);
     }
+
+    // Watch party small avatars row inside Room meter
+    const avBox = $('#wPartyAvs');
+    const avMeta = $('#wPartyAvMeta');
+    if (avBox) {
+      const seen = new Set();
+      const people = [];
+      const addP = (nm, isHost = false) => {
+        const clean = String(nm || '').trim();
+        if (!clean || seen.has(clean.toLowerCase())) return;
+        seen.add(clean.toLowerCase());
+        people.push({ name: clean, isHost });
+      };
+      if (me) addP(me);
+      for (const nm of info?.here || []) addP(nm);
+      for (const r of rows) addP(r.name);
+      if (info?.host?.name) addP(info.host.name, true);
+      if (!people.length) addP('You');
+      const viewers = Math.max(Number(info?.viewers) || 0, people.length);
+      const shown = people.slice(0, 5);
+      const extra = Math.max(0, viewers - shown.length);
+      const avKey = JSON.stringify([shown, extra]);
+      if (avBox.dataset.k !== avKey) {
+        avBox.dataset.k = avKey;
+        const nodes = shown.map((p) => {
+          const dot = document.createElement('span');
+          dot.className = 'wv-pav' + (p.isHost ? ' host' : '');
+          dot.textContent = avInitials(p.name);
+          dot.title = p.isHost ? `${p.name} (Host)` : p.name;
+          dot.style.background = avColor(p.name);
+          return dot;
+        });
+        if (extra > 0) {
+          const more = document.createElement('span');
+          more.className = 'wv-pav more num';
+          more.textContent = `+${extra > 99 ? '99' : extra}`;
+          more.title = `${viewers.toLocaleString()} watching`;
+          nodes.push(more);
+        }
+        replaceKids(avBox, ...nodes);
+      }
+      if (avMeta) avMeta.textContent = `${viewers.toLocaleString()} in party`;
+    }
+
     $('#wCntParty').hidden = !(info.viewers > 1); $('#wCntParty').textContent = info.viewers > 1 ? String(info.viewers) : '';
     renderPartyMe();
   }
   $('#wPtHypeIt')?.addEventListener('click', (e) => {
     app.sendReact('🔥');
     const b = e.currentTarget; b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  });
+  $$('.wv-pt-qreact').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      app.sendReact(btn.dataset.qreact || '🔥');
+      btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
+    });
   });
   function renderPlayExtras(info) {
     renderArena(info); settleWagers(info); // before the up-next check below, which returns early when the line hasn't changed

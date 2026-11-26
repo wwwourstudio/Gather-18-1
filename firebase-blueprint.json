@@ -1,0 +1,452 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Studio host profile and non-sensitive studio preferences persisted across sessions.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "autoPrune": {
+          "type": "boolean"
+        },
+        "autoSyncCloudClips": {
+          "type": "boolean"
+        },
+        "aiName": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "aiVoice": {
+          "type": "string",
+          "enum": ["gemini", "gemini-podcast", "browser", "openai", "off"]
+        },
+        "aiVoiceName": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "sceneAiEnabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "autoPrune", "autoSyncCloudClips", "createdAt", "updatedAt"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Isolated PII and private Google Drive folder metadata accessible strictly to the account owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "driveFolderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "driveFolderName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "SavedScene": {
+      "title": "SavedScene",
+      "description": "Reusable studio scene layout, participants, recap description, and Auto-Prune usage metadata.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "desc": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "participants": {
+          "type": "array",
+          "description": "Bounded list of up to 12 participant display names."
+        },
+        "layout": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "elements": {
+          "type": "array",
+          "description": "Bounded list of up to 24 native stage element maps."
+        },
+        "media": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "savedAt": {
+          "type": "number"
+        },
+        "lastUsedAt": {
+          "type": "number"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "autoArchived": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "name", "layout", "savedAt", "lastUsedAt", "archived", "autoArchived", "createdAt", "updatedAt"]
+    },
+    "AiTrigger": {
+      "title": "AiTrigger",
+      "description": "Custom spoken or typed phrase that automatically triggers a scene, media item, or banner.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "phrase": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "actionType": {
+          "type": "string",
+          "enum": ["scene", "media", "banner"]
+        },
+        "targetId": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "targetLabel": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "phrase", "actionType", "targetId", "targetLabel", "enabled", "createdAt", "updatedAt"]
+    },
+    "SmartHighlight": {
+      "title": "SmartHighlight",
+      "description": "Detected active speaker peak moment saved to the host's Smart Highlights playlist.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "speaker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "snippet": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "elapsedMs": {
+          "type": "number"
+        },
+        "durationSec": {
+          "type": "number"
+        },
+        "added": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "speaker", "snippet", "elapsedMs", "durationSec", "added", "createdAt", "updatedAt"]
+    },
+    "CloudClip": {
+      "title": "CloudClip",
+      "description": "30-second studio clip captured via Mark clip and synced to the host's Google Drive Cloud Clips folder.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "driveFileId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "driveWebViewLink": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "driveFolderId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "aspect": {
+          "type": "string",
+          "enum": ["16:9", "9:16"]
+        },
+        "durationSec": {
+          "type": "number"
+        },
+        "sizeBytes": {
+          "type": "number"
+        },
+        "mimeType": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "syncStatus": {
+          "type": "string",
+          "enum": ["local", "syncing", "synced", "error"]
+        },
+        "capturedAt": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "label", "fileName", "aspect", "durationSec", "sizeBytes", "mimeType", "syncStatus", "capturedAt", "createdAt", "updatedAt"]
+    },
+    "MediaLibraryItem": {
+      "title": "MediaLibraryItem",
+      "description": "Host-owned Media Library item metadata (links, YouTube URLs, and file metadata backed by Drive or local IndexedDB cache).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["pdf", "video", "audio", "image", "link", "youtube"]
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "mimeType": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "sizeBytes": {
+          "type": "number"
+        },
+        "driveFileId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "driveWebViewLink": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "added": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "name", "kind", "added", "createdAt", "updatedAt"]
+    },
+    "PaymentSettings": {
+      "title": "PaymentSettings",
+      "description": "Host-owned direct payout accounts (Stripe Payment Link, PayPal, Venmo, Cash App, Ko-fi, Patreon, Buy Me a Coffee) and channel toggles for Super Chats, Tips, and Bounties.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "stripe": {
+          "type": "string",
+          "maxLength": 160,
+          "pattern": "^$|^https://(buy|donate)\\.stripe\\.com/[A-Za-z0-9_\\-]{4,120}$"
+        },
+        "paypal": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^$|^[A-Za-z0-9._\\-]{1,40}$"
+        },
+        "venmo": {
+          "type": "string",
+          "maxLength": 30,
+          "pattern": "^$|^[A-Za-z0-9_\\-]{2,30}$"
+        },
+        "cashapp": {
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^$|^[A-Za-z][A-Za-z0-9_]{0,19}$"
+        },
+        "kofi": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^$|^[A-Za-z0-9._\\-]{1,40}$"
+        },
+        "patreon": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^$|^[A-Za-z0-9._\\-]{1,40}$"
+        },
+        "bmc": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^$|^[A-Za-z0-9._\\-]{1,40}$"
+        },
+        "stripeOn": { "type": "boolean" },
+        "paypalOn": { "type": "boolean" },
+        "venmoOn": { "type": "boolean" },
+        "cashappOn": { "type": "boolean" },
+        "kofiOn": { "type": "boolean" },
+        "patreonOn": { "type": "boolean" },
+        "bmcOn": { "type": "boolean" },
+        "supersEnabled": { "type": "boolean" },
+        "bountiesEnabled": { "type": "boolean" },
+        "minAmount": { "type": "number" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "stripe", "paypal", "venmo", "cashapp", "kofi", "patreon", "bmc",
+        "stripeOn", "paypalOn", "venmoOn", "cashappOn", "kofiOn", "patreonOn", "bmcOn",
+        "supersEnabled", "bountiesEnabled", "minAmount", "createdAt", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Host studio preferences and non-PII profile settings."
+    },
+    "/users/{uid}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Isolated host PII (email) and Google Drive Cloud Clips folder reference."
+    },
+    "/users/{uid}/paymentSettings/{docId}": {
+      "schema": { "$ref": "#/entities/PaymentSettings" },
+      "description": "Host-owned direct payout provider accounts and Super Chat / Tip / Bounty settings (docId == 'default')."
+    },
+    "/users/{uid}/scenes/{sceneId}": {
+      "schema": { "$ref": "#/entities/SavedScene" },
+      "description": "Host-owned reusable studio scenes with Auto-Prune timestamps."
+    },
+    "/users/{uid}/mediaLibrary/{itemId}": {
+      "schema": { "$ref": "#/entities/MediaLibraryItem" },
+      "description": "Host-owned Media Library items persisted across browser refreshes."
+    },
+    "/users/{uid}/triggers/{triggerId}": {
+      "schema": { "$ref": "#/entities/AiTrigger" },
+      "description": "Host-owned AI Trigger Library entries."
+    },
+    "/users/{uid}/highlights/{highlightId}": {
+      "schema": { "$ref": "#/entities/SmartHighlight" },
+      "description": "Host-owned Smart Highlights playlist moments."
+    },
+    "/users/{uid}/cloudClips/{clipId}": {
+      "schema": { "$ref": "#/entities/CloudClip" },
+      "description": "Host-owned 30-second Cloud Clips synced to Google Drive."
+    }
+  }
+}

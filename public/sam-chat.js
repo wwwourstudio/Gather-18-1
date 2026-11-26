@@ -14,13 +14,13 @@ export function createSamChat(app) {
   const hostName = () => (S.name || store.get('name', '') || '').split(/\s+/)[0] || 'there';
 
   /** Post a note from Sam into the chat. `key` makes it once per session; `gap` keeps notes from piling up. */
-  function note(text, actions = [], { key = '', gap = 20e3, broadcast = false } = {}) {
+  function note(text, actions = [], { key = '', gap = 20e3, broadcast = false, id: fixedId = '' } = {}) {
     if (!on()) return;
     if (key && said.has(key)) return;
     if (gap > 0 && Date.now() - lastNote < gap) return;
     if (key) said.add(key);
     lastNote = Date.now();
-    const id = 'note-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const id = fixedId || ('note-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
     notes.set(id, actions);
     upsertAI({ id, role: 'assistant', text, done: true, note: true, ts: Date.now() }, broadcast);
   }
@@ -68,31 +68,19 @@ export function createSamChat(app) {
   function seedAdminSuggestions() {
     if (!isHost() || !store.get('samNotes', true)) return;
     note(
-      `Welcome back, ${hostName()}! I'm ${name()}, your AI producer. Ready to get the show rolling? Here are a few quick things you can set up before going live:`,
+      `Welcome back, ${hostName()}! I'm ${name()}, your AI producer. Type @${name()} anytime for show intros, countdowns, banners, or viewer Q&A — or jump into setup below:`,
       [
         { label: 'Customize brand', run: () => setTab?.('brand') },
         { label: 'Open Gaming tools', run: () => setTab?.('gaming') },
         { label: 'Music & SFX', run: () => setTab?.('music') },
       ],
-      { key: 'hello', gap: 0 }
+      { key: 'hello', gap: 0, id: 'note-welcome' }
     );
-    setTimeout(() => {
-      note(
-        `Quick tip: Type @${name()} anytime to generate show intros, launch a 5-minute countdown, show banners, or moderate viewer questions. When guests enter, I'll welcome them right here.`,
-        [
-          { label: 'Write show intro', run: ask(STARTERS[0][1]) },
-          { label: '5-min countdown', run: ask(STARTERS[6][1]) },
-          { label: 'Poll idea', run: ask(STARTERS[1][1]) },
-        ],
-        { key: 'tips', gap: 0 }
-      );
-    }, 350);
   }
 
   function onJoin() {
     if (!isHost()) return;
     said.delete('hello');
-    said.delete('tips');
     setTimeout(seedAdminSuggestions, 220);
   }
 

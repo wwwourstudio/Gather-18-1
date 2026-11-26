@@ -106,59 +106,200 @@ export function createAudience(app) {
   function closeViewer(vid) { const v = VIEW.get(vid); if (!v) return; VIEW.delete(vid); try { v.pc.close(); } catch {} renderWatchSec(); }
   function closeAllViewers() { for (const vid of [...VIEW.keys()]) closeViewer(vid); }
 
-  // Super chats: paid by card on the watch page; they arrive here already confirmed by Stripe.
+  // Super chats: direct-to-streamer payouts (host confirms when payment lands) + optional auto-confirmed Stripe Express.
   S.supers = new Map();
   const money = (a) => '$' + (Number.isInteger(a) ? a : Number(a).toFixed(2));
+  const PAY_LABELS = { card: 'Card', stripe: 'Stripe', paypal: 'PayPal', venmo: 'Venmo', cashapp: 'Cash App', kofi: 'Ko-fi', patreon: 'Patreon', bmc: 'Buy Me a Coffee' };
+  const payLabel = (m) => PAY_LABELS[m] || 'Direct';
+  function showConfirmedSuper(item) {
+    if (item.bounty) acceptBounty(item);
+    else setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || (item.voice ? 'Voice super chat' : 'Sent a super chat'), paid: money(item.amount) } });
+    superAlert(item);
+    window.__gatherAuto?.onSuper(item);
+  }
   function gotSuperchat(item, fresh) {
     if (!item?.id || item.status === 'paying') return;
     const was = S.supers.get(item.id)?.status;
     S.supers.set(item.id, item);
-    if (fresh && item.auto && item.status === 'confirmed' && was !== 'confirmed') { // paid by card on the watch page: on screen right away
-      toast(`💳 ${money(item.amount)} super chat from ${item.name}, paid by card.`, { ms: 8000 });
-      if (item.bounty) acceptBounty(item);
-      else setStage({ featured: { id: 'w-' + item.id, src: 'watch', name: item.name, text: item.text || (item.voice ? 'Voice super chat' : 'Sent a super chat'), paid: money(item.amount) } });
-      superAlert(item);
-      window.__gatherAuto?.onSuper(item);
+    if (fresh && item.status === 'pending' && was !== 'pending') {
+      chime?.();
+      toast(`💵 ${money(item.amount)} ${payLabel(item.method)} super chat from ${item.name} — check your ${payLabel(item.method)} and click Confirm & air.`, { ms: 9000 });
+    } else if (fresh && item.auto && item.status === 'confirmed' && was !== 'confirmed') { // paid by card on the watch page: on screen right away
+      toast(`💳 ${money(item.amount)} super chat from ${item.name}, paid directly to your Stripe account.`, { ms: 8000 });
+      showConfirmedSuper(item);
     }
     renderSupers();
   }
   function superAct(item, act) {
     notifier.dismiss('sc-' + item.id);
     wsSend({ type: 'superchat', id: item.id, do: act });
-    item.status = { dismiss: 'dismissed', answered: 'answered' }[act];
+    const wasConfirmed = item.status === 'confirmed' || item.status === 'answered';
+    item.status = { confirm: 'confirmed', dismiss: 'dismissed', answered: 'answered' }[act] || item.status;
+    if (act === 'confirm' && !wasConfirmed) {
+      toast(`Confirmed! ${money(item.amount)} super chat from ${item.name} is now live.`);
+      showConfirmedSuper(item);
+    }
     if ((act === 'answered' || act === 'dismiss') && S.state.featured?.id === 'w-' + item.id) setStage({ featured: null });
     renderSupers();
   }
   // ---------------------------------------------------------------- bounties: viewer-funded challenges on the stream
+  function formatBountyAmt(raw) {
+    const s = String(raw ?? '').trim();
+    if (!s) return '$10';
+    if (/^\d+(\.\d{1,2})?$/.test(s)) return money(Number(s));
+    return s.slice(0, 16);
+  }
+  function parseBountyVal(amt) {
+    const m = String(amt || '').replace(/,/g, '').match(/(\d+(?:\.\d{1,2})?)/);
+    return m ? Number(m[1]) : 0;
+  }
+  function hasBountyBoard() {
+    return (S.state.elements || []).some((e) => e.type === 'bounty' && !e.hidden);
+  }
+  function ensureBountyBoard(on = true) {
+    const els = stageElements();
+    const existing = els.find((e) => e.type === 'bounty');
+    if (on) {
+      if (existing) {
+        if (existing.hidden) setStage({ elements: els.map((x) => (x.id === existing.id ? { ...x, hidden: false } : x)) });
+        return;
+      }
+      const e = withDefaults({ type: 'bounty' }), spot = freeSpot(e, els);
+      if (spot) Object.assign(e, spot); else e.stack = true;
+      e.home = [e.x, e.y, e.w, e.h];
+      setStage({ elements: [...els, e] });
+    } else if (existing) {
+      setStage({ elements: els.filter((x) => x.id !== existing.id) });
+    }
+  }
   function acceptBounty(item) {
     const list = (S.state.bounties || []).filter((b) => b.id !== item.id);
-    list.push({ id: item.id, name: item.name, text: item.text, amount: money(item.amount), status: 'active', ts: Date.now(), endedAt: 0 });
+    const amtText = typeof item.amount === 'number' ? money(item.amount) : formatBountyAmt(item.amount);
+    list.push({ id: item.id, name: String(item.name || S.name || 'Viewer').trim() || 'Viewer', text: String(item.text || '').trim().slice(0, 120), amount: amtText, status: 'active', ts: Date.now(), endedAt: 0 });
     const patch = { bounties: list };
     if (!(S.state.elements || []).some((e) => e.type === 'bounty')) {
       const e = withDefaults({ type: 'bounty' }), els = stageElements(), spot = freeSpot(e, els);
       if (spot) Object.assign(e, spot); else e.stack = true;
       e.home = [e.x, e.y, e.w, e.h]; patch.elements = [...els, e];
+    } else if ((S.state.elements || []).some((e) => e.type === 'bounty' && e.hidden)) {
+      patch.elements = stageElements().map((e) => (e.type === 'bounty' ? { ...e, hidden: false } : e));
     }
     setStage(patch);
-    toast(`🎯 Bounty accepted: “${item.text}”. It’s on stream until you mark it done.`, { ms: 6000 });
+    toast(`Bounty live: “${item.text}” (${amtText}). Shows on stream until marked done.`, { ms: 5000 });
+  }
+  function addHostBounty(text, amount, from) {
+    if (!isHost()) return toast('Only the host can post bounties.', { err: true });
+    const cleanText = String(text || '').trim().slice(0, 120);
+    if (!cleanText) return toast('Enter a challenge for the bounty first.', { err: true });
+    const who = String(from || '').trim().slice(0, 40) || S.name || 'Host';
+    const amt = formatBountyAmt(amount);
+    acceptBounty({ id: 'b-' + uid(), name: who, text: cleanText, amount: amt });
+    renderBountyPanel();
   }
   function endBounty(id, status) {
-    setStage({ bounties: (S.state.bounties || []).map((b) => (b.id === id ? { ...b, status, endedAt: Date.now() } : b)) });
-    if (status === 'done') toast('Bounty completed. It flashes on stream, then clears.');
+    setStage({ bounties: (S.state.bounties || []).map((b) => (b.id === id ? { ...b, status, endedAt: status === 'active' ? 0 : Date.now() } : b)) });
+    if (status === 'done') toast('Bounty completed! Flashes on stream, then clears.');
+    else if (status === 'active') toast('Bounty reopened on stream.');
   }
+  function removeBounty(id) {
+    setStage({ bounties: (S.state.bounties || []).filter((b) => b.id !== id) });
+  }
+  function bindBountyControls() {
+    const textIn = $('#bountyText');
+    const amtIn = $('#bountyAmt');
+    const fromIn = $('#bountyFrom');
+    const addBtn = $('#bountyAddBtn');
+    const stageToggle = $('#bountyStageToggle');
+    const presets = $('#bountyPresets');
+    const clearHist = $('#bountyClearHistory');
+    const submit = () => {
+      if (!textIn) return;
+      const t = textIn.value.trim();
+      if (!t) { textIn.focus(); return; }
+      addHostBounty(t, amtIn?.value, fromIn?.value);
+      textIn.value = '';
+      if (fromIn) fromIn.value = '';
+    };
+    addBtn?.addEventListener('click', submit);
+    textIn?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    amtIn?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    fromIn?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    stageToggle?.addEventListener('change', () => {
+      if (!isHost()) { stageToggle.checked = hasBountyBoard(); return toast('Only the host can change stage overlays.', { err: true }); }
+      ensureBountyBoard(stageToggle.checked);
+      toast(stageToggle.checked ? 'Bounty board added to stage.' : 'Bounty board hidden from stage.');
+    });
+    presets?.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-bounty-text]');
+      if (!btn) return;
+      addHostBounty(btn.dataset.bountyText, btn.dataset.bountyAmt || '$10', fromIn?.value || 'Viewer challenge');
+    });
+    clearHist?.addEventListener('click', () => {
+      if (!isHost()) return;
+      setStage({ bounties: (S.state.bounties || []).filter((b) => b.status === 'active') });
+      toast('Cleared resolved bounties.');
+    });
+  }
+  bindBountyControls();
+
   function renderBountyPanel() {
     const box = $('#bountyList'); if (!box) return;
-    const list = (S.state.bounties || []).filter((b) => b.status === 'active');
-    $('#bountyEmpty').hidden = !!list.length;
-    replaceKids(box, ...list.map((b) => {
+    const all = S.state.bounties || [];
+    const active = all.filter((b) => b.status === 'active');
+    const resolved = all.filter((b) => b.status !== 'active').slice().reverse();
+    const totalActive = active.reduce((sum, b) => sum + parseBountyVal(b.amount), 0);
+
+    const summaryEl = $('#bountySummary');
+    if (summaryEl) {
+      summaryEl.textContent = active.length
+        ? `${active.length} live${totalActive > 0 ? ` · ${money(totalActive)}` : ''}`
+        : 'viewer-funded challenges';
+    }
+    const stageToggle = $('#bountyStageToggle');
+    if (stageToggle) stageToggle.checked = hasBountyBoard();
+
+    const emptyEl = $('#bountyEmpty');
+    if (emptyEl) emptyEl.hidden = !!active.length;
+
+    replaceKids(box, ...active.map((b) => {
       const li = document.createElement('li'); li.className = 'bounty-item';
-      const t = document.createElement('div');
-      t.append(Object.assign(document.createElement('b'), { textContent: b.text }), Object.assign(document.createElement('small'), { textContent: `${b.amount} from ${b.name}` }));
+      const top = document.createElement('div'); top.className = 'bounty-item-top';
+      const info = document.createElement('div'); info.className = 'bounty-item-info';
+      const title = document.createElement('b'); title.textContent = b.text;
+      const meta = document.createElement('small'); meta.textContent = `Funded by ${b.name}`;
+      info.append(title, meta);
+      const amt = document.createElement('span'); amt.className = 'bounty-amt num'; amt.textContent = b.amount || '$10';
+      top.append(info, amt);
+
+      const acts = document.createElement('div'); acts.className = 'bounty-item-acts';
       const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn sm primary'; ok.textContent = '✓ Done'; ok.onclick = () => endBounty(b.id, 'done');
-      const no = document.createElement('button'); no.type = 'button'; no.className = 'btn sm ghost'; no.textContent = '✗ Failed'; no.onclick = () => endBounty(b.id, 'failed');
-      li.append(t, ok, no);
+      const no = document.createElement('button'); no.type = 'button'; no.className = 'btn sm ghost'; no.textContent = '✗ Fail'; no.onclick = () => endBounty(b.id, 'failed');
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn sm ghost bounty-del'; del.ariaLabel = 'Remove bounty'; del.textContent = '×'; del.onclick = () => removeBounty(b.id);
+      acts.append(ok, no, del);
+      li.append(top, acts);
       return li;
     }));
+
+    const histWrap = $('#bountyHistoryWrap');
+    const histList = $('#bountyHistoryList');
+    const histCount = $('#bountyHistoryCount');
+    if (histWrap && histList) {
+      histWrap.hidden = !resolved.length;
+      if (histCount) {
+        const doneCount = resolved.filter((b) => b.status === 'done').length;
+        histCount.textContent = `${resolved.length} resolved · ${doneCount} completed`;
+      }
+      replaceKids(histList, ...resolved.map((b) => {
+        const li = document.createElement('li'); li.className = 'bounty-hist-row is-' + b.status;
+        const copy = document.createElement('div'); copy.className = 'bounty-hist-copy';
+        const title = document.createElement('span'); title.textContent = b.text;
+        const meta = document.createElement('small'); meta.textContent = `${b.status === 'done' ? 'Completed' : 'Failed'} · ${b.amount || '$10'} · ${b.name}`;
+        copy.append(title, meta);
+        const reopen = document.createElement('button'); reopen.type = 'button'; reopen.className = 'btn sm ghost'; reopen.textContent = 'Reopen'; reopen.onclick = () => endBounty(b.id, 'active');
+        li.append(copy, reopen);
+        return li;
+      }));
+    }
   }
   /** The bounty board on stage: the active challenges, and a completed one flashing for a few seconds. */
   function drawBountyEl(e) {
@@ -191,24 +332,41 @@ export function createAudience(app) {
   }
   function renderSupers() {
     const box = $('#scList'); if (!box) return;
-    const items = [...S.supers.values()].filter((x) => x.status !== 'dismissed').sort((a, b) => b.ts - a.ts);
+    const items = [...S.supers.values()].filter((x) => x.status !== 'dismissed').sort((a, b) => {
+      if (a.status === 'pending' && b.status !== 'pending') return -1;
+      if (b.status === 'pending' && a.status !== 'pending') return 1;
+      return b.ts - a.ts;
+    });
     $('#scEmpty').hidden = !!items.length;
+    const pendingCount = items.filter((x) => x.status === 'pending').length;
     const total = [...S.supers.values()].filter((x) => x.status === 'confirmed' || x.status === 'answered').reduce((s, x) => s + x.amount, 0);
-    $('#scTotal').textContent = total ? `${money(total)} confirmed` : '';
+    $('#scTotal').textContent = pendingCount
+      ? `${pendingCount} to confirm${total ? ` · ${money(total)} confirmed` : ''}`
+      : total ? `${money(total)} confirmed` : '';
     replaceKids(box, ...items.map((x) => {
       const li = document.createElement('li'); li.className = 'sc-item ' + x.status;
       const top = document.createElement('div'); top.className = 'sc-top';
-      const amt = document.createElement('span'); amt.className = 'paid-amt'; amt.textContent = money(x.amount);
+      const amt = document.createElement('span'); amt.className = 'paid-amt num'; amt.textContent = money(x.amount);
       const who = document.createElement('b'); who.textContent = x.name;
-      const via = document.createElement('small'); via.textContent = x.status === 'answered' ? 'paid by card · answered' : 'paid by card';
+      const via = document.createElement('small');
+      const mLabel = payLabel(x.method);
+      via.textContent = x.status === 'pending'
+        ? `via ${mLabel} · confirm receipt`
+        : x.status === 'answered'
+          ? `via ${mLabel} · answered`
+          : x.auto ? `paid by ${mLabel}` : `confirmed via ${mLabel}`;
       top.append(amt, who, via);
       const txt = document.createElement('p'); txt.textContent = x.text || '(no message)';
       const row = document.createElement('div'); row.className = 'row';
       const btn = (t, cls, act) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => superAct(x, act); return b; };
-      if (x.status === 'confirmed') row.append(btn('Answered', '', 'answered'));
-      const vb = (t, cls, onAir) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => playScVoice(x, onAir); return b; };
-      if (x.voice) row.append(vb(`▶ Voice ${x.voice}s`, 'ghost', false), vb('Play on air', '', true));
-      { const r = document.createElement('button'); r.type = 'button'; r.className = 'btn sm ghost'; r.textContent = 'Replay alert'; r.onclick = () => superAlert(x); row.append(r); }
+      if (x.status === 'pending') {
+        row.append(btn('Confirm & air', 'primary', 'confirm'), btn('Dismiss', 'ghost', 'dismiss'));
+      } else {
+        if (x.status === 'confirmed') row.append(btn('Answered', '', 'answered'));
+        const vb = (t, cls, onAir) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm ' + cls; b.textContent = t; b.onclick = () => playScVoice(x, onAir); return b; };
+        if (x.voice) row.append(vb(`▶ Voice ${x.voice}s`, 'ghost', false), vb('Play on air', '', true));
+        const r = document.createElement('button'); r.type = 'button'; r.className = 'btn sm ghost'; r.textContent = 'Replay alert'; r.onclick = () => superAlert(x); row.append(r);
+      }
       li.append(top, txt, row);
       return li;
     }));
@@ -222,11 +380,330 @@ export function createAudience(app) {
     $('#stage')?.append(s); setTimeout(() => s.remove(), 2600);
   }
 
+  // ---- Direct creator payout providers: streamer approves each method and connects their own account (0% platform cut)
+  const DIRECT_PROVIDERS = [
+    {
+      id: 'stripe', name: 'Stripe', sub: 'Card, Apple Pay & Google Pay', color: '#635bff',
+      placeholder: 'https://buy.stripe.com/your-link',
+      helpLabel: 'Create link ↗', helpUrl: 'https://dashboard.stripe.com/payment-links',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^http:\/\//i, 'https://');
+        const u = /^(buy|donate)\.stripe\.com\//i.test(s) ? 'https://' + s : s;
+        return /^https:\/\/(buy|donate)\.stripe\.com\/[A-Za-z0-9_-]{4,120}$/.test(u) ? u : '';
+      },
+      err: 'Paste a Stripe Payment Link starting with buy.stripe.com/ or donate.stripe.com/',
+      display: (v) => v.replace(/^https:\/\//i, ''),
+      testUrl: (v) => (/^https:\/\/(buy|donate)\.stripe\.com\/[A-Za-z0-9_-]{4,120}$/.test(v) ? v : ''),
+    },
+    {
+      id: 'paypal', name: 'PayPal', sub: 'PayPal, Debit & Credit', color: '#0070ba',
+      placeholder: 'yourname or paypal.me/yourname',
+      helpLabel: 'Get PayPal.me ↗', helpUrl: 'https://www.paypal.com/paypalme/',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^(https?:\/\/)?(www\.)?paypal\.me\/|^@/i, '').replace(/\/+$/, '').trim();
+        return s && !s.includes('..') && /^[A-Za-z0-9._-]{1,40}$/.test(s) ? s : '';
+      },
+      err: 'Enter your PayPal.me username (letters, numbers, dots or dashes).',
+      display: (v) => 'paypal.me/' + v,
+      testUrl: (v) => (/^[A-Za-z0-9._-]{1,40}$/.test(v) && !v.includes('..') ? `https://paypal.me/${encodeURIComponent(v)}` : ''),
+    },
+    {
+      id: 'venmo', name: 'Venmo', sub: 'Instant mobile tips', color: '#008cff',
+      placeholder: '@yourhandle',
+      helpLabel: 'Venmo profile ↗', helpUrl: 'https://account.venmo.com/',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^(https?:\/\/)?(www\.|account\.)?venmo\.com\/(u\/)?|^@/i, '').replace(/\/+$/, '').trim();
+        return s && /^[A-Za-z0-9_-]{2,30}$/.test(s) ? s : '';
+      },
+      err: 'Enter your Venmo handle (2–30 letters, numbers, dashes or underscores).',
+      display: (v) => '@' + v,
+      testUrl: (v) => (/^[A-Za-z0-9_-]{2,30}$/.test(v) ? `https://venmo.com/u/${encodeURIComponent(v)}` : ''),
+    },
+    {
+      id: 'cashapp', name: 'Cash App', sub: 'Instant $cashtag tips', color: '#00d632',
+      placeholder: '$yourtag',
+      helpLabel: 'Cash App ↗', helpUrl: 'https://cash.app/',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^(https?:\/\/)?(www\.)?cash\.app\/\$?|^\$/i, '').replace(/\/+$/, '').trim();
+        return s && /^[A-Za-z][A-Za-z0-9_]{0,19}$/.test(s) ? s : '';
+      },
+      err: 'Enter your Cash App $cashtag (starts with a letter, up to 20 chars).',
+      display: (v) => '$' + v,
+      testUrl: (v) => (/^[A-Za-z][A-Za-z0-9_]{0,19}$/.test(v) ? `https://cash.app/$${encodeURIComponent(v)}` : ''),
+    },
+    {
+      id: 'kofi', name: 'Ko-fi', sub: 'Zero-fee creator tips', color: '#ff5e5b',
+      placeholder: 'ko-fi.com/yourname',
+      helpLabel: 'Ko-fi ↗', helpUrl: 'https://ko-fi.com/',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^(https?:\/\/)?(www\.)?ko-fi\.com\/|^@/i, '').replace(/\/+$/, '').trim();
+        return s && !s.includes('..') && /^[A-Za-z0-9._-]{1,40}$/.test(s) ? s : '';
+      },
+      err: 'Enter your Ko-fi username.',
+      display: (v) => 'ko-fi.com/' + v,
+      testUrl: (v) => (/^[A-Za-z0-9._-]{1,40}$/.test(v) && !v.includes('..') ? `https://ko-fi.com/${encodeURIComponent(v)}` : ''),
+    },
+    {
+      id: 'patreon', name: 'Patreon', sub: 'Direct creator support', color: '#f96854',
+      placeholder: 'patreon.com/yourname',
+      helpLabel: 'Patreon ↗', helpUrl: 'https://www.patreon.com/',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^(https?:\/\/)?(www\.)?patreon\.com\/(c\/|cw\/)?|^@/i, '').replace(/\/+$/, '').trim();
+        return s && !s.includes('..') && /^[A-Za-z0-9._-]{1,40}$/.test(s) ? s : '';
+      },
+      err: 'Enter your Patreon page username.',
+      display: (v) => 'patreon.com/' + v,
+      testUrl: (v) => (/^[A-Za-z0-9._-]{1,40}$/.test(v) && !v.includes('..') ? `https://www.patreon.com/${encodeURIComponent(v)}` : ''),
+    },
+    {
+      id: 'bmc', name: 'Buy Me a Coffee', sub: 'Quick supporter tips', color: '#ffdd00',
+      placeholder: 'buymeacoffee.com/you',
+      helpLabel: 'Open ↗', helpUrl: 'https://www.buymeacoffee.com/',
+      normalize: (raw) => {
+        const s = String(raw || '').trim().replace(/^(https?:\/\/)?(www\.)?buymeacoffee\.com\/|^@/i, '').replace(/\/+$/, '').trim();
+        return s && !s.includes('..') && /^[A-Za-z0-9._-]{1,40}$/.test(s) ? s : '';
+      },
+      err: 'Enter your Buy Me a Coffee username.',
+      display: (v) => 'buymeacoffee.com/' + v,
+      testUrl: (v) => (/^[A-Za-z0-9._-]{1,40}$/.test(v) && !v.includes('..') ? `https://www.buymeacoffee.com/${encodeURIComponent(v)}` : ''),
+    },
+  ];
+  const payEditOpen = new Set();
+  const payFieldErr = {};
+  const payDraft = {};
+  let payCloudTimer = null;
+  let payCloudHydratedUid = '';
+  function activeDirectMethods(cfg = watchCfg()) {
+    return DIRECT_PROVIDERS.filter((p) => !!cfg.pay?.[p.id] && cfg.payOn?.[p.id] !== false);
+  }
+  function syncTipStore(id, value) {
+    const tips = store.get('tips', {});
+    tips[id] = value || '';
+    store.set('tips', tips);
+    const inp = $(`#tipList .tip-row[data-provider="${id}"] input`);
+    if (inp && document.activeElement !== inp) inp.value = value || '';
+  }
+  function updatePayCloudBadge(label = '') {
+    const el = $('#wpPayCloudState');
+    if (!el) return;
+    const user = window.gatherCloud?.getSnapshot?.().user;
+    if (!user) { el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = label || 'Synced to your account';
+  }
+  function queueCloudPaySave(cfg) {
+    if (!window.gatherCloud?.savePaymentSettings || !window.gatherCloud?.getSnapshot?.().user) return;
+    clearTimeout(payCloudTimer);
+    updatePayCloudBadge('Saving…');
+    payCloudTimer = setTimeout(() => {
+      window.gatherCloud.savePaymentSettings(cfg)
+        .then((ok) => updatePayCloudBadge(ok ? 'Synced to your account' : ''))
+        .catch(() => updatePayCloudBadge('Saved locally'));
+    }, 250);
+  }
+  function bindPaymentCloudSync() {
+    if (!window.gatherCloud?.subscribe) return;
+    window.gatherCloud.subscribe((snap, reason) => {
+      if (!snap.user) {
+        payCloudHydratedUid = '';
+        updatePayCloudBadge('');
+        return;
+      }
+      updatePayCloudBadge('Synced to your account');
+      if (reason === 'paymentSettings') {
+        const doc = snap.paymentSettings;
+        if (doc && typeof doc === 'object') {
+          payCloudHydratedUid = snap.user.uid;
+          const nextPay = {};
+          const nextOn = {};
+          for (const p of DIRECT_PROVIDERS) {
+            nextPay[p.id] = typeof doc[p.id] === 'string' ? doc[p.id] : '';
+            nextOn[p.id] = !!doc[p.id + 'On'];
+            if (nextPay[p.id]) syncTipStore(p.id, p.id === 'stripe' ? nextPay[p.id] : p.display(nextPay[p.id]));
+          }
+          const cur = watchCfg();
+          const merged = {
+            ...cur,
+            pay: { ...cur.pay, ...nextPay },
+            payOn: { ...cur.payOn, ...nextOn },
+            supers: typeof doc.supersEnabled === 'boolean' ? doc.supersEnabled : cur.supers,
+            bounties: typeof doc.bountiesEnabled === 'boolean' ? doc.bountiesEnabled : cur.bounties,
+            min: Math.max(1, Math.min(500, Number(doc.minAmount) || cur.min || 2)),
+          };
+          store.set('watchPrefs', merged);
+          if (isHost() && S.studio) setStage({ watch: merged });
+          else S.state.watch = merged;
+          renderWatchSec();
+        } else if (payCloudHydratedUid !== snap.user.uid) {
+          payCloudHydratedUid = snap.user.uid;
+          const cur = watchCfg();
+          const hasLocalPay = DIRECT_PROVIDERS.some((p) => !!cur.pay?.[p.id]);
+          if (hasLocalPay) queueCloudPaySave(cur);
+        }
+      }
+    });
+  }
+  if (window.gatherCloud) bindPaymentCloudSync();
+  else window.addEventListener('load', bindPaymentCloudSync, { once: true });
+
+  function renderDirectPayouts(force = false) {
+    const box = $('#wpDirectPayList'); if (!box) return;
+    if (!force && box.contains(document.activeElement) && document.activeElement?.tagName === 'INPUT') return;
+    const cfg = watchCfg();
+    const host = isHost();
+    replaceKids(box, ...DIRECT_PROVIDERS.map((p) => {
+      const savedVal = cfg.pay?.[p.id] || '';
+      const approved = !!cfg.payOn?.[p.id];
+      const connected = approved && !!savedVal;
+      const editing = payEditOpen.has(p.id) || (approved && !savedVal);
+      const card = document.createElement('div');
+      card.className = 'pay-prov' + (connected ? ' is-connected' : approved ? ' is-approved' : '');
+      card.dataset.provider = p.id;
+      card.style.setProperty('--pc', p.color);
+
+      const head = document.createElement('div'); head.className = 'pay-prov-head';
+      const dot = document.createElement('span'); dot.className = 'pay-prov-dot'; dot.setAttribute('aria-hidden', 'true');
+      const meta = document.createElement('div'); meta.className = 'pay-prov-meta';
+      const title = document.createElement('b'); title.textContent = p.name;
+      const sub = document.createElement('small');
+      sub.textContent = connected
+        ? `${p.display(savedVal)} · Direct to your account`
+        : approved
+          ? 'Approved — connect your account below'
+          : p.sub;
+      meta.append(title, sub);
+
+      const actWrap = document.createElement('div'); actWrap.className = 'pay-prov-acts';
+      if (connected && !editing) {
+        const tUrl = p.testUrl(savedVal);
+        if (tUrl) {
+          const testLink = document.createElement('a');
+          testLink.href = tUrl; testLink.target = '_blank'; testLink.rel = 'noopener noreferrer';
+          testLink.className = 'btn sm ghost pay-prov-test';
+          testLink.textContent = 'Test ↗';
+          testLink.title = `Open your ${p.name} payment link in a new tab`;
+          actWrap.append(testLink);
+        }
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button'; editBtn.className = 'btn sm ghost'; editBtn.textContent = 'Edit';
+        editBtn.disabled = !host;
+        editBtn.onclick = () => { payEditOpen.add(p.id); payFieldErr[p.id] = ''; payDraft[p.id] = savedVal; renderDirectPayouts(true); };
+        actWrap.append(editBtn);
+      }
+      const approveBtn = document.createElement('button');
+      approveBtn.type = 'button';
+      approveBtn.className = 'btn sm ' + (approved ? 'pay-approve-on' : 'ghost');
+      approveBtn.setAttribute('aria-pressed', String(approved));
+      approveBtn.textContent = approved ? 'Approved ✓' : 'Approve';
+      approveBtn.disabled = !host;
+      approveBtn.onclick = () => {
+        const nextOn = !approved;
+        payFieldErr[p.id] = '';
+        if (nextOn && !savedVal) { payEditOpen.add(p.id); payDraft[p.id] = ''; }
+        else if (!nextOn) { payEditOpen.delete(p.id); delete payDraft[p.id]; }
+        setWatch({ payOn: { [p.id]: nextOn } });
+        renderDirectPayouts(true);
+        if (nextOn && savedVal) toast(`${p.name} approved — Super Chats, tips & bounties route directly to your ${p.name} account.`);
+        else if (!nextOn) toast(`${p.name} paused for viewer payouts.`);
+      };
+      actWrap.append(approveBtn);
+      head.append(dot, meta, actWrap);
+      card.append(head);
+
+      if (editing) {
+        const body = document.createElement('div'); body.className = 'pay-prov-form';
+        const row = document.createElement('div'); row.className = 'pay-prov-row';
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.className = 'input sm grow'; inp.spellcheck = false;
+        inp.placeholder = p.placeholder; inp.value = p.id in payDraft ? payDraft[p.id] : savedVal;
+        inp.setAttribute('aria-label', `${p.name} account or payment link`);
+        inp.addEventListener('input', () => { payDraft[p.id] = inp.value; });
+        const disconnect = () => {
+          payFieldErr[p.id] = '';
+          delete payDraft[p.id];
+          payEditOpen.delete(p.id);
+          setWatch({ pay: { [p.id]: '' }, payOn: { [p.id]: false } });
+          syncTipStore(p.id, '');
+          renderDirectPayouts(true);
+          toast(`${p.name} disconnected.`);
+        };
+        const save = () => {
+          const raw = inp.value.trim();
+          if (!raw) return disconnect();
+          const cleanVal = p.normalize(raw);
+          if (!cleanVal) {
+            payDraft[p.id] = raw;
+            payFieldErr[p.id] = p.err;
+            renderDirectPayouts(true);
+            return;
+          }
+          payFieldErr[p.id] = '';
+          delete payDraft[p.id];
+          payEditOpen.delete(p.id);
+          // Connecting your first payout account also auto-enables "Take Super Chats & tips" so it works in one flow
+          const hasAnyBefore = activeDirectMethods(watchCfg()).length > 0 || CARD.ready;
+          const nextPatch = { pay: { [p.id]: cleanVal }, payOn: { [p.id]: true } };
+          if (!hasAnyBefore && !watchCfg().supers) nextPatch.supers = true;
+          setWatch(nextPatch);
+          syncTipStore(p.id, p.id === 'stripe' ? cleanVal : p.display(cleanVal));
+          renderDirectPayouts(true);
+          toast(`${p.name} connected! Payments go straight to ${p.display(cleanVal)}.`);
+        };
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        const connectBtn = document.createElement('button');
+        connectBtn.type = 'button'; connectBtn.className = 'btn sm primary';
+        connectBtn.textContent = savedVal ? 'Save' : 'Connect';
+        connectBtn.disabled = !host;
+        connectBtn.onclick = save;
+        row.append(inp, connectBtn);
+        body.append(row);
+
+        const foot = document.createElement('div'); foot.className = 'pay-prov-foot';
+        const note = document.createElement('small');
+        note.textContent = p.id === 'stripe'
+          ? 'Viewers pay by Card, Apple Pay or Google Pay directly to your Stripe.'
+          : `Payments go 100% directly to your ${p.name} account.`;
+        const footActs = document.createElement('div'); footActs.className = 'pay-prov-foot-acts';
+        if (savedVal) {
+          const discBtn = document.createElement('button');
+          discBtn.type = 'button'; discBtn.className = 'pay-prov-disc';
+          discBtn.textContent = 'Disconnect';
+          discBtn.disabled = !host;
+          discBtn.onclick = disconnect;
+          footActs.append(discBtn);
+        }
+        const help = document.createElement('a');
+        help.href = p.helpUrl; help.target = '_blank'; help.rel = 'noopener noreferrer';
+        help.className = 'pay-prov-help'; help.textContent = p.helpLabel;
+        footActs.append(help);
+        foot.append(note, footActs);
+        body.append(foot);
+
+        if (payFieldErr[p.id]) {
+          const errEl = document.createElement('p');
+          errEl.className = 'pay-prov-err'; errEl.textContent = payFieldErr[p.id];
+          body.append(errEl);
+        }
+        card.append(body);
+      }
+      return card;
+    }));
+  }
+
   // The Show panel's watch page section.
   function setWatch(patch) {
-    const cfg = { ...watchCfg(), ...patch, pay: { ...watchCfg().pay, ...(patch.pay || {}) } };
+    const cur = watchCfg();
+    const cfg = {
+      ...cur,
+      ...patch,
+      pay: { ...cur.pay, ...(patch.pay || {}) },
+      payOn: { ...cur.payOn, ...(patch.payOn || {}) },
+    };
     store.set('watchPrefs', cfg); // keep the handles for the next show
     if (isHost() && S.studio) setStage({ watch: cfg });
+    if ('pay' in patch || 'payOn' in patch || 'supers' in patch || 'bounties' in patch || 'min' in patch) {
+      queueCloudPaySave(cfg);
+    }
     renderWatchSec();
   }
   function renderWatchSec() {
@@ -235,7 +712,7 @@ export function createAudience(app) {
     $('#wpUrl').textContent = on ? watchLinkText() : 'Enter your studio to get its watch link';
     for (const id of ['#wpCopy', '#wpCard', '#wpOpen']) $(id).disabled = !on;
     $('#wpCount').textContent = on && cfg.direct ? `${VIEW.size} of ${cfg.cap} watching directly` : '';
-    for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id) && document.activeElement !== $(id)) $(id).checked = cfg[k] !== false && !!(cfg[k] ?? true);
+    for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpBounties', 'bounties'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id) && document.activeElement !== $(id)) $(id).checked = cfg[k] !== false && !!(cfg[k] ?? true);
     if (document.activeElement !== $('#wpCap')) $('#wpCap').value = String(cfg.cap);
     if (document.activeElement !== $('#wpAbout')) $('#wpAbout').value = cfg.about || '';
     if ($('#wpLobby') && document.activeElement !== $('#wpLobby')) $('#wpLobby').value = cfg.lobby || '';
@@ -246,32 +723,139 @@ export function createAudience(app) {
     $('#wpReacts').checked = cfg.reactsOnStream !== false;
     if (document.activeElement !== $('#wpLinks')) $('#wpLinks').value = (cfg.links || []).map((l) => `${l.label} | ${l.url}`).join('\n');
     if (document.activeElement !== $('#wpMin')) $('#wpMin').value = String(cfg.min);
-    // Super chats are paid by card on the watch page, so they need Stripe connected; one line says what's left.
-    if (S.studio && isHost() && !CARD.checked) cardStatus();
-    renderPaySteps();
-    $('#wpSupersState').textContent = cfg.supers && CARD.ready ? 'On' : cfg.supers ? 'Connect Stripe' : 'Off';
-    $('#wpPayStatus').textContent = !CARD.ready ? (cfg.supers ? 'Super chats are on, but viewers won’t see the tip button until Stripe is connected.' : 'Connect Stripe, then turn on super chats.')
-      : cfg.supers ? 'Viewers see a tip button in the chat on your watch page.' : 'Stripe is connected. Turn on super chats to show the tip button.';
+    renderDirectPayouts();
+    if (S.studio && isHost() && (!CARD.checked || CARD.studio !== S.studio)) cardStatus();
+    syncPayStatusCopy();
     if (document.activeElement !== $('#wpQueue')) $('#wpQueue').checked = !!cfg.queue;
     if (window.__shopReady) { renderShop(); renderPoll(); renderEmotes(); }
     renderShowcaseSec();
     renderHandle();
   }
-  // ---- on-site card payments (Stripe Connect): the host connects their own Stripe account once
-  const CARD = { checked: false, available: false, connected: false, ready: false };
-  async function cardStatus() {
-    CARD.checked = true;
-    try { Object.assign(CARD, await api('payCard', { ...creds(), op: 'status' })); } catch {}
-    renderCard();
+  // ---- optional on-site card payments (Stripe Connect Express): host connects their own Stripe Express account
+  const CARD = { checked: false, loading: false, studio: '', available: false, hasSecret: false, hasPublishable: false, keyError: '', connected: false, ready: false, detailsSubmitted: false, payoutsEnabled: false };
+  function stripeConfigHint() {
+    if (CARD.keyError) return CARD.keyError;
+    if (CARD.hasSecret && !CARD.hasPublishable) return 'STRIPE_SECRET_KEY is set, but STRIPE_PUBLISHABLE_KEY is missing.';
+    if (!CARD.hasSecret && CARD.hasPublishable) return 'STRIPE_PUBLISHABLE_KEY is set, but STRIPE_SECRET_KEY is missing.';
+    return 'Optional: not enabled on this server. You can still take Stripe, PayPal, Venmo, Cash App & more directly above.';
   }
-  /** Get paid, step by step: what's done and the one thing to do next. */
+  function syncPayStatusCopy() {
+    const cfg = watchCfg();
+    const direct = activeDirectMethods(cfg);
+    const totalMethods = direct.length + (CARD.ready ? 1 : 0);
+    const hasAny = totalMethods > 0;
+    const bountiesOn = cfg.bounties !== false;
+    renderPaySteps();
+    const chBox = $('#wpPayChannels');
+    if (chBox) {
+      const stageTips = (S.state.elements || []).filter((e) => e.type === 'tip' && !e.hidden).length;
+      const rows = [
+        ['Super Chats', cfg.supers && hasAny ? 'Live · Direct' : hasAny ? 'Off' : 'Connect account', !!(cfg.supers && hasAny)],
+        ['Tips & QR', hasAny || stageTips > 0 ? `${Math.max(totalMethods, stageTips)} ready` : 'Connect account', hasAny || stageTips > 0],
+        ['Bounties', cfg.supers && hasAny && bountiesOn ? 'Live · Direct' : !bountiesOn ? 'Paused' : hasAny ? 'Off' : 'Connect account', !!(cfg.supers && hasAny && bountiesOn)],
+      ];
+      replaceKids(chBox, ...rows.map(([label, val, live]) => {
+        const d = document.createElement('div');
+        d.className = 'pay-ch' + (live ? ' is-live' : '');
+        const b = document.createElement('b'); b.textContent = label;
+        const s = document.createElement('small'); s.className = 'num'; s.textContent = val;
+        d.append(b, s);
+        return d;
+      }));
+    }
+    const stateEl = $('#wpSupersState');
+    const statusEl = $('#wpPayStatus');
+    if (stateEl) {
+      stateEl.textContent = cfg.supers && hasAny
+        ? `Live · ${totalMethods} ${totalMethods === 1 ? 'account' : 'accounts'}`
+        : hasAny
+          ? 'Ready (off)'
+          : 'Connect account';
+    }
+    if (statusEl) {
+      if (cfg.supers && hasAny) {
+        const names = [...(CARD.ready ? ['Stripe Express'] : []), ...direct.map((p) => p.name)];
+        const streams = bountiesOn ? 'Super Chats, tips & bounties' : 'Super Chats & tips';
+        statusEl.textContent = `Live: ${streams} route directly to your ${names.join(', ')} account${names.length === 1 ? '' : 's'}.`;
+      } else if (hasAny) {
+        statusEl.textContent = 'Your payout account is connected. Turn on “Take Super Chats & tips” to show the green $ button in chat.';
+      } else if (cfg.supers) {
+        statusEl.textContent = 'Super Chats are switched on — approve and connect at least one payout account above so viewers see the green $ button.';
+      } else {
+        statusEl.textContent = 'Approve and connect Stripe, PayPal, Venmo, Cash App or another account above so viewer payments go straight to you.';
+      }
+    }
+    const expSub = $('#wpExpressSub');
+    if (expSub) {
+      expSub.textContent = CARD.ready
+        ? 'Connected · Card, Apple Pay & Google Pay auto-confirm in chat'
+        : CARD.available
+          ? 'Available · Connect Stripe Express for automatic in-chat confirmation'
+          : 'Optional server upgrade · Direct Stripe Payment Links work above right now';
+    }
+  }
+  async function cardStatus(force = false) {
+    if (!S.studio || !isHost()) return;
+    if (CARD.loading && !force) return;
+    if (CARD.studio !== S.studio) {
+      Object.assign(CARD, { checked: false, studio: S.studio, available: false, hasSecret: false, hasPublishable: false, keyError: '', connected: false, ready: false, detailsSubmitted: false, payoutsEnabled: false });
+    }
+    const wasReady = CARD.ready;
+    CARD.loading = true;
+    const refBtn = $('#wpCardRefresh');
+    if (refBtn) { refBtn.disabled = true; refBtn.textContent = 'Checking…'; }
+    syncPayStatusCopy();
+    try {
+      const res = await api('payCard', { ...creds(), op: 'status' });
+      Object.assign(CARD, {
+        checked: true,
+        studio: S.studio,
+        available: !!res.available,
+        hasSecret: !!res.hasSecret,
+        hasPublishable: !!res.hasPublishable,
+        keyError: res.keyError || '',
+        connected: !!res.connected,
+        ready: !!res.ready,
+        detailsSubmitted: !!res.detailsSubmitted,
+        payoutsEnabled: !!res.payoutsEnabled,
+      });
+      if (!wasReady && CARD.ready) {
+        toast('Stripe Express connected! Card, Apple Pay & Google Pay super chats are live.');
+      }
+    } catch {
+      CARD.checked = false;
+    } finally {
+      CARD.loading = false;
+      if (refBtn) { refBtn.disabled = false; refBtn.textContent = 'Refresh'; }
+      renderCard();
+      syncPayStatusCopy();
+    }
+  }
+  /** Get paid, step by step: approve & connect your own account, then turn on super chats. */
   function renderPaySteps() {
     const ol = $('#wpPaySteps'); if (!ol) return;
     const cfg = watchCfg();
+    const direct = activeDirectMethods(cfg);
+    const hasPayout = direct.length > 0 || CARD.ready;
+    const liveReady = hasPayout && !!cfg.supers;
+    const names = [...(CARD.ready ? ['Stripe Express'] : []), ...direct.map((p) => p.name)];
     const steps = [
-      [CARD.available, 'Card payments on this site', CARD.available ? 'Ready' : 'The site owner adds STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY in the hosting settings, then redeploys.'],
-      [CARD.ready, 'Your Stripe account', CARD.ready ? 'Connected: money goes straight to you' : CARD.connected ? 'Almost there: finish your Stripe details' : 'Connect Stripe below (a few minutes, one time)'],
-      [!!cfg.supers, 'Super chats on', cfg.supers ? 'Viewers see the green $ in your chat' : 'Turn on “Take super chats” below'],
+      [
+        hasPayout,
+        'Approve & connect your payout account',
+        hasPayout
+          ? `Connected: ${names.join(', ')} — 100% goes straight to you`
+          : 'Click Approve on Stripe, PayPal, Venmo, Cash App or another provider below and connect your account',
+      ],
+      [
+        liveReady,
+        'Super chats live in chat',
+        liveReady
+          ? 'Live — viewers see the green $ button and pay directly into your account'
+          : cfg.supers
+            ? 'Toggle is on — connect at least one payout account above to go live'
+            : 'Turn on “Take super chats” below',
+      ],
     ];
     const next = steps.findIndex(([done]) => !done);
     replaceKids(ol, ...steps.map(([done, title, sub], i) => {
@@ -285,21 +869,75 @@ export function createAudience(app) {
   function renderCard() {
     renderPaySteps();
     const box = $('#wpPayCard'); if (!box) return;
-    const go = $('#wpCardGo'), st = $('#wpCardState');
+    const exp = $('#wpExpressDetails');
+    if (exp && (CARD.available || CARD.ready)) exp.open = true;
+    const go = $('#wpCardGo'), st = $('#wpCardState'), refBtn = $('#wpCardRefresh');
     box.classList.toggle('on', CARD.ready);
-    if (!CARD.available) { go.disabled = true; go.textContent = 'Not set up'; st.textContent = 'Not available on this site yet (see step 1).'; return; }
+    if (refBtn) refBtn.hidden = !S.studio || !isHost();
+    if (!CARD.available) {
+      go.disabled = true;
+      go.className = 'btn sm ghost';
+      go.textContent = CARD.keyError ? 'Key mismatch' : 'Optional';
+      st.textContent = stripeConfigHint();
+      return;
+    }
     go.disabled = false;
-    if (CARD.ready) { go.textContent = 'Disconnect'; go.className = 'btn sm ghost'; st.textContent = 'On: viewers can pay by card, Apple Pay or Google Pay in your chat. Super chats go on stream as soon as they’re paid.'; }
-    else if (CARD.connected) { go.textContent = 'Finish Stripe setup'; go.className = 'btn sm primary'; st.textContent = 'Almost there: finish your Stripe details, then come back to this tab.'; }
-    else { go.textContent = 'Connect Stripe'; go.className = 'btn sm primary'; }
+    if (CARD.ready) {
+      go.textContent = 'Disconnect'; go.className = 'btn sm ghost';
+      st.textContent = 'Connected: viewers can pay by Card, Apple Pay or Google Pay right inside chat, straight into your Stripe Express account.';
+    } else if (CARD.detailsSubmitted) {
+      go.textContent = 'Check Stripe details'; go.className = 'btn sm primary';
+      st.textContent = 'Your Stripe onboarding is submitted. Click Refresh once Stripe finishes verifying your account.';
+    } else if (CARD.connected) {
+      go.textContent = 'Finish Stripe setup'; go.className = 'btn sm primary';
+      st.textContent = 'Almost there: finish your Stripe details, then return here and your status will update automatically.';
+    } else {
+      go.textContent = 'Connect Stripe Express'; go.className = 'btn sm primary';
+      st.textContent = 'Connect your own Stripe Express account for automatic in-chat Card, Apple Pay & Google Pay super chats (0% platform cut).';
+    }
   }
+  $('#wpCardRefresh')?.addEventListener('click', () => cardStatus(true));
   $('#wpCardGo')?.addEventListener('click', async () => {
-    if (CARD.ready) { if (!confirm('Stop taking cards on your watch page?')) return; await api('payCard', { ...creds(), op: 'disconnect' }).catch(() => {}); Object.assign(CARD, { connected: false, ready: false }); return renderCard(); }
+    if (CARD.ready) {
+      if (!confirm('Stop taking cards on your watch page?')) return;
+      await api('payCard', { ...creds(), op: 'disconnect' }).catch(() => {});
+      Object.assign(CARD, { connected: false, ready: false, detailsSubmitted: false, payoutsEnabled: false });
+      renderCard(); syncPayStatusCopy();
+      return;
+    }
+    const go = $('#wpCardGo');
+    if (go) { go.disabled = true; go.textContent = 'Opening Stripe…'; }
     const tab = window.open('', '_blank');
-    try { const { url } = await api('payCard', { ...creds(), op: 'connect', origin: location.origin }); if (tab) tab.location = url; else location.assign(url); CARD.connected = true; renderCard(); }
-    catch (e) { tab?.close(); toast(e.message, { err: true }); }
+    try {
+      const { url } = await api('payCard', { ...creds(), op: 'connect', origin: location.origin });
+      if (tab && !tab.closed) tab.location = url;
+      else location.assign(url);
+      CARD.connected = true;
+      renderCard(); syncPayStatusCopy();
+    } catch (e) {
+      try { tab?.close(); } catch {}
+      toast(e.message, { err: true });
+      renderCard(); syncPayStatusCopy();
+    }
   });
-  window.addEventListener('focus', () => { if (CARD.connected && !CARD.ready && isHost()) cardStatus(); });
+  const onStripeDoneSignal = (data) => {
+    if (!data || data.type !== 'gather:stripe-done') return;
+    if (!S.studio || !isHost()) return;
+    if (data.studio && data.studio !== S.studio) return;
+    if (data.retry) toast('That Stripe link expired. Click “Finish Stripe setup” to get a new link.', { err: true });
+    cardStatus(true);
+  };
+  window.addEventListener('message', (e) => { if (e.origin === location.origin) onStripeDoneSignal(e.data); });
+  window.addEventListener('storage', (e) => {
+    if (e.key !== 'gather:stripe-done' || !e.newValue) return;
+    try { onStripeDoneSignal(JSON.parse(e.newValue)); } catch {}
+  });
+  try {
+    const stripeBc = new BroadcastChannel('gather-stripe');
+    stripeBc.onmessage = (e) => onStripeDoneSignal(e.data);
+  } catch {}
+  window.addEventListener('focus', () => { if (S.studio && isHost() && (!CARD.available || (CARD.connected && !CARD.ready))) cardStatus(true); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.studio && isHost() && CARD.connected && !CARD.ready) cardStatus(true); });
 
   let pendingNoticeImg = '';
   function renderShowcaseSec() {
@@ -336,7 +974,77 @@ export function createAudience(app) {
     if (document.activeElement !== $('#wpSpotBullets')) $('#wpSpotBullets').value = (sp.bullets || []).join('\n');
     if (document.activeElement !== $('#wpSpotLinks')) $('#wpSpotLinks').value = (sp.links || []).map((l) => `${l.label} | ${l.url}`).join('\n');
   }
-  $('#wpStreamType')?.addEventListener('change', (e) => { if (!isHost()) return; store.set('streamType', e.target.value); setStage({ streamType: e.target.value }); });
+  function applyStreamTypeChange(nextType) {
+    if (!isHost()) return;
+    const prevType = S.state.streamType || 'live';
+    store.set('streamType', nextType);
+    const patch = { streamType: nextType };
+    const els = Array.isArray(S.state.elements) ? S.state.elements : [];
+    let hiddenCount = 0;
+
+    if (nextType === 'live') {
+      // Hide gaming stage layers (scoreboard, bounty board)
+      if (els.some((el) => (el.type === 'score' || el.type === 'bounty') && !el.hidden)) {
+        patch.elements = els.map((el) => {
+          if ((el.type === 'score' || el.type === 'bounty') && !el.hidden) {
+            hiddenCount++;
+            return { ...el, hidden: true, _autoHiddenForLive: true };
+          }
+          return el;
+        });
+      }
+      // Turn off Live Game HUD overlay
+      if (window.__gatherGamerHud?.on) {
+        window.__gatherGamerHud.on = false;
+        window.__syncGamerHud?.();
+        hiddenCount++;
+      }
+      // Clear active shopping overlays (pinned product, flash sale, purchase alert)
+      if (S.state.shop?.pinned || S.state.shop?.sale) {
+        patch.shop = { ...(S.state.shop || { items: [] }), pinned: '', sale: null };
+        hiddenCount++;
+      }
+      if (S.state.purchaseAlert) {
+        patch.purchaseAlert = null;
+        hiddenCount++;
+      }
+      // Hide stage overlay artwork when switching from Gaming or Shopping (e.g. Esports HUD / Live Drop frame)
+      const curBrand = S.state.brand || {};
+      const shouldHideOverlay = (prevType === 'gamer' || prevType === 'shopping')
+        || curBrand.overlayTpl === 'esports-hud'
+        || curBrand.overlayTpl === 'live-shop';
+      if (shouldHideOverlay && curBrand.overlay && !curBrand.overlayHidden) {
+        patch.brand = { ...curBrand, overlayHidden: true };
+        if ($('#ovVisibleChk')) $('#ovVisibleChk').checked = false;
+        hiddenCount++;
+      }
+    } else if (nextType === 'gamer') {
+      // Hide shopping overlays when switching to gaming
+      if (S.state.shop?.pinned || S.state.shop?.sale) {
+        patch.shop = { ...(S.state.shop || { items: [] }), pinned: '', sale: null };
+      }
+      if (S.state.purchaseAlert) patch.purchaseAlert = null;
+      // Restore auto-hidden gaming elements if switching back from live
+      if (els.some((el) => (el.type === 'score' || el.type === 'bounty') && el._autoHiddenForLive)) {
+        patch.elements = els.map((el) => (el._autoHiddenForLive ? { ...el, hidden: false, _autoHiddenForLive: false } : el));
+      }
+    } else if (nextType === 'shopping') {
+      // Hide gaming overlays when switching to shopping
+      if (els.some((el) => (el.type === 'score' || el.type === 'bounty') && !el.hidden)) {
+        patch.elements = els.map((el) => ((el.type === 'score' || el.type === 'bounty') && !el.hidden ? { ...el, hidden: true, _autoHiddenForLive: true } : el));
+      }
+      if (window.__gatherGamerHud?.on) {
+        window.__gatherGamerHud.on = false;
+        window.__syncGamerHud?.();
+      }
+    }
+
+    setStage(patch);
+    if (nextType === 'live' && (prevType === 'gamer' || prevType === 'shopping' || hiddenCount > 0)) {
+      toast('Switched to Live Stream — gaming & shopping overlays hidden.');
+    }
+  }
+  $('#wpStreamType')?.addEventListener('change', (e) => applyStreamTypeChange(e.target.value));
   $('#wpHashtags')?.addEventListener('change', (e) => { if (!isHost()) return; const h = parseHashtags(e.target.value); store.set('hashtags', h); setStage({ hashtags: h }); });
   $('#wpNoticeImgBtn')?.addEventListener('click', () => $('#wpNoticeImgFile').click());
   $('#wpNoticeImgClear')?.addEventListener('click', () => {
@@ -435,7 +1143,7 @@ export function createAudience(app) {
     setStage({ elements: els });
     toast('The watch link and its QR code are on stage.');
   };
-  for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id)) $(id).onchange = (e) => setWatch({ [k]: e.target.checked });
+  for (const [id, k] of [['#wpChat', 'chat'], ['#wpSupers', 'supers'], ['#wpBounties', 'bounties'], ['#wpDirect', 'direct'], ['#wpVoice', 'voice'], ['#wpBadge', 'badge']]) if ($(id)) $(id).onchange = (e) => setWatch({ [k]: e.target.checked });
   $('#wpCap').onchange = (e) => setWatch({ cap: Number(e.target.value) });
   $('#wpAbout').onchange = (e) => setWatch({ about: e.target.value.trim() });
   $('#wpLobby').onchange = (e) => setWatch({ lobby: e.target.value.trim() });
@@ -550,55 +1258,297 @@ export function createAudience(app) {
 
   // ---------------------------------------------------------------- polls and predictions
   let pollKind = 'poll';
+  let pollDraftChoices = ['', ''];
   S.pollCounts = [];
-  $$('#pollKind button').forEach((b) => b.addEventListener('click', () => { pollKind = b.dataset.kind; $$('#pollKind button').forEach((x) => x.setAttribute('aria-checked', String(x === b))); }));
-  $('#pollGo').onclick = () => {
-    const q = $('#pollQ').value.trim(), opts = $('#pollOpts').value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 4);
-    if (!q || opts.length < 2) return toast('Add a question and at least two choices.', { err: true });
-    setStage({ poll: { id: uid().slice(0, 8), kind: pollKind, q, opts, until: Date.now() + Number($('#pollMins').value) * 60e3, answer: -1 } });
-    S.pollCounts = opts.map(() => 0); renderPoll();
+  const POLL_LETTERS = ['A', 'B', 'C', 'D'];
+  const POLL_TEMPLATES = {
+    yesno: { kind: 'poll', q: 'Should we do this next?', opts: ['Yes, let’s go!', 'No, skip it'] },
+    rate: { kind: 'poll', q: 'Rate what you just saw (1–4)', opts: ['4 — Amazing', '3 — Solid', '2 — Okay', '1 — Needs work'] },
+    next: { kind: 'poll', q: 'What should we cover next?', opts: ['Live Q&A', 'Behind the scenes', 'Audience hot takes'] },
+    winner: { kind: 'predict', q: 'Who wins this round?', opts: ['Clutch victory', 'Tough defeat'] },
   };
-  $('#pollEnd').onclick = () => { if (S.state.poll) setStage({ poll: { ...S.state.poll, until: Math.min(S.state.poll.until, Date.now()) } }); renderPoll(); };
-  function renderPoll() {
-    const p = S.state.poll, box = $('#pollLive'); if (!box) return;
-    if (!p) { replaceKids(box); $('#pollState').textContent = ''; return; }
-    const open = p.until > Date.now(), total = S.pollCounts.reduce((a, b) => a + b, 0);
-    $('#pollState').textContent = open ? `Live · ${fmtTime(p.until - Date.now())} left · ${total} vote${total === 1 ? '' : 's'}` : `Closed · ${total} votes`;
-    const rows = p.opts.map((o, i) => {
-      const n = S.pollCounts[i] || 0, pct = total ? Math.round(n / total * 100) : 0;
-      const d = document.createElement('div'); d.className = 'poll-bar';
-      const bar = document.createElement('i'); bar.style.width = pct + '%';
-      const l = document.createElement('span'); l.textContent = (p.answer === i ? '✓ ' : '') + o; const r = document.createElement('b'); r.textContent = `${pct}% · ${n}`;
-      d.append(bar, l, r);
-      if (p.kind === 'predict' && !open && p.answer < 0) { d.style.cursor = 'pointer'; d.title = 'Settle the prediction with this answer'; d.onclick = () => setStage({ poll: { ...p, answer: i } }); }
-      return d;
-    });
-    const title = document.createElement('p'); title.className = 'hint'; title.style.margin = '0';
-    title.textContent = p.kind === 'predict' && !open && p.answer < 0 ? 'Voting closed. Click the right answer to settle the prediction.' : p.q;
-    const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'btn sm ghost'; clear.textContent = 'Remove from screen'; clear.onclick = () => setStage({ poll: null });
-    replaceKids(box, title, ...rows, clear);
+  const getPollHistory = () => {
+    const arr = store.get('pollHistory', []);
+    return Array.isArray(arr) ? arr : [];
+  };
+  const savePollHistory = (list) => {
+    store.set('pollHistory', list.slice(0, 8));
+    renderPollHistory();
+  };
+  const recordPollHistory = (p, counts = []) => {
+    if (!p?.q || !p?.opts?.length) return;
+    const total = counts.reduce((a, b) => a + b, 0);
+    let winIdx = p.answer >= 0 ? p.answer : -1;
+    if (winIdx < 0 && total > 0) {
+      let max = -1;
+      counts.forEach((n, i) => { if (n > max) { max = n; winIdx = i; } });
+    }
+    const entry = {
+      id: p.id,
+      kind: p.kind || 'poll',
+      q: p.q,
+      opts: [...p.opts],
+      total,
+      winner: winIdx >= 0 ? p.opts[winIdx] : '',
+      ts: Date.now(),
+    };
+    const next = [entry, ...getPollHistory().filter((x) => x.id !== p.id && x.q !== p.q)];
+    savePollHistory(next);
+  };
+
+  function syncPollKindUI(kind) {
+    pollKind = kind === 'predict' ? 'predict' : 'poll';
+    $$('#pollKind button').forEach((x) => x.setAttribute('aria-checked', String(x.dataset.kind === pollKind)));
+    if ($('#pollKindHelp')) {
+      $('#pollKindHelp').textContent = pollKind === 'predict'
+        ? 'Viewers pick an outcome before time runs out — then you click the winning choice to settle it.'
+        : 'Viewers vote live on your watch page and see results update in real time.';
+    }
+    if ($('#pollGo')) $('#pollGo').textContent = pollKind === 'predict' ? 'Launch prediction' : 'Launch poll';
+    if ($('#pollQ')) $('#pollQ').placeholder = pollKind === 'predict' ? 'Who wins this match?' : 'Ask your audience something…';
   }
-  /** The host reads live counts from the same cached feed viewers use (one GET every 2 s, only while a poll exists). */
-  setInterval(async () => {
-    if (!isHost() || !S.studio || !S.state.poll) return;
-    try { const f = await (await fetch(`/api/studio?action=wfeed&studio=${encodeURIComponent(S.studio)}`)).json(); if (f.poll?.id === S.state.poll.id) S.pollCounts = f.poll.counts; } catch {}
+  function syncHiddenPollOpts() {
+    if ($('#pollOpts')) $('#pollOpts').value = pollDraftChoices.filter((s) => s.trim()).join('\n');
+  }
+  function renderPollChoices(focusIdx = -1) {
+    const wrap = $('#pollChoices'); if (!wrap) return;
+    if (pollDraftChoices.length < 2) pollDraftChoices = ['', ''];
+    replaceKids(wrap, ...pollDraftChoices.map((val, i) => {
+      const row = document.createElement('div'); row.className = 'poll-choice-row';
+      const badge = document.createElement('span'); badge.className = 'poll-choice-key'; badge.textContent = POLL_LETTERS[i] || String(i + 1);
+      const inp = document.createElement('input');
+      inp.className = 'input sm';
+      inp.maxLength = 48;
+      inp.placeholder = i === 0 ? 'Option A' : i === 1 ? 'Option B' : `Option ${POLL_LETTERS[i]}`;
+      inp.value = val;
+      inp.setAttribute('aria-label', `Choice ${POLL_LETTERS[i]}`);
+      inp.oninput = () => { pollDraftChoices[i] = inp.value; syncHiddenPollOpts(); };
+      inp.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (i < pollDraftChoices.length - 1) wrap.querySelectorAll('input')[i + 1]?.focus();
+          else if (pollDraftChoices.length < 4) { pollDraftChoices.push(''); renderPollChoices(pollDraftChoices.length - 1); }
+          else $('#pollGo')?.click();
+        }
+      };
+      row.append(badge, inp);
+      if (pollDraftChoices.length > 2) {
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'icon-btn sm poll-choice-rm';
+        rm.setAttribute('aria-label', `Remove choice ${POLL_LETTERS[i]}`);
+        rm.textContent = '×';
+        rm.onclick = () => { pollDraftChoices.splice(i, 1); syncHiddenPollOpts(); renderPollChoices(Math.max(0, i - 1)); };
+        row.append(rm);
+      }
+      return row;
+    }));
+    if ($('#pollAddChoice')) $('#pollAddChoice').hidden = pollDraftChoices.length >= 4;
+    if (focusIdx >= 0) wrap.querySelectorAll('input')[focusIdx]?.focus();
+  }
+  function updatePollQCount() {
+    if ($('#pollQCount') && $('#pollQ')) $('#pollQCount').textContent = `${$('#pollQ').value.length} / 120`;
+  }
+  function launchPoll({ kind = pollKind, q, opts, mins = Number($('#pollMins')?.value || 2), hiddenOnStage = !($('#pollShowStage')?.checked ?? true) }) {
+    if (!isHost()) return toast('Only the host can launch polls.', { err: true });
+    const cleanQ = String(q || '').trim().slice(0, 120);
+    const cleanOpts = (opts || []).map((x) => String(x || '').trim().slice(0, 48)).filter(Boolean).slice(0, 4);
+    if (!cleanQ || cleanOpts.length < 2) return toast('Add a question and at least two choices.', { err: true });
+    if (S.state.poll) recordPollHistory(S.state.poll, S.pollCounts);
+    const durMs = Math.max(15e3, Math.round((Number(mins) || 2) * 60e3));
+    const nextPoll = { id: uid().slice(0, 8), kind: kind === 'predict' ? 'predict' : 'poll', q: cleanQ, opts: cleanOpts, until: Date.now() + durMs, answer: -1, hiddenOnStage: !!hiddenOnStage };
+    setStage({ poll: nextPoll });
+    S.pollCounts = cleanOpts.map(() => 0);
     renderPoll();
-  }, 2000);
+    toast(nextPoll.kind === 'predict' ? 'Prediction is live on your watch page!' : 'Poll is live on your watch page!');
+  }
+
+  $$('#pollKind button').forEach((b) => b.addEventListener('click', () => syncPollKindUI(b.dataset.kind)));
+  $('#pollQ')?.addEventListener('input', updatePollQCount);
+  $('#pollAddChoice')?.addEventListener('click', () => {
+    if (pollDraftChoices.length >= 4) return;
+    pollDraftChoices.push('');
+    syncHiddenPollOpts();
+    renderPollChoices(pollDraftChoices.length - 1);
+  });
+  $('#pollOpts')?.addEventListener('input', () => {
+    const lines = $('#pollOpts').value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 4);
+    if (lines.length >= 2) { pollDraftChoices = lines; renderPollChoices(); }
+  });
+  $('#pollPresets')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ptpl]'); if (!btn) return;
+    const tpl = POLL_TEMPLATES[btn.dataset.ptpl]; if (!tpl) return;
+    syncPollKindUI(tpl.kind);
+    if ($('#pollQ')) { $('#pollQ').value = tpl.q; updatePollQCount(); }
+    pollDraftChoices = [...tpl.opts];
+    syncHiddenPollOpts();
+    renderPollChoices();
+    $('#pollQ')?.focus();
+  });
+  $('#pollGo').onclick = () => {
+    const q = $('#pollQ')?.value.trim() || '';
+    const opts = pollDraftChoices.map((x) => x.trim()).filter(Boolean).slice(0, 4);
+    launchPoll({ kind: pollKind, q, opts, mins: Number($('#pollMins')?.value || 2), hiddenOnStage: !($('#pollShowStage')?.checked ?? true) });
+  };
+  $('#pollEnd').onclick = () => {
+    if (!S.state.poll) return;
+    setStage({ poll: { ...S.state.poll, until: Math.min(S.state.poll.until, Date.now()) } });
+    renderPoll();
+  };
+  $('#pollHistoryClear')?.addEventListener('click', () => savePollHistory([]));
+
+  function renderPollHistory() {
+    const sec = $('#pollHistorySec'), ul = $('#pollHistoryList'), cnt = $('#pollHistoryCount');
+    if (!sec || !ul) return;
+    const list = getPollHistory();
+    sec.hidden = !list.length;
+    if (cnt) cnt.textContent = list.length ? `${list.length} saved` : '';
+    replaceKids(ul, ...list.map((item) => {
+      const li = document.createElement('li'); li.className = 'poll-hist-item';
+      const info = document.createElement('div'); info.className = 'poll-hist-info';
+      const meta = document.createElement('span'); meta.className = 'poll-hist-meta';
+      meta.textContent = `${item.kind === 'predict' ? 'Prediction' : 'Poll'} · ${item.total || 0} vote${item.total === 1 ? '' : 's'}${item.winner ? ` · ${item.winner}` : ''}`;
+      const qEl = document.createElement('b'); qEl.textContent = item.q;
+      info.append(qEl, meta);
+      const acts = document.createElement('div'); acts.className = 'poll-hist-acts';
+      const loadBtn = document.createElement('button'); loadBtn.type = 'button'; loadBtn.className = 'btn sm ghost'; loadBtn.textContent = 'Edit';
+      loadBtn.onclick = () => {
+        syncPollKindUI(item.kind);
+        if ($('#pollQ')) { $('#pollQ').value = item.q; updatePollQCount(); }
+        pollDraftChoices = [...item.opts];
+        syncHiddenPollOpts();
+        renderPollChoices();
+        $('#pollQ')?.focus();
+      };
+      const runBtn = document.createElement('button'); runBtn.type = 'button'; runBtn.className = 'btn sm'; runBtn.textContent = 'Re-run';
+      runBtn.onclick = () => launchPoll({ kind: item.kind, q: item.q, opts: item.opts });
+      acts.append(loadBtn, runBtn);
+      li.append(info, acts);
+      return li;
+    }));
+  }
+
+  function renderPoll() {
+    const p = S.state.poll, box = $('#pollLive'), sec = $('#pollLiveSec'); if (!box) return;
+    if (!p) {
+      replaceKids(box);
+      if (sec) sec.hidden = true;
+      if ($('#pollState')) $('#pollState').textContent = '';
+      if ($('#pollEnd')) $('#pollEnd').hidden = true;
+      return;
+    }
+    const open = p.until > Date.now(), total = S.pollCounts.reduce((a, b) => a + b, 0);
+    const settled = p.kind === 'predict' && p.answer >= 0;
+    const needSettle = p.kind === 'predict' && !open && p.answer < 0;
+    const statusTxt = open
+      ? `Live · ${fmtTime(p.until - Date.now())} · ${total} vote${total === 1 ? '' : 's'}`
+      : settled
+        ? `Settled · ${total} vote${total === 1 ? '' : 's'}`
+        : `Closed · ${total} vote${total === 1 ? '' : 's'}`;
+    if ($('#pollState')) $('#pollState').textContent = statusTxt;
+    if ($('#pollLiveSummary')) $('#pollLiveSummary').textContent = statusTxt;
+    if (sec) sec.hidden = false;
+    if ($('#pollEnd')) $('#pollEnd').hidden = !open;
+
+    const head = document.createElement('div'); head.className = 'poll-live-head';
+    const tag = document.createElement('span'); tag.className = 'poll-live-tag' + (open ? ' is-live' : settled ? ' is-settled' : '');
+    tag.textContent = (p.kind === 'predict' ? 'Prediction' : 'Poll') + (open ? ' · Voting open' : settled ? ' · Settled' : ' · Closed');
+    const qEl = document.createElement('p'); qEl.className = 'poll-live-q'; qEl.textContent = p.q;
+    head.append(tag, qEl);
+
+    const kids = [head];
+    if (needSettle) {
+      const prompt = document.createElement('p'); prompt.className = 'poll-settle-note';
+      prompt.textContent = 'Voting closed. Click the winning outcome below to settle this prediction:';
+      kids.push(prompt);
+    }
+
+    const barsWrap = document.createElement('div'); barsWrap.className = 'poll-bars';
+    p.opts.forEach((o, i) => {
+      const n = S.pollCounts[i] || 0, pct = total ? Math.round((n / total) * 100) : 0;
+      const isWinner = p.answer === i;
+      const d = document.createElement(needSettle ? 'button' : 'div');
+      if (needSettle) d.type = 'button';
+      d.className = 'poll-bar' + (isWinner ? ' is-winner' : '') + (needSettle ? ' is-pickable' : '');
+      const bar = document.createElement('i'); bar.style.width = pct + '%';
+      const l = document.createElement('span'); l.className = 'poll-bar-lbl';
+      const key = document.createElement('em'); key.className = 'poll-bar-key'; key.textContent = isWinner ? '✓' : (POLL_LETTERS[i] || String(i + 1));
+      const txt = document.createElement('span'); txt.textContent = o;
+      l.append(key, txt);
+      const r = document.createElement('b'); r.className = 'num'; r.textContent = `${pct}% · ${n}`;
+      d.append(bar, l, r);
+      if (needSettle) {
+        d.title = 'Settle the prediction with this answer';
+        d.onclick = () => {
+          const updated = { ...p, answer: i };
+          setStage({ poll: updated });
+          recordPollHistory(updated, S.pollCounts);
+          toast(`Prediction settled: “${o}” wins!`);
+        };
+      }
+      barsWrap.append(d);
+    });
+    kids.push(barsWrap);
+
+    const acts = document.createElement('div'); acts.className = 'poll-live-acts';
+    if (open) {
+      const endBtn = document.createElement('button'); endBtn.type = 'button'; endBtn.className = 'btn sm';
+      endBtn.textContent = 'Close voting';
+      endBtn.onclick = () => { setStage({ poll: { ...p, until: Date.now() } }); renderPoll(); };
+      acts.append(endBtn);
+    } else if (!settled) {
+      const reopenBtn = document.createElement('button'); reopenBtn.type = 'button'; reopenBtn.className = 'btn sm';
+      reopenBtn.textContent = '+1 min';
+      reopenBtn.onclick = () => { setStage({ poll: { ...p, until: Date.now() + 60e3 } }); renderPoll(); };
+      acts.append(reopenBtn);
+    }
+    const stageBtn = document.createElement('button'); stageBtn.type = 'button'; stageBtn.className = 'btn sm ghost';
+    stageBtn.textContent = p.hiddenOnStage ? 'Show on video' : 'Hide on video';
+    stageBtn.onclick = () => { setStage({ poll: { ...p, hiddenOnStage: !p.hiddenOnStage } }); renderPoll(); };
+    const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'btn sm ghost';
+    clearBtn.textContent = 'Remove';
+    clearBtn.onclick = () => { recordPollHistory(p, S.pollCounts); setStage({ poll: null }); renderPoll(); };
+    acts.append(stageBtn, clearBtn);
+    kids.push(acts);
+
+    replaceKids(box, ...kids);
+  }
+  syncPollKindUI('poll');
+  renderPollChoices();
+  updatePollQCount();
+  renderPollHistory();
+
+  /** Live 1s countdown & 2s vote sync while a poll exists. */
+  let pollTick = 0;
+  setInterval(async () => {
+    if (!S.state.poll) return;
+    pollTick++;
+    if (isHost() && S.studio && pollTick % 2 === 0) {
+      try { const f = await (await fetch(`/api/studio?action=wfeed&studio=${encodeURIComponent(S.studio)}`)).json(); if (f.poll?.id === S.state.poll.id) S.pollCounts = f.poll.counts; } catch {}
+    }
+    renderPoll();
+  }, 1000);
   function drawPoll() {
-    const p = S.state.poll; if (!p) return;
+    const p = S.state.poll; if (!p || p.hiddenOnStage) return;
     const open = p.until > Date.now(), total = (S.pollCounts || []).reduce((a, b) => a + b, 0);
-    const w = 360, rowH = 34, h = 70 + p.opts.length * (rowH + 8), x = app.W - w - 28, y = 28;
+    const w = 368, rowH = 34, h = 72 + p.opts.length * (rowH + 8), x = app.W - w - 28, y = 28;
     g.save();
-    g.fillStyle = 'rgba(10,14,26,.86)'; rr(x, y, w, h, 16); g.fill();
-    g.fillStyle = '#9ca3af'; g.font = '800 12px Inter, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
-    g.fillText((p.kind === 'predict' ? 'PREDICTION' : 'POLL') + (open ? ` · ${fmtTime(p.until - Date.now())} · vote on the watch page` : ` · ${total} votes`), x + 18, y + 26);
-    g.fillStyle = '#fff'; g.font = '700 18px Inter, sans-serif'; g.fillText(wrapLines(p.q, w - 36, 1)[0] || p.q, x + 18, y + 52);
+    g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 22; g.shadowOffsetY = 8;
+    g.fillStyle = 'rgba(10,14,26,.88)'; rr(x, y, w, h, 16); g.fill();
+    g.shadowColor = 'transparent';
+    g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 1; rr(x + 0.5, y + 0.5, w - 1, h - 1, 16); g.stroke();
+    g.fillStyle = '#9ca3af'; g.font = '800 11.5px Inter, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    const meta = (p.kind === 'predict' ? 'PREDICTION' : 'POLL') + (open ? ` · ${fmtTime(p.until - Date.now())} · vote on watch page` : p.answer >= 0 ? ` · SETTLED · ${total} votes` : ` · CLOSED · ${total} votes`);
+    g.fillText(meta, x + 18, y + 26);
+    g.fillStyle = '#fff'; g.font = '700 17.5px Inter, sans-serif'; g.fillText(wrapLines(p.q, w - 36, 1)[0] || p.q, x + 18, y + 52);
     p.opts.forEach((o, i) => {
       const n = (S.pollCounts || [])[i] || 0, pct = total ? n / total : 0, ry = y + 66 + i * (rowH + 8);
       g.fillStyle = 'rgba(255,255,255,.08)'; rr(x + 18, ry, w - 36, rowH, 8); g.fill();
       g.fillStyle = p.answer === i ? '#16a34a' : S.state.brand.color; if (pct) { rr(x + 18, ry, Math.max(12, (w - 36) * pct), rowH, 8); g.fill(); }
-      g.fillStyle = '#fff'; g.font = '600 15px Inter, sans-serif'; g.fillText((p.answer === i ? '✓ ' : '') + o, x + 30, ry + 22);
-      g.textAlign = 'right'; g.fillText(total ? Math.round(pct * 100) + '%' : '', x + w - 30, ry + 22); g.textAlign = 'left';
+      g.fillStyle = '#fff'; g.font = '600 14.5px Inter, sans-serif';
+      g.fillText((p.answer === i ? '✓ ' : `${POLL_LETTERS[i] || i + 1}. `) + o, x + 30, ry + 22);
+      g.textAlign = 'right'; g.font = '700 14px Inter, sans-serif';
+      g.fillText(total ? Math.round(pct * 100) + '%' : '', x + w - 28, ry + 22);
+      g.textAlign = 'left';
     });
     g.restore();
   }
@@ -969,5 +1919,5 @@ export function createAudience(app) {
   }
 
 
-  return { watchSlug, watchLinkUrl, watchLinkText, viewerWant, viewerSignal, closeViewer, closeAllViewers, money, gotSuperchat, renderBountyPanel, drawBountyEl, refreshSupers, reactFloat, setWatch, renderWatchSec, shopCfg, setShop, drawProduct, drawPoll, gotQueue, renderQueue, gotVoice, dropVoice, refreshVoice, drawWatchBadge };
+  return { watchSlug, watchLinkUrl, watchLinkText, viewerWant, viewerSignal, closeViewer, closeAllViewers, money, gotSuperchat, superAct, renderBountyPanel, drawBountyEl, refreshSupers, reactFloat, setWatch, renderWatchSec, shopCfg, setShop, drawProduct, drawPoll, gotQueue, renderQueue, gotVoice, dropVoice, refreshVoice, drawWatchBadge };
 }

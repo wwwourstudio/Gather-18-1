@@ -5,9 +5,7 @@ import { TIERS, tierOf, drawOrder, isSystem, ensureSystem, blockerFor, snapMove,
 import { createNotifier } from './notify.js';
 import { drawThemedFeatured, drawPurchaseAlert, drawShopDropBadge, drawVoiceOnAir, drawGoalConfetti, drawCountdownScreen, drawSponsorCard } from './stage-theme.js';
 import { initAudioStudio } from './audio-studio.js';
-import { initStudioTools } from './studio-tools.js';
 import * as liveEvents from './live-events.js';
-import { createAudience } from './audience.js';
 import { createInvite } from './invite.js';
 import { createProducer } from './producer.js';
 import { createGoLive } from './golive.js';
@@ -22,10 +20,24 @@ import { createViewerCount } from './viewers.js';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
-const $ = (s, r = document) => r.querySelector(s);
+const dockEl = (() => {
+  const tpl = document.getElementById('dockTpl');
+  if (tpl?.content?.firstElementChild) return tpl.content.firstElementChild;
+  const el = document.getElementById('dock');
+  if (el && document.body.classList.contains('pre')) el.remove();
+  return el;
+})();
+const $ = (s, r = document) => r.querySelector(s) || (r === document && dockEl && !dockEl.isConnected ? (dockEl.matches(s) ? dockEl : dockEl.querySelector(s)) : null);
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const smooth = () => (reduceMotion() ? 'auto' : 'smooth');
-const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const $$ = (s, r = document) => {
+  const out = [...r.querySelectorAll(s)];
+  if (r === document && dockEl && !dockEl.isConnected) {
+    if (dockEl.matches(s)) out.push(dockEl);
+    out.push(...dockEl.querySelectorAll(s));
+  }
+  return out;
+};
 // Pictures (avatar, camera and camera-off backgrounds, brand images) are too big for localStorage's
 // ~5 MB quota, so they live in IndexedDB behind the same synchronous store API.
 const BIG_KEYS = new Set(['avatar', 'fxBg', 'offBg', 'brandImgs', 'arrangements']);
@@ -124,6 +136,8 @@ const S = {
   pendingChatFile: null,
   brief: null,
   briefExpanded: true,
+  srtLog: [],
+  sessionStartAt: Date.now(),
 };
 function localState() {
   const imgs = store.get('brandImgs', {});
@@ -133,7 +147,7 @@ function localState() {
   const bp = rawBp && typeof rawBp === 'object' ? { ...rawBp } : {};
   if (bp.color && BAD_ACCENTS.has(String(bp.color).toLowerCase())) bp.color = '#3b82f6';
   return {
-    layout: 'split', stage: ['me'], banner: null, ticker: '',
+    layout: 'solo', stage: ['me'], banner: null, ticker: '',
     chatOpts: { guestFiles: true, defaultScope: 'guests' },
     brand: { color: savedAccent, bg: store.get('bg', 'dusk'), watermark: false, names: true, font: 'jakarta', tag: 'solid', bannerStyle: 'classic', anim: 'slide', frame: 'none', dim: 0.25, logoPos: 'tr', logoSize: 0.12,
       ...bp, bgImage: imgs.bgImage ? 'local-brand-bgImage' : '', overlay: imgs.overlay ? 'local-brand-overlay' : '', logo: imgs.logo ? 'local-brand-logo' : '' },
@@ -150,8 +164,18 @@ function localState() {
 }
 const isHost = () => !S.studio || S.host === S.id;
 const myId = () => S.id || 'me';
-const WATCH_DEFAULTS = { chat: true, supers: false, join: false, queue: false, voice: true, badge: true, direct: true, cap: 6, slow: 0, min: 2, about: '', pin: '', lobby: '', rig: '', goal: { label: '', target: 0 }, reactsOnStream: true, links: [], pay: { paypal: '', venmo: '', cashapp: '', stripe: '' } };
-const watchCfg = () => ({ ...WATCH_DEFAULTS, ...(S.state.watch || {}), pay: { ...WATCH_DEFAULTS.pay, ...(S.state.watch?.pay || {}) } });
+const WATCH_DEFAULTS = {
+  chat: true, supers: false, bounties: true, join: false, queue: false, voice: true, badge: true, direct: true, cap: 6, slow: 0, min: 2,
+  about: '', pin: '', lobby: '', rig: '', goal: { label: '', target: 0 }, reactsOnStream: true, links: [],
+  pay: { stripe: '', paypal: '', venmo: '', cashapp: '', kofi: '', patreon: '', bmc: '' },
+  payOn: { stripe: false, paypal: false, venmo: false, cashapp: false, kofi: false, patreon: false, bmc: false },
+};
+const watchCfg = () => ({
+  ...WATCH_DEFAULTS,
+  ...(S.state.watch || {}),
+  pay: { ...WATCH_DEFAULTS.pay, ...(S.state.watch?.pay || {}) },
+  payOn: { ...WATCH_DEFAULTS.payOn, ...(S.state.watch?.payOn || {}) },
+});
 function normalizeHex(hex) {
   const raw = String(hex || '').trim().replace(/^#/, '');
   if (/^[0-9a-f]{3}$/i.test(raw)) return '#' + raw.split('').map((c) => c + c).join('');
@@ -659,6 +683,7 @@ function startPresentation(pres) {
   S.local.pres = pres;
   syncMedia();
   autoPresentScene(myId());
+  window.__gatherOnStudioChange?.();
 }
 function stopPresentation() {
   const pres = S.local.pres;
@@ -667,6 +692,7 @@ function stopPresentation() {
   pres.stop();
   syncMedia();
   autoEndPresentScene();
+  window.__gatherOnStudioChange?.();
 }
 /** Share a screen, or (game) a game window: 60 fps, up to 1080p, encoded for motion rather than sharp text. */
 async function presentScreen(game = false) {
@@ -1064,7 +1090,7 @@ async function join(code, opts = {}) {
   let r;
   // Only "Create studio" may open a studio; every other path (invite links, the Join box, reconnects) joins one.
   const intent = opts.create ? 'create' : 'join';
-  try { r = await api('join', { studio: code, dev: deviceId(), name: S.name || 'Guest', mic: S.local.micOn, cam: S.local.camOn, acct: acct.token || undefined, pass, callin: opts.callin || undefined, intent }); }
+  try { r = await api('join', { studio: code, dev: deviceId(), name: S.name || 'Guest', mic: S.local.micOn, cam: S.local.camOn, ready: !!S.local.ready, latencyMs: Number(S.local.latencyMs) || 0, acct: acct.token || undefined, pass, callin: opts.callin || undefined, intent }); }
   catch (e) {
     if (e.status === 423 && $('#enterDlg').open) { setPhase('offline'); startKnock(code, opts.callin); return; }
     if (e.status === 404 && intent === 'join' && !opts.callin && !opts.noWait && $('#enterDlg').open) { setPhase('offline'); waitForHost(code, e.message); return; }
@@ -1141,6 +1167,7 @@ async function onServer(m) {
       uploadAvatar(); S.local.offbgId = ''; uploadOffBg();
       $('#knockWait').hidden = true; $('#enterFields').hidden = false;
       if (S.host === S.id) { refreshLobby(); refreshSupers(); refreshVoice(); }
+      preloadStudioAssets();
       renderAll();
       renderChatMood();
       // No invite pop-up on entry: the header's Invite button and the footer's "Copy link" are one click away.
@@ -1187,13 +1214,13 @@ async function onServer(m) {
       const p = S.peers.get(m.peer.id);
       if (!p) break;
       const startedSharing = m.peer.sharing && !p.sharing, stoppedSharing = !m.peer.sharing && p.sharing;
-      Object.assign(p, { name: m.peer.name, mic: m.peer.mic, cam: m.peer.cam, sharing: m.peer.sharing, hand: !!m.peer.hand, avatar: m.peer.avatar || '', offbg: m.peer.offbg || '' });
+      Object.assign(p, { name: m.peer.name, mic: m.peer.mic, cam: m.peer.cam, sharing: m.peer.sharing, hand: !!m.peer.hand, ready: !!m.peer.ready, latencyMs: Number(m.peer.latencyMs) || 0, avatar: m.peer.avatar || '', offbg: m.peer.offbg || '' });
       if (startedSharing) autoPresentScene(p.id);
       if (stoppedSharing) autoEndPresentScene();
       renderCrew();
       break;
     }
-    case 'state': startSceneFade(S.state, m.state); S.state = m.state; requestStageRender(); renderAll(); renderChatMood(); break;
+    case 'state': preloadBrandAssets(m.state); preloadSceneElements(m.state?.elements); startSceneFade(S.state, m.state); S.state = m.state; requestStageRender(); renderAll(); renderChatMood(); break;
     case 'chat': addMsg(m.msg); break;
     case 'chat-del': {
       const id = String(m.id || '');
@@ -1261,7 +1288,7 @@ const cssId = (id) => String(id ?? '').replace(/[^a-z0-9_-]/gi, '');
 function addPeer(info) {
   let p = S.peers.get(info.id);
   if (!p) { p = { id: info.id, pc: null, stream: new MediaStream(), pending: [], meters: [], rtt: null, conn: 'new' }; S.peers.set(info.id, p); }
-  Object.assign(p, { name: info.name, mic: info.mic, cam: info.cam, sharing: info.sharing, hand: !!info.hand, avatar: info.avatar || '', offbg: info.offbg || '', joinedAt: info.joinedAt });
+  Object.assign(p, { name: info.name, mic: info.mic, cam: info.cam, sharing: info.sharing, hand: !!info.hand, ready: !!info.ready, latencyMs: Number(info.latencyMs) || 0, avatar: info.avatar || '', offbg: info.offbg || '', joinedAt: info.joinedAt });
   return p;
 }
 function createPeer(info, offerer) {
@@ -1380,6 +1407,9 @@ function setStage(patch) {
   if (!isHost()) return toast('Only the host can change the stage.', { err: true });
   if (patch.elements) patch = { ...patch, elements: ensureSystem(patch.elements, (patch.aspect || S.state.aspect) === '9:16', uid) };
   const next = { ...S.state, ...patch, brand: { ...S.state.brand, ...(patch.brand || {}) } };
+  // Warm branding, overlay PNGs, and scene image canvases before capturing the crossfade snapshot
+  preloadBrandAssets(next);
+  if (patch.elements) preloadSceneElements(next.elements);
   startSceneFade(S.state, next);
   S.state = next;
   if ('scene' in patch) store.set('lastScene', S.state.scene || '');
@@ -1397,9 +1427,9 @@ function toggleStage(id) {
 
 // ---------------------------------------------------------------- participants model
 function participants() {
-  const me = { id: myId(), me: true, name: S.name || 'You', mic: S.local.micOn && !!S.local.audio, cam: !!outVideo(), sharing: !!S.local.pres, hand: !!S.local.hand, avatar: S.local.avatarId || '', offbg: S.local.offbgId || '', joinedAt: S.local.joinedAt, level: localMeter?.level() || 0, meter: localMeter };
+  const me = { id: myId(), me: true, name: S.name || 'You', mic: S.local.micOn && !!S.local.audio, cam: !!outVideo(), sharing: !!S.local.pres, hand: !!S.local.hand, ready: !!S.local.ready, latencyMs: Number(S.local.latencyMs) || 0, avatar: S.local.avatarId || '', offbg: S.local.offbgId || '', joinedAt: S.local.joinedAt, level: localMeter?.level() || 0, meter: localMeter };
   const list = [me];
-  for (const p of S.peers.values()) list.push({ id: p.id, name: p.name, mic: p.mic, cam: p.cam, sharing: p.sharing, hand: !!p.hand, avatar: p.avatar || '', offbg: p.offbg || '', joinedAt: p.joinedAt, peer: p, level: p.meters[0]?.level() || 0, meter: p.meters[0] || null });
+  for (const p of S.peers.values()) list.push({ id: p.id, name: p.name, mic: p.mic, cam: p.cam, sharing: p.sharing, hand: !!p.hand, ready: !!p.ready, latencyMs: Number(p.latencyMs) || 0, avatar: p.avatar || '', offbg: p.offbg || '', joinedAt: p.joinedAt, peer: p, level: p.meters[0]?.level() || 0, meter: p.meters[0] || null });
   return list.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
 }
 function cardVideo(id) {
@@ -1523,12 +1553,16 @@ function layoutRects(n, layout, area) {
 const FONTS = { jakarta: '"Plus Jakarta Sans"', onest: 'Onest', playfair: '"Playfair Display"', bebas: '"Bebas Neue"', mono: '"JetBrains Mono"', serif: '"DM Serif Display"' };
 const stageFont = () => (FONTS[S.state.brand.font] || FONTS.jakarta) + ', Inter, sans-serif';
 function drawBackground(t) {
-  const bgImg = assetImg(S.state.brand.bgImage);
-  if (bgImg) {
-    const k = Math.max(W / bgImg.naturalWidth, H / bgImg.naturalHeight), dw = bgImg.naturalWidth * k, dh = bgImg.naturalHeight * k;
-    g.drawImage(bgImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    g.fillStyle = `rgba(4,8,20,${S.state.brand.dim ?? 0.25})`; g.fillRect(0, 0, W, H);
-    return;
+  const bgId = S.state.brand.bgImage;
+  if (bgId) {
+    const dim = S.state.brand.dim ?? 0.25;
+    const bgSurf = getBrandBgCanvas(bgId, W, H, dim);
+    if (bgSurf) {
+      const t0 = performance.now();
+      g.drawImage(bgSurf, 0, 0, W, H);
+      recordAssetBlit(performance.now() - t0);
+      return;
+    }
   }
   const customBg = window.__gatherCustomBg;
   if (customBg && customBg.on) {
@@ -1557,10 +1591,10 @@ function drawBackground(t) {
   rad.addColorStop(0, glow); rad.addColorStop(1, 'transparent');
   g.fillStyle = rad; g.fillRect(0, 0, W, H);
 }
+let pendingNameCards = [];
 function drawTile(p, rect, t) {
   const { x, y, w, h } = rect;
   const el = cardVideo(p.id);
-  const brand = S.state.brand;
   g.save();
   const R = rect.r ?? 0;
   if (R > 0) { rr(x, y, w, h, R); g.clip(); }
@@ -1573,10 +1607,16 @@ function drawTile(p, rect, t) {
   const now = performance.now();
   if (p.mic && p.level > 0.02) speaking.set(p.id, now);
 
-  // Name tag.
+  // Queue name card to render at the topmost z-order above frames, overlays, HUDs, captions, and alerts.
+  pendingNameCards.push({ p, rect });
+}
+function drawTileNameCard(p, rect) {
+  const { x, y, w, h } = rect;
+  const brand = S.state.brand;
   const fs = Math.max(13, Math.min(18, h * 0.045));
-  let tx = x + 16;
+  const tx = x + 16;
   const ty = y + h - 16 - fs * 1.9;
+  g.save();
   if (brand.names) {
     const label = p.name; // the program is recorded and streamed, so never "(you)" here
     g.font = `700 ${fs}px ${stageFont()}`; g.textAlign = 'left'; g.textBaseline = 'middle';
@@ -1595,6 +1635,7 @@ function drawTile(p, rect, t) {
     g.fillText(label, tx + fs * .7, ty + fs * .97); g.restore();
     g.shadowColor = 'transparent';
     if (muted) drawMicOff(tx + fs * .7 + tw + fs * .3 + icon / 2, ty + bh / 2, fs * .42, style === 'solid' ? ink : '#ff6b6b');
+    g.restore();
     return;
   }
   if (!p.mic) { // name tags off: a small badge of its own
@@ -1602,6 +1643,7 @@ function drawTile(p, rect, t) {
     g.fillStyle = 'rgba(17,24,39,.82)'; rr(tx, ty, s, s, s * .3); g.fill();
     drawMicOff(tx + s / 2, ty + s / 2, s * .3);
   }
+  g.restore();
 }
 // Always cover the full width and height of the camera card cleanly (center-cropped like CSS object-fit: cover).
 function drawFitVideo(el, x, y, w, h) {
@@ -1716,36 +1758,41 @@ function drawFrame() {
     }
     g.restore();
   }
-  const ov = !brand.overlayHidden && assetImg(brand.overlay);
-  if (ov) {
+  const mode = S.state?.streamType || 'live';
+  const ovTpl = brand.overlayTpl || '';
+  const ovBlocked = (mode === 'live' && (ovTpl === 'esports-hud' || ovTpl === 'live-shop'))
+    || (mode === 'shopping' && ovTpl === 'esports-hud')
+    || (mode === 'gamer' && ovTpl === 'live-shop');
+  const ovSurf = !brand.overlayHidden && !ovBlocked && brand.overlay ? getOverlayCanvas(brand.overlay, W, H) : null;
+  if (ovSurf) {
     const op = Number(brand.overlayOpacity);
+    const t0 = performance.now();
     g.save();
     g.globalAlpha = Number.isFinite(op) ? Math.max(0.05, Math.min(1, op)) : 1;
-    g.drawImage(ov, 0, 0, W, H);
+    g.drawImage(ovSurf, 0, 0, W, H);
     g.restore();
+    recordAssetBlit(performance.now() - t0);
   }
 }
 function drawLogo(r) {
-  const logo = assetImg(S.state.brand.logo);
-  if (!logo) return;
+  const logoId = S.state.brand.logo;
+  if (!logoId) return;
   const side = Math.min(r.w, r.h);
+  const logoSurf = getLogoCanvas(logoId, Math.max(1, Math.round(side)));
+  if (!logoSurf) return;
   const right = r.x + r.w / 2 > W / 2;
   const dx = right ? r.x + r.w - side : r.x;
   const dy = r.y + (r.h - side) / 2;
-  const sq = Math.min(logo.naturalWidth || side, logo.naturalHeight || side);
-  const sx = ((logo.naturalWidth || sq) - sq) / 2;
-  const sy = ((logo.naturalHeight || sq) - sq) / 2;
-  g.save();
-  rr(dx, dy, side, side, Math.round(side * 0.14));
-  g.clip();
-  g.drawImage(logo, sx, sy, sq, sq, dx, dy, side, side);
-  g.restore();
+  const t0 = performance.now();
+  g.drawImage(logoSurf, dx, dy, side, side);
+  recordAssetBlit(performance.now() - t0);
 }
 function drawShapeEl(e) {
   const r = px(e);
   g.save(); g.globalAlpha = e.opacity ?? 1; g.fillStyle = e.color || '#000000'; rr(r.x, r.y, r.w, r.h, e.radius || 0); g.fill(); g.restore();
 }
 function drawGamerHud() {
+  if ((S.state?.streamType || 'live') !== 'gamer') return;
   const hud = window.__gatherGamerHud;
   if (!hud || !hud.on) return;
   const F = stageFont();
@@ -1794,8 +1841,13 @@ function drawGamerHud() {
 }
 function drawChrome() {
   g.textBaseline = 'middle';
+  const mode = S.state?.streamType || 'live';
   // The show title is no longer drawn on the stage: it lives in the header and on the watch page.
-  if (window.__shopReady) { drawProduct(); drawPoll(); drawWatchBadge(); }
+  if (window.__shopReady) {
+    if (mode === 'shopping') drawProduct();
+    drawPoll();
+    drawWatchBadge();
+  }
   drawGamerHud();
   drawWaves();
 }
@@ -1805,6 +1857,7 @@ const TIER_Z = Object.fromEntries(TIERS.map((x) => [x.id, x.z]));
 function stageElements() { return PASS ? PASS.els : ensureSystem(S.state.elements || [], isVertical(), () => 'sys'); }
 function draw(now = performance.now()) {
   const t = now;
+  pendingNameCards = [];
   if (!PASS) syncAspect();
   if (lastAnimW !== W || lastAnimH !== H) { tileAnim.clear(); lastAnimW = W; lastAnimH = H; }
   drawBackground(t);
@@ -1834,7 +1887,8 @@ function draw(now = performance.now()) {
   if (!custom || !els.some((e) => e.type === 'slot')) {
     const tick = els.find((e) => e.type === 'ticker');
     const hasTicker = !!(tick && S.state.ticker && tick.y > .7);
-    const hasOtherPanels = els.some((e) => !e.hidden && ['media', 'chat', 'score', 'bounty', 'ai', 'tip', 'callin', 'image', 'text', 'timer', 'shape'].includes(e.type));
+    const curMode = S.state?.streamType || 'live';
+    const hasOtherPanels = els.some((e) => !e.hidden && (curMode === 'gamer' || (e.type !== 'score' && e.type !== 'bounty')) && ['media', 'chat', 'score', 'bounty', 'ai', 'tip', 'callin', 'image', 'text', 'timer', 'shape'].includes(e.type));
     const onlyVideo = onStage.length === 1 && !hasTicker && !hasOtherPanels;
     if (onlyVideo) {
       const fullRect = smoothTileRect(onStage[0].id, { x: 0, y: 0, w: W, h: H, r: 0 }, t);
@@ -1861,13 +1915,14 @@ function draw(now = performance.now()) {
   drawChrome();
   // Brand-themed overlays: live drop stock badge, purchase alerts, voice waveform, sponsors, goal confetti, countdown screen.
   // Each overlay draws on its own: one that fails (bad data) must never blank the others, and logs once.
-  const font = stageFont(), brand = S.state.brand || {}, wall = Date.now();
+  const font = stageFont(), brand = S.state.brand || {}, wall = Date.now(), mode = S.state?.streamType || 'live';
   const sh = S.state.shop, sp = S.state.sponsors;
-  overlay('drop', () => { if (sh?.pinned && sh.items?.length) drawShopDropBadge(g, W, H, sh, brand, font, wall); });
-  overlay('purchase', () => { if (S.state.purchaseAlert?.ts) drawPurchaseAlert(g, W, H, S.state.purchaseAlert, brand, font, wall); });
+  overlay('drop', () => { if (mode === 'shopping' && sh?.pinned && sh.items?.length) drawShopDropBadge(g, W, H, sh, brand, font, wall); });
+  overlay('purchase', () => { if (mode === 'shopping' && S.state.purchaseAlert?.ts) drawPurchaseAlert(g, W, H, S.state.purchaseAlert, brand, font, wall); });
   overlay('voice', () => { if (S.state.voiceOnAir?.ts) drawVoiceOnAir(g, W, H, S.state.voiceOnAir, brand, font, t); });
   overlay('sponsor', () => { const on = sp?.activeId && (sp.slots || []).find((x) => x.id === sp.activeId); if (on) drawSponsorCard(g, W, H, on, brand, font); });
-  overlay('live-events', () => liveEvents.draw(g, W, H, brand, font, wall));
+  overlay('live-events', () => liveEvents.draw(g, W, H, brand, font, wall, mode));
+  overlay('highlights-reel', () => window.__gatherDrawHighlightOverlay?.(g, W, H, brand, font, wall));
   overlay('confetti', () => { if (window.__gatherConfettiUntil > wall) drawGoalConfetti(g, W, H, t, brand.color); });
   overlay('countdown', () => {
     if (!S.state.countdown?.on) return;
@@ -1915,6 +1970,8 @@ function draw(now = performance.now()) {
       g.save(); g.globalAlpha = Math.max(0, Math.min(1, 1 - ease)); g.drawImage(fadeSnap, 0, 0, W, H); g.restore();
     }
   }
+  // Highest z-order: participant name cards always sit cleanly above frames, HUDs, overlays, captions, alerts, and transitions.
+  for (const nc of pendingNameCards) drawTileNameCard(nc.p, nc.rect);
 }
 // Ambient surround: the letterbox around the stage shows a blurred copy of the program (never recorded).
 {
@@ -1978,8 +2035,8 @@ function drawElement(e, t, onStage, custom) {
     case 'text': drawTextEl(e); return;
     case 'image': drawImageEl(e); return;
     case 'timer': drawTimerEl(e); return;
-    case 'score': drawScoreEl(e); return;
-    case 'bounty': drawBountyEl(e); return;
+    case 'score': if ((S.state?.streamType || 'live') !== 'gamer') return; drawScoreEl(e); return;
+    case 'bounty': if ((S.state?.streamType || 'live') !== 'gamer') return; drawBountyEl(e); return;
     case 'banner': drawBanner(t, clearOfCams(px(e))); return;
     case 'ticker': drawTicker(t, px(e)); return;
     case 'logo': drawLogo(px(e)); return;
@@ -2035,7 +2092,12 @@ function tallScene() {
   return out;
 }
 /** Turn the companion on or off for one user ('live', 'preview', 'rec'). */
-function useTall(who, on) { if (on) tall.users.add(who); else tall.users.delete(who); tall.err = false; requestStageRender(); }
+function useTall(who, on) {
+  if (on) tall.users.add(who); else tall.users.delete(who);
+  tall.err = false;
+  if (on) preloadBrandAssets(S.state);
+  requestStageRender();
+}
 window.__gatherTall = { canvas: tallCanvas, use: useTall, scene: () => tallScene() };
 function drawTall(now) {
   const keep = { W, H, tileAnim, lastAnimW, lastAnimH, camRects };
@@ -2370,33 +2432,591 @@ function autoEndPresentScene() {
   else setStage({ presenter: '' });
 }
 
-// Images: uploaded once per studio, cached as decoded <img> for drawing.
-S.assets = new Map(); // id -> { img, data, loading }
-function assetImg(id) {
+// ---------------------------------------------------------------- Offscreen Canvas Image Cache & Pool
+// Frequently used branding assets (bgImage, overlay PNGs, logo) and scene/ad graphics are pre-decoded
+// asynchronously via img.decode() and pre-composited into a recyclable OffscreenCanvas pool so per-frame
+// stage painting and 240ms scene transitions execute as single GPU-backed blits with zero decode stalls.
+S.assets = new Map(); // id -> { img, data, loading, ready, promise, baseSurface, width, height, version, pinned, lastUsed }
+
+const USE_OFFSCREEN_CANVAS = (() => {
+  try {
+    if (typeof OffscreenCanvas === 'undefined') return false;
+    const probe = new OffscreenCanvas(1, 1);
+    return !!probe.getContext('2d');
+  } catch {
+    return false;
+  }
+})();
+
+const ASSET_POOL_MAX_VARIANTS = 44;
+const ASSET_POOL_MAX_FREE = 16;
+
+const assetPool = {
+  variants: new Map(), // cacheKey -> { canvas, assetId, version, w, h, pinned, lastUsed, meta }
+  freeList: [],        // recycled offscreen canvases waiting for reuse
+  pinnedAssetIds: new Set(),
+  stats: {
+    backend: USE_OFFSCREEN_CANVAS ? 'OffscreenCanvas' : 'HTMLCanvasElement',
+    hits: 0,
+    misses: 0,
+    bakes: 0,
+    preloads: 0,
+    evictions: 0,
+    recycled: 0,
+    allocated: 0,
+    blits: 0,
+    totalBlitMs: 0,
+    lastBlitUs: 0,
+  },
+};
+
+function recordAssetBlit(ms) {
+  assetPool.stats.blits++;
+  assetPool.stats.totalBlitMs += ms;
+  assetPool.stats.lastBlitUs = Math.round(ms * 1000);
+}
+
+function createPooledCanvas(w, h) {
+  const cw = Math.max(1, Math.round(w || 1));
+  const ch = Math.max(1, Math.round(h || 1));
+  // Prefer an exact-size recycled canvas to avoid backing-store reallocation
+  let idx = assetPool.freeList.findIndex((c) => c.width === cw && c.height === ch);
+  if (idx < 0 && assetPool.freeList.length > 0) idx = assetPool.freeList.length - 1;
+  let c;
+  if (idx >= 0) {
+    c = assetPool.freeList.splice(idx, 1)[0];
+    if (c.width !== cw) c.width = cw;
+    if (c.height !== ch) c.height = ch;
+    assetPool.stats.recycled++;
+  } else {
+    c = USE_OFFSCREEN_CANVAS ? new OffscreenCanvas(cw, ch) : document.createElement('canvas');
+    c.width = cw;
+    c.height = ch;
+    assetPool.stats.allocated++;
+  }
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, cw, ch);
+  }
+  return c;
+}
+
+function releasePooledCanvas(c) {
+  if (!c) return;
+  if (assetPool.freeList.length < ASSET_POOL_MAX_FREE) {
+    const ctx = c.getContext('2d');
+    if (ctx) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+    }
+    assetPool.freeList.push(c);
+  } else {
+    try { c.width = 1; c.height = 1; } catch {}
+  }
+}
+
+function evictVariantIfNeeded() {
+  if (assetPool.variants.size < ASSET_POOL_MAX_VARIANTS) return;
+  let victimKey = null;
+  let oldestTs = Infinity;
+  for (const [k, v] of assetPool.variants) {
+    if (v.pinned) continue;
+    if (v.lastUsed < oldestTs) {
+      oldestTs = v.lastUsed;
+      victimKey = k;
+    }
+  }
+  // Fallback if every entry is pinned: evict the oldest overall
+  if (!victimKey) {
+    for (const [k, v] of assetPool.variants) {
+      if (v.lastUsed < oldestTs) {
+        oldestTs = v.lastUsed;
+        victimKey = k;
+      }
+    }
+  }
+  if (victimKey) {
+    const entry = assetPool.variants.get(victimKey);
+    assetPool.variants.delete(victimKey);
+    releasePooledCanvas(entry?.canvas);
+    assetPool.stats.evictions++;
+  }
+}
+
+function invalidateAssetVariants(id) {
+  if (!id) return;
+  for (const [k, v] of [...assetPool.variants.entries()]) {
+    if (v.assetId === id) {
+      assetPool.variants.delete(k);
+      releasePooledCanvas(v.canvas);
+    }
+  }
+}
+
+function syncPinnedBrandAssets(state = S.state) {
+  const b = state?.brand || {};
+  const nextPinned = new Set([b.bgImage, b.overlay, b.logo].filter((x) => typeof x === 'string' && x));
+  assetPool.pinnedAssetIds = nextPinned;
+  for (const [id, entry] of S.assets) {
+    entry.pinned = nextPinned.has(id);
+  }
+  for (const v of assetPool.variants.values()) {
+    v.pinned = nextPinned.has(v.assetId);
+  }
+}
+
+function rasterizeBaseSurface(entry) {
+  const img = entry?.img;
+  if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+  if (entry.baseSurface && entry.baseSurface.width === img.naturalWidth && entry.baseSurface.height === img.naturalHeight) {
+    return entry.baseSurface;
+  }
+  if (entry.baseSurface) releasePooledCanvas(entry.baseSurface);
+  const surf = createPooledCanvas(img.naturalWidth, img.naturalHeight);
+  const ctx = surf.getContext('2d');
+  if (ctx) ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+  entry.baseSurface = surf;
+  entry.width = img.naturalWidth;
+  entry.height = img.naturalHeight;
+  assetPool.stats.bakes++;
+  return surf;
+}
+
+function ensureAssetEntry(id, { pinned = false } = {}) {
   if (!id || typeof id !== 'string') return null;
   let a = S.assets.get(id);
   if (!a && id.startsWith('local-brand-')) {
     const data = store.get('brandImgs', {})[id.slice(12)];
-    if (data) { setAssetData(id, data); a = S.assets.get(id); }
+    if (data) {
+      setAssetData(id, data, { pinned: true });
+      a = S.assets.get(id);
+    }
   }
   if (!a) {
-    a = { img: null, data: null, loading: true };
+    a = {
+      img: null,
+      data: null,
+      loading: true,
+      ready: false,
+      promise: null,
+      baseSurface: null,
+      width: 0,
+      height: 0,
+      version: 0,
+      pinned: pinned || assetPool.pinnedAssetIds.has(id),
+      lastUsed: performance.now(),
+    };
     S.assets.set(id, a);
-    if (S.studio && !id.startsWith('local-')) api('assetGet', { ...creds(), asset: id }).then((r) => setAssetData(id, r.data)).catch(() => { a.loading = false; });
+    if (S.studio && !id.startsWith('local-')) {
+      a.promise = api('assetGet', { ...creds(), asset: id })
+        .then((r) => setAssetData(id, r.data, { pinned: a.pinned }))
+        .catch(() => {
+          a.loading = false;
+          a.promise = null;
+          return null;
+        });
+    } else {
+      a.loading = false;
+    }
+  } else if (pinned) {
+    a.pinned = true;
   }
-  return a.img;
+  a.lastUsed = performance.now();
+  return a;
 }
-function setAssetData(id, data) {
-  const a = S.assets.get(id) || {};
-  const img = new Image();
-  img.onload = () => { a.img = img; a.loading = false; renderEditor(); };
-  img.src = data;
+
+/** Backward-compatible HTMLImageElement accessor (used by DOM previews & metadata checks). */
+function assetImg(id) {
+  const a = ensureAssetEntry(id);
+  return a?.img || null;
+}
+
+/** Decode & rasterize an image data URL into the offscreen canvas pool asynchronously. */
+function setAssetData(id, data, opts = {}) {
+  if (!id || !data) return Promise.resolve(null);
+  const existing = S.assets.get(id);
+  if (existing && existing.data === data && existing.ready && existing.baseSurface) {
+    if (opts.pinned) existing.pinned = true;
+    existing.lastUsed = performance.now();
+    return Promise.resolve(existing.baseSurface);
+  }
+  const version = (existing?.version || 0) + 1;
+  if (existing) {
+    if (existing.baseSurface) { releasePooledCanvas(existing.baseSurface); existing.baseSurface = null; }
+    invalidateAssetVariants(id);
+  }
+  const a = existing || {
+    img: null,
+    data: null,
+    loading: true,
+    ready: false,
+    promise: null,
+    baseSurface: null,
+    width: 0,
+    height: 0,
+    version,
+    pinned: false,
+    lastUsed: performance.now(),
+  };
   a.data = data;
+  a.loading = true;
+  a.ready = false;
+  a.version = version;
+  if (opts.pinned || assetPool.pinnedAssetIds.has(id)) a.pinned = true;
   S.assets.set(id, a);
+
+  const img = new Image();
+  img.decoding = 'async';
+
+  const readyPromise = new Promise((resolve) => {
+    const finish = () => {
+      // Guard against superseded setAssetData calls for the same id
+      if (a.version !== version) { resolve(a.baseSurface); return; }
+      a.img = img;
+      a.loading = false;
+      a.ready = img.naturalWidth > 0 && img.naturalHeight > 0;
+      const surf = a.ready ? rasterizeBaseSurface(a) : null;
+      a.lastUsed = performance.now();
+      // Immediately pre-bake pinned brand variants matching current stage size
+      const b = S.state?.brand || {};
+      if (a.ready) {
+        if (b.bgImage === id) getBrandBgCanvas(id, W, H, b.dim ?? 0.25);
+        if (b.overlay === id) getOverlayCanvas(id, W, H);
+        if (b.logo === id) {
+          const logoEl = (S.state?.elements || []).find((x) => x.type === 'logo');
+          const side = logoEl ? Math.round(Math.min(logoEl.w * W, logoEl.h * H)) : Math.round(Math.min(W, H) * (b.logoSize || 0.12));
+          if (side > 0) getLogoCanvas(id, side);
+        }
+      }
+      requestStageRender();
+      try { renderEditor(); } catch {}
+      try { if (b.bgImage === id || b.overlay === id || b.logo === id) renderBrandPanel(); } catch {}
+      resolve(surf);
+    };
+    img.onload = () => {
+      if (typeof img.decode === 'function') img.decode().then(finish, finish);
+      else finish();
+    };
+    img.onerror = () => {
+      if (a.version === version) { a.loading = false; a.ready = false; }
+      resolve(null);
+    };
+    img.src = data;
+  });
+
+  a.promise = readyPromise;
+  return readyPromise;
 }
+
+/** Return the pre-decoded offscreen base canvas for raw blits (avatars, offbg, etc.). */
+function getAssetSurface(id) {
+  const a = ensureAssetEntry(id);
+  if (!a) return null;
+  if (a.baseSurface) {
+    assetPool.stats.hits++;
+    a.lastUsed = performance.now();
+    return a.baseSurface;
+  }
+  if (a.img && a.img.naturalWidth > 0) {
+    assetPool.stats.misses++;
+    return rasterizeBaseSurface(a);
+  }
+  assetPool.stats.misses++;
+  return null;
+}
+
+function getOrBakeVariant(key, assetId, w, h, pinned, bakeFn) {
+  const entry = ensureAssetEntry(assetId, { pinned });
+  if (!entry || (!entry.baseSurface && !(entry.img && entry.img.naturalWidth > 0))) {
+    assetPool.stats.misses++;
+    return null;
+  }
+  const source = entry.baseSurface || rasterizeBaseSurface(entry);
+  if (!source) { assetPool.stats.misses++; return null; }
+
+  const fullKey = `${key}|v${entry.version}`;
+  const hit = assetPool.variants.get(fullKey);
+  if (hit) {
+    hit.lastUsed = performance.now();
+    if (pinned) hit.pinned = true;
+    assetPool.stats.hits++;
+    return hit;
+  }
+
+  assetPool.stats.misses++;
+  evictVariantIfNeeded();
+  const cw = Math.max(1, Math.round(w));
+  const ch = Math.max(1, Math.round(h));
+  const canvasOut = createPooledCanvas(cw, ch);
+  const ctx = canvasOut.getContext('2d');
+  const meta = bakeFn(ctx, source, cw, ch) || {};
+  assetPool.stats.bakes++;
+
+  const record = {
+    canvas: canvasOut,
+    assetId,
+    version: entry.version,
+    w: cw,
+    h: ch,
+    pinned: !!pinned || assetPool.pinnedAssetIds.has(assetId),
+    lastUsed: performance.now(),
+    meta,
+  };
+  assetPool.variants.set(fullKey, record);
+  return record;
+}
+
+/** Pre-composited background canvas (cover-scaled + dim scrim already baked in). */
+function getBrandBgCanvas(id, w, h, dim = 0.25) {
+  if (!id) return null;
+  const cw = Math.max(1, Math.round(w));
+  const ch = Math.max(1, Math.round(h));
+  const dimKey = Math.round((Number(dim) || 0) * 100);
+  const rec = getOrBakeVariant(`bg:${id}:${cw}x${ch}:d${dimKey}`, id, cw, ch, true, (ctx, src, bw, bh) => {
+    const sw = src.width, sh = src.height;
+    const k = Math.max(bw / sw, bh / sh);
+    const dw = sw * k, dh = sh * k;
+    ctx.drawImage(src, (bw - dw) / 2, (bh - dh) / 2, dw, dh);
+    const dAlpha = Math.max(0, Math.min(1, Number(dim) || 0));
+    if (dAlpha > 0) {
+      ctx.fillStyle = `rgba(4,8,20,${dAlpha})`;
+      ctx.fillRect(0, 0, bw, bh);
+    }
+  });
+  return rec?.canvas || null;
+}
+
+/** Pre-scaled transparent overlay PNG canvas matched to stage dimensions. */
+function getOverlayCanvas(id, w, h) {
+  if (!id) return null;
+  const cw = Math.max(1, Math.round(w));
+  const ch = Math.max(1, Math.round(h));
+  const rec = getOrBakeVariant(`ov:${id}:${cw}x${ch}`, id, cw, ch, true, (ctx, src, ow, oh) => {
+    ctx.drawImage(src, 0, 0, ow, oh);
+  });
+  return rec?.canvas || null;
+}
+
+/** Pre-cropped square logo canvas with rounded-corner alpha mask already applied. */
+function getLogoCanvas(id, side) {
+  if (!id || !side) return null;
+  const s = Math.max(1, Math.round(side));
+  const rec = getOrBakeVariant(`logo:${id}:${s}`, id, s, s, true, (ctx, src, lw, lh) => {
+    const sq = Math.min(src.width, src.height);
+    const sx = (src.width - sq) / 2;
+    const sy = (src.height - sq) / 2;
+    const rad = Math.round(lw * 0.14);
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(0, 0, lw, lh, rad);
+    ctx.clip();
+    ctx.drawImage(src, sx, sy, sq, sq, 0, 0, lw, lh);
+    ctx.restore();
+  });
+  return rec?.canvas || null;
+}
+
+/** Pre-fitted and pre-clipped scene image element canvas. */
+function getElementImageCanvas(id, w, h, fit = 'contain', radius = 0) {
+  if (!id || !w || !h) return null;
+  const cw = Math.max(1, Math.round(w));
+  const ch = Math.max(1, Math.round(h));
+  const r = Math.max(0, Math.round(radius || 0));
+  const f = fit === 'cover' ? 'cover' : 'contain';
+  const rec = getOrBakeVariant(`el:${id}:${cw}x${ch}:${f}:r${r}`, id, cw, ch, false, (ctx, src, ew, eh) => {
+    ctx.save();
+    if (r > 0) {
+      ctx.beginPath();
+      ctx.roundRect(0, 0, ew, eh, r);
+      ctx.clip();
+    }
+    const iw = src.width, ih = src.height;
+    const scale = f === 'cover' ? Math.max(ew / iw, eh / ih) : Math.min(ew / iw, eh / ih);
+    const dw = iw * scale, dh = ih * scale;
+    ctx.drawImage(src, (ew - dw) / 2, (eh - dh) / 2, dw, dh);
+    ctx.restore();
+  });
+  return rec?.canvas || null;
+}
+
+/** Pre-fitted sponsor ad canvas with 10px rounded corners baked in. */
+function getAdCanvas(id, boxW, boxH) {
+  if (!id || !boxW || !boxH) return null;
+  const entry = ensureAssetEntry(id);
+  const src = entry?.baseSurface || (entry?.img?.naturalWidth ? rasterizeBaseSurface(entry) : null);
+  if (!src) return null;
+  const k = Math.min(boxW / src.width, boxH / src.height);
+  const dw = Math.max(1, Math.round(src.width * k));
+  const dh = Math.max(1, Math.round(src.height * k));
+  const rec = getOrBakeVariant(`ad:${id}:${dw}x${dh}`, id, dw, dh, false, (ctx, s, aw, ah) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(0, 0, aw, ah, 10);
+    ctx.clip();
+    ctx.drawImage(s, 0, 0, aw, ah);
+    ctx.restore();
+    return { w: aw, h: ah };
+  });
+  return rec ? { canvas: rec.canvas, w: rec.w, h: rec.h } : null;
+}
+
+/** Proactively fetch, decode, and rasterize an asset into the offscreen canvas pool. */
+function preloadAsset(id, opts = {}) {
+  if (!id || typeof id !== 'string') return Promise.resolve(null);
+  assetPool.stats.preloads++;
+  const a = ensureAssetEntry(id, opts);
+  if (!a) return Promise.resolve(null);
+  if (a.ready && a.baseSurface) return Promise.resolve(a.baseSurface);
+  return a.promise || Promise.resolve(a.baseSurface);
+}
+
+/** Pre-load & pre-bake active branding elements (bgImage, overlay PNG, logo) at stage dimensions. */
+function preloadBrandAssets(state = S.state) {
+  syncPinnedBrandAssets(state);
+  const b = state?.brand || {};
+  const tasks = [];
+  const stageW = W || 1280, stageH = H || 720;
+  const dim = b.dim ?? 0.25;
+  const logoEl = (state?.elements || []).find((x) => x.type === 'logo');
+  const logoSide = logoEl
+    ? Math.max(1, Math.round(Math.min(logoEl.w * stageW, logoEl.h * stageH)))
+    : Math.max(1, Math.round(Math.min(stageW, stageH) * (b.logoSize || 0.12)));
+
+  if (b.bgImage) {
+    tasks.push(preloadAsset(b.bgImage, { pinned: true }).then((surf) => {
+      if (!surf) return;
+      getBrandBgCanvas(b.bgImage, stageW, stageH, dim);
+      if (tall?.wanted?.()) getBrandBgCanvas(b.bgImage, 720, 1280, dim);
+    }));
+  }
+  if (b.overlay) {
+    tasks.push(preloadAsset(b.overlay, { pinned: true }).then((surf) => {
+      if (!surf) return;
+      getOverlayCanvas(b.overlay, stageW, stageH);
+      if (tall?.wanted?.()) getOverlayCanvas(b.overlay, 720, 1280);
+    }));
+  }
+  if (b.logo) {
+    tasks.push(preloadAsset(b.logo, { pinned: true }).then((surf) => {
+      if (!surf) return;
+      getLogoCanvas(b.logo, logoSide);
+    }));
+  }
+  return Promise.all(tasks);
+}
+
+/** Pre-load & pre-bake all image elements in an elements list at their target stage sizes. */
+function preloadSceneElements(elements) {
+  if (!Array.isArray(elements) || !elements.length) return Promise.resolve([]);
+  const stageW = W || 1280, stageH = H || 720;
+  const tasks = [];
+  for (const e of elements) {
+    if (!e || e.type !== 'image') continue;
+    const rw = Math.max(1, Math.round((e.w || 0.2) * stageW));
+    const rh = Math.max(1, Math.round((e.h || 0.2) * stageH));
+    if (e._data && !e.asset) continue;
+    const id = e.asset;
+    if (e._data && id && !S.assets.get(id)?.ready) {
+      tasks.push(setAssetData(id, e._data).then(() => getElementImageCanvas(id, rw, rh, e.fit, e.radius || 0)));
+    } else if (id) {
+      tasks.push(preloadAsset(id).then((surf) => {
+        if (surf) getElementImageCanvas(id, rw, rh, e.fit, e.radius || 0);
+      }));
+    }
+  }
+  return Promise.all(tasks);
+}
+
+/** Predictive preloader called on scene strip hover/focus and right before applyScene transitions. */
+function preloadSceneAssets(sc) {
+  const tasks = [preloadBrandAssets(S.state)];
+  const els = sc?.saved?.elements || sc?.els || [];
+  if (els.length) tasks.push(preloadSceneElements(els));
+  return Promise.all(tasks);
+}
+
+let idlePreloadScheduled = false;
+function preloadStudioAssets() {
+  const tasks = [
+    preloadBrandAssets(S.state),
+    preloadSceneElements(S.state?.elements),
+  ];
+  // Warm sponsor ad assets
+  const ads = S.state?.ads?.items || [];
+  for (const id of ads) if (id) tasks.push(preloadAsset(id));
+  // Warm participant avatars and off-camera backgrounds
+  for (const p of participants()) {
+    if (p.avatar) tasks.push(preloadAsset(p.avatar));
+    if (p.offbg) tasks.push(preloadAsset(p.offbg));
+  }
+  // Low-priority idle warm-up for saved local brand images and saved scene layouts
+  if (!idlePreloadScheduled) {
+    idlePreloadScheduled = true;
+    const runIdle = () => {
+      idlePreloadScheduled = false;
+      try {
+        const savedImgs = savedBrandImgs();
+        for (const kind of ['bgImage', 'overlay', 'logo']) {
+          if (savedImgs[kind]) setAssetData('local-brand-' + kind, savedImgs[kind], { pinned: true });
+        }
+        for (const l of activeSavedLayouts().slice(0, 6)) {
+          if (Array.isArray(l?.elements)) preloadSceneElements(l.elements);
+        }
+      } catch {}
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(runIdle, { timeout: 1500 });
+    else setTimeout(runIdle, 250);
+  }
+  return Promise.all(tasks);
+}
+
+window.__gatherAssetCache = {
+  getStats: () => {
+    let pinnedCount = 0;
+    for (const v of assetPool.variants.values()) if (v.pinned) pinnedCount++;
+    return {
+      ...assetPool.stats,
+      poolSize: assetPool.variants.size + S.assets.size,
+      variantCount: assetPool.variants.size,
+      baseCount: [...S.assets.values()].filter((a) => !!a.baseSurface).length,
+      freeCount: assetPool.freeList.length,
+      pinnedCount,
+      avgBlitUs: assetPool.stats.blits > 0
+        ? Math.round((assetPool.stats.totalBlitMs / assetPool.stats.blits) * 1000)
+        : 0,
+    };
+  },
+  listKeys: () => [...assetPool.variants.entries()].map(([key, v]) => ({
+    key, assetId: v.assetId, w: v.w, h: v.h, pinned: v.pinned,
+    type: v.canvas?.constructor?.name || 'Canvas',
+  })),
+  preloadAll: () => preloadStudioAssets(),
+  preloadScene: (sc) => preloadSceneAssets(sc),
+  preloadAsset: (id, opts) => preloadAsset(id, opts),
+  setAssetData: (id, data, opts) => setAssetData(id, data, opts),
+  getSurface: (id) => getAssetSurface(id),
+  getBrandBg: (id, w = W, h = H, dim = S.state?.brand?.dim ?? 0.25) => getBrandBgCanvas(id, w, h, dim),
+  getOverlay: (id, w = W, h = H) => getOverlayCanvas(id, w, h),
+  getLogo: (id, side = 128) => getLogoCanvas(id, side),
+  invalidate: (id) => {
+    const a = S.assets.get(id);
+    if (a?.baseSurface) { releasePooledCanvas(a.baseSurface); a.baseSurface = null; a.ready = false; }
+    invalidateAssetVariants(id);
+  },
+  clearPool: () => {
+    for (const v of assetPool.variants.values()) releasePooledCanvas(v.canvas);
+    assetPool.variants.clear();
+  },
+};
+
 async function storeAsset(data) {
-  if (S.studio) { const { id } = await api('assetPut', { ...creds(), data }); setAssetData(id, data); return id; }
-  const id = 'local-' + uid(); setAssetData(id, data); return id;
+  if (S.studio) { const { id } = await api('assetPut', { ...creds(), data }); await setAssetData(id, data); return id; }
+  const id = 'local-' + uid(); await setAssetData(id, data); return id;
 }
 // Downscale big uploads so they fit the studio store and draw fast.
 function compressImage(file) {
@@ -2505,20 +3125,19 @@ function drawTextEl(e) {
   g.restore();
 }
 function drawImageEl(e) {
-  const r = px(e), img = assetImg(e.asset);
+  const r = px(e);
+  const surf = e.asset ? getElementImageCanvas(e.asset, Math.max(1, Math.round(r.w)), Math.max(1, Math.round(r.h)), e.fit || 'contain', e.radius || 0) : null;
   g.save();
-  if (!img) {
+  if (!surf) {
     editorOnly((c) => { c.strokeStyle = 'rgba(255,255,255,.35)'; c.setLineDash([6, 6]); c.lineWidth = 2; c.beginPath(); c.roundRect(r.x, r.y, r.w, r.h, 8); c.stroke();
       c.fillStyle = 'rgba(255,255,255,.6)'; c.font = '500 14px Inter, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText(e.asset ? 'Loading image…' : 'Choose an image', r.x + r.w / 2, r.y + r.h / 2); });
     g.restore(); return;
   }
-  g.globalAlpha = e.opacity;
-  if (e.radius) { rr(r.x, r.y, r.w, r.h, e.radius); g.clip(); }
-  const iw = img.naturalWidth, ih = img.naturalHeight;
-  const s = e.fit === 'cover' ? Math.max(r.w / iw, r.h / ih) : Math.min(r.w / iw, r.h / ih);
-  const dw = iw * s, dh = ih * s;
-  g.drawImage(img, r.x + (r.w - dw) / 2, r.y + (r.h - dh) / 2, dw, dh);
+  const t0 = performance.now();
+  g.globalAlpha = e.opacity ?? 1;
+  g.drawImage(surf, r.x, r.y, r.w, r.h);
+  recordAssetBlit(performance.now() - t0);
   g.restore();
 }
 // The match scoreboard: two coloured sides with big scores, round and map between them. A score that just changed flashes.
@@ -3061,7 +3680,7 @@ function renderProps() {
   }
   if (e.type === 'ai') f.push(`<label class="fld"><span>Text size</span><input type="range" min="14" max="34" data-k="size" data-num value="${e.size}"></label><p class="hint">Shows the latest question and answer from the AI panel. Long answers keep the newest lines in view.</p>`);
   if (e.type === 'media') f.push(`<label class="fld"><span>Corner rounding</span><input type="range" min="0" max="40" data-k="radius" data-num value="${e.radius}"></label><p class="hint">Shows whoever is presenting: a screen, a video or PDF slides.</p>`);
-  if (e.type === 'tip') f.push(`<label class="fld"><span>Card text</span><input data-k="label" maxlength="60" value="${val('label')}"></label><p class="hint">Edit the link in Audience → Get paid → Tip QR cards.</p>`);
+  if (e.type === 'tip') f.push(`<label class="fld"><span>Card text</span><input data-k="label" maxlength="60" value="${val('label')}"></label><p class="hint">Edit the link in Audience → Payment Settings → Tip QR cards.</p>`);
   if (e.type === 'shape') {
     field('Name', `<input data-k="label" maxlength="40" value="${val('label')}" placeholder="Colour block">`);
     f.push(`<div class="row2"><label class="fld"><span>Colour</span><input type="color" data-k="color" value="${e.color}"></label><label class="fld"><span>Opacity</span><input type="range" min="0.05" max="1" step="0.05" data-k="opacity" data-num value="${e.opacity ?? 1}"></label></div>`);
@@ -3329,37 +3948,241 @@ $('#tplTabs')?.addEventListener('click', (ev) => {
   renderTemplates();
 });
 // Saved layouts live in this browser (images included, so they work in any new studio).
-function savedLayouts() { return store.get('layouts', []); }
+const AUTO_PRUNE_DAYS = 30;
+const AUTO_PRUNE_MS = AUTO_PRUNE_DAYS * 24 * 60 * 60 * 1000;
+function autoPruneEnabled() { return !!store.get('autoPrune', false); }
+function savedLayouts() {
+  const raw = store.get('layouts', []);
+  return Array.isArray(raw) ? raw : [];
+}
+function isLayoutStale(l, now = Date.now()) {
+  const last = Number(l?.lastUsedAt || l?.savedAt || 0);
+  return last > 0 && (now - last) > AUTO_PRUNE_MS;
+}
+function isLayoutPruned(l, now = Date.now()) {
+  if (!l) return false;
+  if (l.archived) return true;
+  return autoPruneEnabled() && isLayoutStale(l, now);
+}
+function activeSavedLayouts() {
+  const now = Date.now();
+  return savedLayouts().filter((l) => !isLayoutPruned(l, now));
+}
+function syncAutoPruneState({ silent = true } = {}) {
+  const enabled = autoPruneEnabled();
+  const chk = $('#autoPruneChk');
+  if (chk) chk.checked = enabled;
+  const now = Date.now();
+  const all = savedLayouts();
+  let changed = false;
+  let newlyArchived = 0;
+  for (const l of all) {
+    if (!l.lastUsedAt) { l.lastUsedAt = l.savedAt || now; changed = true; }
+    if (enabled && !l.archived && isLayoutStale(l, now)) {
+      l.archived = true;
+      l.autoArchived = true;
+      changed = true;
+      newlyArchived++;
+    } else if (!enabled && l.autoArchived) {
+      l.archived = false;
+      l.autoArchived = false;
+      changed = true;
+    }
+  }
+  if (changed) {
+    try { store.set('layouts', all); } catch {}
+    if (window.gatherCloud?.getSnapshot?.().user) {
+      for (const l of all) window.gatherCloud.saveScene(l).catch(() => {});
+    }
+  }
+  if (!silent && newlyArchived > 0) {
+    toast(`Auto-Prune archived ${newlyArchived} inactive scene${newlyArchived === 1 ? '' : 's'} (30+ days unused).`);
+  }
+  return newlyArchived;
+}
+function fmtDaysAgo(ts) {
+  const n = Number(ts) || 0;
+  if (!n) return '';
+  const days = Math.max(0, Math.floor((Date.now() - n) / 86400000));
+  if (days === 0) return 'Used today';
+  if (days === 1) return '1d ago';
+  return `${days}d ago`;
+}
+function touchLayoutUsage(name) {
+  if (!name) return;
+  const all = savedLayouts();
+  const hit = all.find((x) => x.name === name);
+  if (!hit) return;
+  hit.lastUsedAt = Date.now();
+  hit.archived = false;
+  hit.autoArchived = false;
+  try { store.set('layouts', all); } catch {}
+  window.gatherCloud?.saveScene?.(hit).catch(() => {});
+}
 function renderSaved() {
-  const ul = $('#savedList'), list = savedLayouts();
-  replaceKids(ul, ...list.map((l, i) => {
-    const li = document.createElement('li'); li.className = 'el-row';
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'menu-item compact el-pick'; b.textContent = l.name; b.disabled = !isHost();
+  syncAutoPruneState({ silent: true });
+  const ul = $('#savedList');
+  const archWrap = $('#archivedScenesWrap');
+  const archUl = $('#archivedList');
+  const archCount = $('#archivedCount');
+  const statusEl = $('#autoPruneStatus');
+  const now = Date.now();
+  const all = savedLayouts();
+  const active = all.filter((l) => !isLayoutPruned(l, now));
+  const archived = all.filter((l) => isLayoutPruned(l, now));
+
+  replaceKids(ul, ...active.map((l) => {
+    const li = document.createElement('li'); li.className = 'el-row saved-row';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'menu-item compact el-pick'; b.disabled = !isHost();
+    const top = document.createElement('span'); top.className = 'saved-head-row';
+    const ttl = document.createElement('span'); ttl.className = 'saved-ttl'; ttl.textContent = l.name;
+    top.append(ttl);
+    const ageTxt = fmtDaysAgo(l.lastUsedAt || l.savedAt);
+    if (ageTxt) {
+      const age = document.createElement('span'); age.className = 'saved-age num'; age.textContent = ageTxt;
+      top.append(age);
+    }
+    b.append(top);
+    if (l.desc || (Array.isArray(l.participants) && l.participants.length)) {
+      const meta = document.createElement('span'); meta.className = 'saved-meta';
+      const parts = [];
+      if (l.desc) parts.push(l.desc);
+      if (Array.isArray(l.participants) && l.participants.length) parts.push(l.participants.join(', '));
+      meta.textContent = parts.join(' · ');
+      b.append(meta);
+    }
     b.onclick = () => loadLayout(l);
-    li.append(b, mkBtn('trash-2', 'Delete saved scene', () => { const all = savedLayouts(); all.splice(i, 1); store.set('layouts', all); renderSaved(); }));
+    li.append(b, mkBtn('trash-2', 'Delete saved scene', () => {
+      const next = savedLayouts().filter((x) => x.name !== l.name);
+      store.set('layouts', next);
+      window.gatherCloud?.deleteScene?.(l.id || l.name).catch(() => {});
+      renderSaved(); renderScenes();
+    }));
     return li;
   }));
-  $('#savedEmpty').hidden = !!list.length;
+  $('#savedEmpty').hidden = !!(active.length || archived.length);
+
+  if (statusEl) {
+    if (autoPruneEnabled()) {
+      statusEl.textContent = archived.length
+        ? `Active · ${archived.length} inactive scene${archived.length === 1 ? '' : 's'} hidden from strip`
+        : 'Active · hiding scenes unused for 30+ days';
+    } else {
+      statusEl.textContent = archived.length
+        ? `Off · ${archived.length} archived scene${archived.length === 1 ? '' : 's'} available below`
+        : 'Off · all saved scenes stay on the scene strip';
+    }
+  }
+
+  if (archWrap && archUl) {
+    archWrap.hidden = !archived.length;
+    if (archCount) archCount.textContent = String(archived.length);
+    replaceKids(archUl, ...archived.map((l) => {
+      const li = document.createElement('li'); li.className = 'el-row archived-row';
+      const info = document.createElement('div'); info.className = 'archived-info';
+      const ttl = document.createElement('span'); ttl.className = 'saved-ttl'; ttl.textContent = l.name;
+      const age = document.createElement('span'); age.className = 'saved-meta num';
+      const days = Math.max(0, Math.floor((now - Number(l.lastUsedAt || l.savedAt || now)) / 86400000));
+      age.textContent = days >= AUTO_PRUNE_DAYS ? `Unused ${days}d · archived` : 'Archived';
+      info.append(ttl, age);
+      const restore = document.createElement('button');
+      restore.type = 'button'; restore.className = 'btn sm ghost'; restore.textContent = 'Restore';
+      restore.onclick = () => {
+        touchLayoutUsage(l.name);
+        renderSaved(); renderScenes();
+        toast(`Restored scene “${l.name}” to the scene strip.`);
+      };
+      li.append(info, restore, mkBtn('trash-2', 'Delete archived scene', () => {
+        const next = savedLayouts().filter((x) => x.name !== l.name);
+        store.set('layouts', next);
+        window.gatherCloud?.deleteScene?.(l.id || l.name).catch(() => {});
+        renderSaved(); renderScenes();
+      }));
+      return li;
+    }));
+  }
 }
+$('#autoPruneChk')?.addEventListener('change', (e) => {
+  const on = !!e.target.checked;
+  store.set('autoPrune', on);
+  window.gatherCloud?.updateProfilePrefs?.({ autoPrune: on }).catch(() => {});
+  const pruned = syncAutoPruneState({ silent: true });
+  renderSaved();
+  renderScenes();
+  if (on) {
+    toast(pruned > 0
+      ? `Auto-Prune enabled — archived ${pruned} scene${pruned === 1 ? '' : 's'} unused for 30+ days.`
+      : 'Auto-Prune enabled — scenes unused for 30+ days will be hidden from the strip.');
+  } else {
+    toast('Auto-Prune turned off — inactive scenes restored to the strip.');
+  }
+});
+$('#archivedToggle')?.addEventListener('click', () => {
+  const ul = $('#archivedList'), btn = $('#archivedToggle');
+  if (!ul || !btn) return;
+  ul.hidden = !ul.hidden;
+  btn.setAttribute('aria-expanded', String(!ul.hidden));
+});
+$('#restoreAllArchived')?.addEventListener('click', () => {
+  const now = Date.now();
+  const all = savedLayouts();
+  let restored = 0;
+  for (const l of all) {
+    if (isLayoutPruned(l, now)) {
+      l.lastUsedAt = now;
+      l.archived = false;
+      l.autoArchived = false;
+      restored++;
+      window.gatherCloud?.saveScene?.(l).catch(() => {});
+    }
+  }
+  store.set('layouts', all);
+  renderSaved(); renderScenes();
+  if (restored) toast(`Restored ${restored} archived scene${restored === 1 ? '' : 's'} to the scene strip.`);
+});
+setInterval(() => {
+  if (!autoPruneEnabled()) return;
+  const pruned = syncAutoPruneState({ silent: true });
+  if (pruned > 0) { renderSaved(); renderScenes(); }
+}, 15 * 60 * 1000);
+
 $('#saveLayout').onclick = () => {
   const name = $('#layoutName').value.trim() || `Layout ${savedLayouts().length + 1}`;
+  const desc = ($('#layoutDesc')?.value || '').trim().slice(0, 50);
+  const participantsList = ($('#layoutParticipants')?.value || '').split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12);
   const els = elementsCopy().map((e) => (e.type === 'image' && S.assets.get(e.asset)?.data ? { ...e, _data: S.assets.get(e.asset).data } : e));
+  const now = Date.now();
+  const newScene = { name, desc, participants: participantsList, layout: S.state.layout, elements: els, media: $('#sceneMedia').value || '', savedAt: now, lastUsedAt: now, archived: false, autoArchived: false };
   const all = savedLayouts().filter((l) => l.name !== name);
-  all.unshift({ name, layout: S.state.layout, elements: els, media: $('#sceneMedia').value || '' });
+  all.unshift(newScene);
   try { store.set('layouts', all.slice(0, 20)); localStorage.getItem('gather:layouts') || 0; } catch {}
   if (!savedLayouts().some((l) => l.name === name)) return toast('Could not save. The images may be too large for this browser.', { err: true });
+  window.gatherCloud?.saveScene?.(newScene).catch(() => {});
   $('#layoutName').value = '';
+  if ($('#layoutDesc')) $('#layoutDesc').value = '';
+  if ($('#layoutDescCount')) $('#layoutDescCount').textContent = '0/50';
+  if ($('#layoutParticipants')) $('#layoutParticipants').value = '';
   renderSaved(); renderScenes(); toast(`Saved scene “${name}”. It's in the scene strip.`);
 };
 async function loadLayout(l) {
+  touchLayoutUsage(l.name);
   const els = [];
   for (const e of l.elements) {
-    if (e.type === 'image' && e._data) { const { _data, ...rest } = e; els.push({ ...rest, asset: await storeAsset(_data).catch(() => '') }); }
-    else els.push(e);
+    if (e.type === 'image' && e._data) {
+      const { _data, ...rest } = e;
+      // Reuse already-cached local/studio asset when data is unchanged to avoid redundant re-decoding
+      const cached = rest.asset && S.assets.get(rest.asset);
+      const asset = (cached && cached.data === _data && (S.studio ? !rest.asset.startsWith('local-') : true))
+        ? rest.asset
+        : await storeAsset(_data).catch(() => '');
+      els.push({ ...rest, asset });
+    } else els.push(e);
   }
+  await preloadSceneElements(els);
   setStage({ layout: l.layout || 'custom', elements: els, scene: 'saved:' + l.name });
   const it = l.media && S.library.find((x) => x.id === l.media);
   if (it) { if (S.local.pres) stopPresentation(); await presentLibrary(it); }
+  renderSaved();
   toast(`Scene “${l.name}”.`);
 }
 // Twitch + chat overlay controls (Chat panel)
@@ -3491,7 +4314,7 @@ function renderTips() {
       const row = document.createElement('div'); row.className = 'tip-row'; row.dataset.provider = id;
       const tag = document.createElement('span'); tag.className = 'tip-tag'; tag.textContent = name; tag.style.setProperty('--c', TIP_INFO[id].color);
       if (id === 'gather') { // nothing to type: it's this studio's own watch page
-        const note = document.createElement('small'); note.className = 'tip-own'; note.textContent = 'Card tips in your chat. Needs Stripe connected.';
+        const note = document.createElement('small'); note.className = 'tip-own'; note.textContent = 'Opens your watch page super chat tray.';
         const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn sm tip-toggle';
         btn.onclick = () => toggleTip(id, name, '');
         row.classList.add('own'); row.append(tag, note, btn);
@@ -3512,6 +4335,8 @@ function renderTips() {
   }
   for (const row of $$('.tip-row', box)) {
     const prov = row.dataset.provider;
+    const inp = $('input', row);
+    if (inp && document.activeElement !== inp && saved[prov] && inp.value !== saved[prov]) inp.value = saved[prov];
     const card = (S.state.elements || []).find((e) => e.type === 'tip' && e.provider === prov);
     const btn = $('.tip-toggle', row);
     btn.textContent = !card ? 'On stage' : card.hidden ? 'Show' : 'Hide';
@@ -3618,7 +4443,14 @@ function brandPref(patch) {
 async function brandDataUrl(kind, data) {
   const imgs = savedBrandImgs(); imgs[kind] = data;
   try { rawSet('brandImgs', imgs); } catch {}
-  const id = S.studio ? await storeAsset(data) : (setAssetData('local-brand-' + kind, data), 'local-brand-' + kind);
+  let id;
+  if (S.studio) {
+    id = await storeAsset(data);
+    await preloadAsset(id, { pinned: true });
+  } else {
+    id = 'local-brand-' + kind;
+    await setAssetData(id, data, { pinned: true });
+  }
   setStage({ brand: { [kind]: id } });
 }
 async function brandImage(kind, file) {
@@ -3629,8 +4461,10 @@ async function brandImage(kind, file) {
   } catch (err) { toast(err.message, { err: true }); }
 }
 function clearBrandImage(kind) {
+  const prevId = S.state?.brand?.[kind];
   const imgs = savedBrandImgs(); delete imgs[kind]; rawSet('brandImgs', imgs);
   setStage({ brand: { [kind]: '' } });
+  if (prevId) invalidateAssetVariants(prevId);
 }
 for (const [kind, pick, file, clear] of [['bgImage', '#bgImgPick', '#bgImgFile', '#bgImgClear'], ['overlay', '#overlayPick', '#overlayFile', '#overlayClear'], ['logo', '#logoPick', '#logoFile', '#logoClear']]) {
   $(pick).onclick = () => { if (!isHost()) return toast('Only the host can change the brand.', { err: true }); $(file).click(); };
@@ -3761,14 +4595,57 @@ function drawThumb(...args) { return designer.drawThumb(...args); }
 
 // ---------------------------------------------------------------- live captions (Web Speech API, each person's own mic)
 const cap = { rec: null, want: false, lang: '', lines: new Map(), warned: false };
+const capStartById = new Map();
 let capLast = 0, capTimer = null;
+function pushSrtEntry({ id, startMs, endMs, speaker, text, source = 'caption' }) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return null;
+  const now = Date.now();
+  const words = clean.split(/\s+/).filter(Boolean).length;
+  const estDur = Math.max(1800, Math.min(7500, words * 380 + 900));
+  const end = Number.isFinite(Number(endMs)) ? Number(endMs) : now;
+  const start = Number.isFinite(Number(startMs)) ? Math.min(end - 400, Number(startMs)) : Math.max(0, end - estDur);
+  const entry = {
+    id: id || `srt-${now}-${Math.random().toString(36).slice(2, 6)}`,
+    startMs: Math.max(0, Math.round(start)),
+    endMs: Math.max(Math.round(start) + 400, Math.round(end)),
+    speaker: String(speaker || 'Speaker').trim().slice(0, 60) || 'Speaker',
+    text: clean.slice(0, 1200),
+    source: ['caption', 'chat', 'ai'].includes(source) ? source : 'caption',
+  };
+  if (!Array.isArray(S.srtLog)) S.srtLog = [];
+  S.srtLog.push(entry);
+  if (S.srtLog.length > 5000) S.srtLog.splice(0, S.srtLog.length - 5000);
+  window.__gatherOnSrtChange?.();
+  return entry;
+}
 function sendCaption(text, final) {
   clearTimeout(capTimer);
   const go = () => { capLast = Date.now(); wsSend({ type: 'caption', text, final }); };
   if (final || Date.now() - capLast > 400) go(); else capTimer = setTimeout(go, 400);
 }
 function showCaption(id, name, text, final) {
-  cap.lines.set(id, { name, text, final, t: Date.now() });
+  const now = Date.now();
+  const key = String(id || name || 'caption');
+  cap.lines.set(key, { name, text, final, t: now });
+  const clean = String(text || '').trim();
+  if (!final && clean && !capStartById.has(key)) {
+    capStartById.set(key, now);
+  }
+  if (final && clean) {
+    const words = clean.split(/\s+/).filter(Boolean).length;
+    const estDur = Math.max(1600, Math.min(7000, words * 360 + 800));
+    const heardStart = capStartById.get(key);
+    capStartById.delete(key);
+    const startMs = heardStart && (now - heardStart) >= 350 && (now - heardStart) <= 18000
+      ? heardStart
+      : (now - estDur);
+    if (!Array.isArray(S.transcript)) S.transcript = [];
+    S.transcript.push({ ts: now, speaker: name || 'Speaker', text: clean, source: 'caption' });
+    if (S.transcript.length > 60) S.transcript.splice(0, S.transcript.length - 60);
+    pushSrtEntry({ startMs, endMs: now, speaker: name || 'Speaker', text: clean, source: 'caption' });
+    window.__gatherOnSpeechOrChat?.({ speaker: name || 'Speaker', text: clean, source: 'caption', final: true, from: key });
+  }
   // Watch-page viewers can turn CC on: the host passes each finished line along (one small write per line).
   if (final && isHost() && S.studio && text) wsSend({ type: 'wcap', name, text });
 }
@@ -3891,7 +4768,7 @@ const HELP = [
   ['Upload custom chat emotes', 'emote emoji custom sticker chat', 'overlays', '#emoteName', 'Stage → Overlays → Custom emotes'],
   ['Change stage colours, fonts and animations', 'brand colour color font animation style', 'brand', '#fontCardGrid', 'Stage → Brand'],
   ['Add my logo or a transparent overlay', 'logo overlay watermark frame ai', 'overlays', '#overlayPick', 'Stage → Overlays → Stage overlay'],
-  ['Show my PayPal, Venmo or Cash App', 'tip donate paypal venmo cash app stripe support qr', 'show:supers', '#tipList', 'Audience → Get paid → Tip QR cards'],
+  ['Payment Settings (Stripe, PayPal, Venmo, Cash App)', 'payment settings get paid tip donate paypal venmo cash app stripe kofi patreon bmc bounties super chats qr', 'show:supers', '#wpDirectPayList', 'Audience → Payment Settings'],
   ['Run a live auction', 'auction bid bidding whatnot sell highest bidder sudden death', 'shop', '#auTitle', 'Shop → Live auction'],
   ['Run a giveaway', 'giveaway raffle contest prize winner draw', 'shop', '#gwPrize', 'Shop → Giveaway'],
   ['Shout out or raid another creator', 'shoutout shout out raid host send viewers follow creator', 'show:gaming', '#soName', 'Audience → Play → Shoutout & raid'],
@@ -3904,6 +4781,7 @@ const HELP = [
   ['A guest can’t connect', 'connect firewall turn network corporate', 'settings', '#turnUrl', 'Settings → Your own relay server'],
   ['Switch to light mode', 'light dark theme appearance', 'settings', '#themeSeg', 'Settings → Appearance'],
   ['Auto-mute silent microphones', 'auto mute silence inactive quiet noise mic', 'settings', '#autoMuteChk', 'Settings → Microphone → Auto-mute when silent'],
+  ['Smart Highlights playlist editor', 'highlights playlist clips reel export drag drop overlay 30s', 'highlights', '#hlSeqList', 'Clips → Smart Highlights'],
   ['Keyboard shortcuts', 'shortcuts hotkeys keybindings keyboard accessibility', null, '#shortcutsRoot', 'Your account → Shortcuts'],
 ];
 const POPULAR = [3, 2, 5, 10, 14, 17];
@@ -4052,6 +4930,18 @@ function addMsg(msg) {
   chatShell(li, { id: msg.id, name: msg.name, ts: msg.ts });
   appendLog(li);
   applyModeration(li);
+  if (msg.text) {
+    const clean = String(msg.text).trim();
+    if (clean) {
+      const now = Date.now();
+      const speaker = msg.name || (mine ? S.name : 'Guest') || 'Guest';
+      if (!Array.isArray(S.transcript)) S.transcript = [];
+      S.transcript.push({ ts: now, speaker, text: clean, source: 'chat' });
+      if (S.transcript.length > 60) S.transcript.splice(0, S.transcript.length - 60);
+      pushSrtEntry({ endMs: Number(msg.ts) || now, speaker, text: clean, source: 'chat' });
+      window.__gatherOnSpeechOrChat?.({ speaker, text: clean, source: 'chat', final: true, from: msg.from });
+    }
+  }
   if (!mine && S.tab !== 'chat') { S.unread++; $('#chatBadge').hidden = false; }
 }
 function sysMsg(text) { const li = document.createElement('li'); li.className = 'msg sys'; li.textContent = text; appendLog(li); }
@@ -4316,6 +5206,7 @@ $('#chatForm').addEventListener('submit', (e) => {
 // ---------------------------------------------------------------- rendering
 function setPhase(p) {
   S.phase = p;
+  if (p === 'connecting' || p === 'online' || p === 'reconnecting') ensureStudioBundles();
   document.body.classList.toggle('syncing', p === 'connecting' || p === 'reconnecting'); // skeletons until the studio arrives
   const pill = $('#statusPill');
   pill.dataset.state = p === 'online' ? 'online' : p === 'offline' ? 'offline' : 'connecting';
@@ -4338,9 +5229,11 @@ function renderHeader() {
   if ($('#watchTop')) $('#watchTop').hidden = !S.studio || !isHost();
   $('#liveTop').hidden = !S.studio || !isHost();
   // landing: just the stage hero. A host checking their camera before going in already sees their studio behind it.
-  document.body.classList.toggle('pre', !S.studio && S.phase !== 'reconnecting' && !S.hostEntering);
+  const isPre = !S.studio && S.phase !== 'reconnecting' && !S.hostEntering;
+  document.body.classList.toggle('pre', isPre);
+  if (typeof placeDock === 'function') placeDock();
   // Scheduled shows: on the landing page they sit under the hero (that's where you start one); inside a studio, in Go live.
-  const upHome = document.body.classList.contains('pre') ? $('#landing .land-copy') : $('#liveDlg .live-body');
+  const upHome = isPre ? $('#landing .land-copy') : $('#liveDlg .live-body');
   if ($('#upBlock').parentElement !== upHome) upHome.append($('#upBlock'));
 }
 function renderStageUI() {
@@ -4410,6 +5303,10 @@ function renderCrew() {
     $('.crew-thumb', li).classList.toggle('pickable', host);
     $('.crew-thumb', li).title = host ? (on ? `Click to send ${p.me ? 'yourself' : p.name} backstage` : `Click to put ${p.me ? 'yourself' : p.name} on stage`) : '';
     if (p.sharing) tags.insertAdjacentHTML('beforeend', '<span class="cstate pres">Presenting</span>');
+    if (p.ready) {
+      const lat = p.latencyMs > 0 ? ` · ${p.latencyMs}ms` : '';
+      tags.insertAdjacentHTML('beforeend', `<span class="cstate ready" title="Mic, camera &amp; network verified${lat}">✓ Ready</span>`);
+    }
     $('.crew-thumb .hand-badge', li)?.remove();
     if (p.hand) $('.crew-thumb', li).insertAdjacentHTML('beforeend', `<span class="hand-badge" role="status" aria-label="Hand raised"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-hand"/></svg><span>Hand</span></span>`);
     li.classList.toggle('hand-up', !!p.hand);
@@ -4428,6 +5325,8 @@ function renderCrew() {
   }
   renderCrewSubs();
   add.hidden = people.length >= MAX;
+  try { window.__gatherRefreshSceneSuggest?.(); } catch (err) { console.warn('[scene-suggest]', err); }
+  try { window.__gatherOnStudioChange?.(); } catch (err) { console.warn('[studio-change]', err); }
 }
 function renderCrewSubs() {
   for (const p of participants()) {
@@ -4453,6 +5352,7 @@ function renderCrewSubs() {
   }
 }
 function renderDock() {
+  if (typeof placeDock === 'function') placeDock();
   const mic = $('#micBtn'), cam = $('#camBtn'), share = $('#shareBtn'), rec = $('#recBtn');
   const micOff = !S.local.micOn || !S.local.audio;
   mic.setAttribute('aria-pressed', micOff && S.phase !== 'offline' ? 'true' : String(micOff && !!S.local.audio));
@@ -4575,7 +5475,7 @@ function renderPresets() {
 
 // ---------------------------------------------------------------- panels & controls
 // 6-tab rail: Chat, Stage (look: layouts/brand/overlays/music), Gaming (gaming), Audience (show: watch/viewers/supers/stage/polls), Shop, AI.
-const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', music: 'look:music', audio: 'look:music', look: 'look:', stage: 'look:', audience: 'show:', play: 'gaming', queue: 'gaming', gaming: 'gaming', poll: 'show:polls', polls: 'show:polls', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
+const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', music: 'look:music', 'scene-ai': 'look:scene-ai', audio: 'look:music', look: 'look:', stage: 'look:', highlights: 'highlights', clips: 'highlights', playlist: 'highlights', reels: 'highlights', audience: 'show:', play: 'gaming', queue: 'gaming', gaming: 'gaming', poll: 'show:polls', polls: 'show:polls', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
 function openDlg(id) {
   for (const other of ['liveDlg', 'settingsDlg', 'helpDlg']) if (other !== id && $('#' + other).open) $('#' + other).close();
   const d = $('#' + id);
@@ -4631,11 +5531,26 @@ function setTab(tab) {
   if (panel !== 'layouts' && editor.on) setEditing(false);
 }
 const phoneLayout = matchMedia('(max-width: 720px)');
-const dockEl = $('#dock'), dockHome = { parent: dockEl?.parentNode, next: dockEl?.nextSibling };
 function placeDock() {
   if (!dockEl) return;
-  if (phoneLayout.matches) { const card = $('.stage-card'); if (card && card.nextElementSibling !== dockEl) card.after(dockEl); }
-  else if (dockEl.parentNode !== dockHome.parent) dockHome.parent.insertBefore(dockEl, dockHome.next);
+  const active = !!S.studio || S.phase === 'reconnecting';
+  if (!active) {
+    if (dockEl.isConnected) dockEl.remove();
+    dockEl.hidden = true;
+    dockEl.setAttribute('aria-hidden', 'true');
+    document.documentElement.style.setProperty('--dock-h', '0px');
+    return;
+  }
+  dockEl.hidden = false;
+  dockEl.style.display = '';
+  dockEl.removeAttribute('aria-hidden');
+  if (phoneLayout.matches) {
+    const card = $('.stage-card');
+    if (card && card.nextElementSibling !== dockEl) card.after(dockEl);
+  } else {
+    const appRoot = $('#app');
+    if (appRoot && dockEl.parentNode !== appRoot) appRoot.append(dockEl);
+  }
 }
 placeDock();
 phoneLayout.addEventListener('change', () => { placeDock(); setDeckClosed(store.get(deckKey(), phoneLayout.matches)); });
@@ -4670,7 +5585,7 @@ $('#settingsTop').onclick = () => openDlg('settingsDlg');
 $('#liveTop').onclick = () => openDlg('liveDlg');
 
 function sceneList() {
-  return [...BUILTINS.map((b) => ({ ...b, kind: 'builtin' })), ...(isVertical() ? V_TEMPLATES : TEMPLATES).map((t) => ({ ...t, kind: 'template' })), ...savedLayouts().map((l) => ({ id: 'saved:' + l.name, name: l.name, kind: 'saved', saved: l }))];
+  return [...BUILTINS.map((b) => ({ ...b, kind: 'builtin' })), ...(isVertical() ? V_TEMPLATES : TEMPLATES).map((t) => ({ ...t, kind: 'template' })), ...activeSavedLayouts().map((l) => ({ id: 'saved:' + l.name, name: l.name, kind: 'saved', saved: l }))];
 }
 function activeSceneId() {
   if (S.state.layout !== 'custom') return 'b-' + S.state.layout;
@@ -4678,6 +5593,8 @@ function activeSceneId() {
 }
 function applyScene(sc) {
   if (isHost()) guideMark('scened');
+  preloadSceneAssets(sc);
+  try { obsStudio?.onGatherScene?.(sc); } catch {}
   if (sc.kind === 'builtin') return setStage({ layout: sc.layout, scene: sc.id, elements: sceneElements(sc.id, []) });
   if (sc.kind === 'template') return applyTemplate(sc);
   return loadLayout(sc.saved);
@@ -4745,6 +5662,8 @@ function renderScenes() {
     const nm = document.createElement('span'); nm.className = 'sc-name'; nm.textContent = sc.name;
     if (fullIdx >= 0 && fullIdx < 9) { const k = document.createElement('kbd'); k.textContent = fullIdx + 1; nm.append(k); }
     b.append(scenePreview(sc), nm);
+    b.onpointerenter = () => preloadSceneAssets(sc);
+    b.onfocus = () => preloadSceneAssets(sc);
     b.onclick = () => applyScene(sc);
     return b;
   });
@@ -4760,6 +5679,8 @@ function renderScenes() {
   // A re-render (any state update) must not throw a keyboard user out of the strip: put focus back where it was.
   if (keep >= 0 && all[keep]) all[keep].focus({ preventScroll: true });
   if (keep >= 0) stop?.focus();
+  try { window.__gatherRefreshSceneSuggest?.(); } catch (err) { console.warn('[scene-suggest]', err); }
+  try { window.__gatherOnStudioChange?.(); } catch (err) { console.warn('[studio-change]', err); }
 }
 /** Roving tabindex: Tab enters and leaves the scene strip in one step; arrows, Home and End move inside it. */
 function sceneKeys(e) {
@@ -4782,7 +5703,7 @@ function stageParticipantCount() {
   return (S.state.stage || []).filter((id) => ids.has(id)).length;
 }
 function sceneSlotCapacity() {
-  const l = S.state.layout || 'split';
+  const l = S.state.layout || 'solo';
   if (l === 'solo') return 1;
   if (l !== 'custom') return MAX;
   return (S.state.elements || []).filter((e) => e.type === 'slot' && !e.hidden).length;
@@ -4790,7 +5711,7 @@ function sceneSlotCapacity() {
 function recommendedSceneForStage() {
   if (!isHost() || !S.studio || editor.on || S.local.pres || hasMediaScene() || participants().some((p) => p.sharing)) return null;
   const n = stageParticipantCount();
-  const l = S.state.layout || 'split';
+  const l = S.state.layout || 'solo';
   const cap = sceneSlotCapacity();
   if (n >= 3) {
     if (l === 'grid') return null;
@@ -4809,7 +5730,7 @@ function recommendedSceneForStage() {
     }
   } else if (n === 1) {
     if (l === 'grid' || l === 'split' || l === 'spotlight') {
-      return { key: `1|b-solo|${l}|${cap}`, n, scId: 'b-solo', autoEligible: false, text: 'Just 1 on stage. Use Solo?' };
+      return { key: '1|b-solo', n, scId: 'b-solo', autoSolo: true };
     }
   }
   return null;
@@ -4825,9 +5746,28 @@ function evaluateSceneSuggestion() {
     sceneSuggestState.suppressedKey = '';
     sceneSuggestState.autoAppliedKey = '';
   }
+  if (n === 1 && (S.state.layout || 'solo') === 'solo') {
+    sceneSuggestState.autoAppliedKey = '1|b-solo';
+  }
   const rec = recommendedSceneForStage();
   const box = $('#sceneSuggest');
   if (!rec) { hideSceneSuggestion(); return; }
+  // When Scene AI Context-Aware Switches (studio-tools.js) is active, let it own automatic transitions & Undo toasts.
+  if (window.__gatherSceneAi?.isEnabled?.()) {
+    hideSceneSuggestion();
+    return;
+  }
+  // When only 1 streamer is on stage, default to Solo automatically and silently — no prompt notification.
+  if (rec.autoSolo) {
+    hideSceneSuggestion();
+    if (sceneSuggestState.autoAppliedKey !== rec.key) {
+      const target = sceneList().find((s) => s.id === rec.scId);
+      sceneSuggestState.autoAppliedKey = rec.key;
+      if (target) applyScene(target);
+      else setStage({ layout: 'solo', scene: 'b-solo' });
+    }
+    return;
+  }
   if (rec.autoEligible && autoGridOn() && sceneSuggestState.suppressedKey !== rec.key && sceneSuggestState.autoAppliedKey !== rec.key) {
     const target = sceneList().find((s) => s.id === rec.scId);
     if (target) {
@@ -4904,7 +5844,7 @@ $('#studioTitle').addEventListener('blur', (e) => {
   else e.target.textContent = S.state.title || DEFAULT_TITLE;
 });
 // the phone layout keeps the composer above the fixed dock, whatever the dock's height (the guide adds a row)
-new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', $('.dock').offsetHeight + 'px')).observe($('.dock'));
+if (dockEl) new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', dockEl.isConnected ? dockEl.offsetHeight + 'px' : '0px')).observe(dockEl);
 
 // Appearance: dark by default; light or follow the OS on request.
 function applyTheme(t) {
@@ -5199,10 +6139,12 @@ const blurCache = new WeakMap();
 function blurredOf(img) {
   let c = blurCache.get(img);
   if (c) return c;
-  c = document.createElement('canvas'); c.width = 320; c.height = 180;
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  if (!iw || !ih) return null;
+  c = createPooledCanvas(320, 180);
   const cg = c.getContext('2d'); cg.filter = 'blur(12px)';
-  const k = Math.max(340 / img.naturalWidth, 200 / img.naturalHeight);
-  cg.drawImage(img, (320 - img.naturalWidth * k) / 2, (180 - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+  const k = Math.max(340 / iw, 200 / ih);
+  cg.drawImage(img, (320 - iw * k) / 2, (180 - ih * k) / 2, iw * k, ih * k);
   blurCache.set(img, c);
   return c;
 }
@@ -5211,9 +6153,9 @@ function drawAudioTile(p, x, y, w, h, t) {
   const prev = lvlSmooth.get(p.id) || 0, target = p.mic ? Math.min(1, p.level * 7) : 0;
   const lv = prev + (target - prev) * (target > prev ? .3 : .06);
   lvlSmooth.set(p.id, lv);
-  const bgImg = assetImg(p.offbg), av = assetImg(p.avatar);
+  const bgImg = getAssetSurface(p.offbg), av = getAssetSurface(p.avatar);
   if (bgImg) cover(g, bgImg, x, y, w, h);
-  else if (av) g.drawImage(blurredOf(av), x, y, w, h);
+  else if (av) { const bl = blurredOf(av); if (bl) g.drawImage(bl, x, y, w, h); }
   else {
     const gr = g.createRadialGradient(x + w * .3, y + h * .2, 10, x + w / 2, y + h / 2, Math.max(w, h) * .8);
     gr.addColorStop(0, hexA(brand.color, .55)); gr.addColorStop(.55, mixHex(brand.color, '#070a14', 0.78)); gr.addColorStop(1, mixHex(brand.color, '#04060c', 0.9));
@@ -5260,16 +6202,17 @@ function drawAds(r) {
   if (!a?.on || !a.items?.length) return;
   const per = (a.every || 12) * 1000, now = Date.now();
   const idx = Math.floor(now / per) % a.items.length, into = now % per;
-  const img = assetImg(a.items[idx]);
-  if (!img) return;
+  const adSurf = getAdCanvas(a.items[idx], r.w, r.h);
+  if (!adSurf) return;
   const alpha = Math.min(1, into / 450, (per - into) / 450);
-  const k = Math.min(r.w / img.naturalWidth, r.h / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+  const { canvas: surf, w, h } = adSurf;
   const cx = r.x + r.w / 2, x = cx > W * .6 ? r.x + r.w - w : cx < W * .4 ? r.x : cx - w / 2, y = r.y + r.h - h;
+  const t0 = performance.now();
   g.save(); g.globalAlpha = alpha;
   g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 20; g.shadowOffsetY = 6;
-  rr(x, y, w, h, 10); g.clip(); g.shadowColor = 'transparent';
-  g.drawImage(img, x, y, w, h);
+  g.drawImage(surf, x, y, w, h);
   g.restore();
+  recordAssetBlit(performance.now() - t0);
 }
 function drawQr(url, x, y, size) {
   const q = url ? qrFor(url) : null;
@@ -5297,7 +6240,7 @@ function drawCallinEl(e) {
 
 // ---------------------------------------------------------------- deck: scenes and people swap under a fixed stage
 S.deck = 'scenes';
-function deckLayers() { return isHost() ? ['scenes', 'people', ...(S.lobby?.length ? ['lobby'] : [])] : ['people']; }
+function deckLayers() { return isHost() ? ['scenes', 'people', 'obs', ...(S.lobby?.length ? ['lobby'] : [])] : ['people']; }
 function setDeck(name) {
   const layers = deckLayers();
   if (!layers.includes(name)) name = layers[0];
@@ -5502,7 +6445,26 @@ function libDb() {
   });
 }
 async function libTx(mode, fn) { const db = await libDb(); return new Promise((res, rej) => { const tx = db.transaction('items', mode); const out = fn(tx.objectStore('items')); tx.oncomplete = () => res(out?.result ?? out); tx.onerror = () => rej(tx.error); }); }
-async function libLoad() { try { S.library = (await libTx('readonly', (s) => s.getAll())) || []; } catch { S.library = []; } renderLibrary(); }
+async function libLoad() {
+  let localItems = [];
+  try { localItems = (await libTx('readonly', (s) => s.getAll())) || []; } catch { localItems = []; }
+  const cloudItems = window.gatherCloud?.getSnapshot?.().mediaLibrary || [];
+  if (cloudItems.length) {
+    const byId = new Map(localItems.map((it) => [it.id, it]));
+    for (const ci of cloudItems) {
+      const existing = byId.get(ci.id);
+      if (existing) {
+        byId.set(ci.id, { ...existing, ...ci, blob: existing.blob || null, type: existing.type || ci.mimeType || '' });
+      } else {
+        byId.set(ci.id, { ...ci, type: ci.mimeType || '', size: ci.sizeBytes || 0, cloudOnly: !(ci.kind === 'link' || ci.kind === 'youtube') });
+      }
+    }
+    S.library = [...byId.values()].sort((a, b) => (Number(b.added) || 0) - (Number(a.added) || 0));
+  } else {
+    S.library = localItems.sort((a, b) => (Number(b.added) || 0) - (Number(a.added) || 0));
+  }
+  renderLibrary();
+}
 const libKind = (f) => {
   const t = typeof f?.type === 'string' ? f.type : '', n = typeof f?.name === 'string' ? f.name : '';
   return t === 'application/pdf' || /\.pdf$/i.test(n) ? 'pdf' : t.startsWith('video/') ? 'video' : (t.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(n)) ? 'audio' : t.startsWith('image/') ? 'image' : '';
@@ -5512,7 +6474,9 @@ async function libAddFiles(files) {
     const kind = libKind(f);
     if (!kind) { toast(`${f.name}: use a PDF, video, audio or image.`, { err: true }); continue; }
     if (f.size > 500 * 1048576) { toast(`${f.name} is over 500 MB.`, { err: true }); continue; }
-    await libTx('readwrite', (s) => s.put({ id: uid() + uid(), name: f.name.replace(/\.[^.]+$/, ''), kind, blob: f, type: f.type, size: f.size, added: Date.now() }));
+    const item = { id: uid() + uid(), name: f.name.replace(/\.[^.]+$/, ''), kind, blob: f, type: f.type, size: f.size, added: Date.now() };
+    await libTx('readwrite', (s) => s.put(item));
+    window.gatherCloud?.saveMediaItem?.({ id: item.id, name: item.name, kind: item.kind, mimeType: item.type, sizeBytes: item.size, added: item.added }).catch(() => {});
   }
   await libLoad(); toast('Added to your media library.');
 }
@@ -5524,12 +6488,18 @@ $('#libUrlAdd').onclick = async () => {
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   try { new URL(u); } catch { return toast('That doesn’t look like a web address.', { err: true }); }
   const name = $('#libUrlName').value.trim() || new URL(u).hostname.replace(/^www\./, '');
-  await libTx('readwrite', (s) => s.put({ id: uid() + uid(), name, kind: /youtu\.?be/.test(u) ? 'youtube' : 'link', url: u, added: Date.now() }));
+  const item = { id: uid() + uid(), name, kind: /youtu\.?be/.test(u) ? 'youtube' : 'link', url: u, added: Date.now() };
+  await libTx('readwrite', (s) => s.put(item));
+  window.gatherCloud?.saveMediaItem?.(item).catch(() => {});
   $('#libUrl').value = ''; $('#libUrlName').value = ''; libLoad();
 };
 async function presentLibrary(it) {
   if (!it) return;
   if (it.kind === 'link' || it.kind === 'youtube') return offerOpen(it.url, it.name);
+  if (!it.blob) {
+    if (it.driveWebViewLink || it.url) return offerOpen(it.driveWebViewLink || it.url, it.name);
+    return toast(`“${it.name}” metadata is synced from Firestore; re-upload the local file on this device to present it on stage.`, { err: true });
+  }
   if (it.kind === 'audio') return playBgMusicFile(new File([it.blob], it.name, { type: it.type || 'audio/mpeg' }));
   presentFile(new File([it.blob], it.name + ({ pdf: '.pdf', video: '', image: '' }[it.kind] || ''), { type: it.type }));
 }
@@ -5538,24 +6508,157 @@ function renderLibrary() {
   const ul = $('#libList');
   replaceKids(ul, ...S.library.map((it) => {
     const li = document.createElement('li'); li.className = 'el-row lib-row';
-    const k = document.createElement('span'); k.className = 'pill caps lib-kind k-' + it.kind; k.textContent = KIND_LABEL[it.kind];
+    const k = document.createElement('span'); k.className = 'pill caps lib-kind k-' + it.kind; k.textContent = KIND_LABEL[it.kind] || 'Media';
     const nm = document.createElement('span'); nm.className = 'menu-item compact el-pick'; nm.textContent = it.name;
     const go = document.createElement('button'); go.type = 'button'; go.className = 'btn sm'; go.textContent = 'Present'; go.onclick = () => presentLibrary(it);
-    const del = mkBtn('trash-2', 'Remove from library', async () => { await libTx('readwrite', (s) => s.delete(it.id)); libLoad(); });
+    const del = mkBtn('trash-2', 'Remove from library', async () => {
+      await libTx('readwrite', (s) => s.delete(it.id));
+      window.gatherCloud?.deleteMediaItem?.(it.id).catch(() => {});
+      libLoad();
+    });
     li.append(k, nm, go, del); return li;
   }));
   $('#libEmpty').hidden = !!S.library.length;
   const sel = $('#sceneMedia'); const cur = sel.value;
-  replaceKids(sel, new Option('No media', ''), ...S.library.map((it) => new Option(`${KIND_LABEL[it.kind]} · ${it.name}`, it.id)));
+  replaceKids(sel, new Option('No media', ''), ...S.library.map((it) => new Option(`${KIND_LABEL[it.kind] || 'Media'} · ${it.name}`, it.id)));
   sel.value = cur;
+  window.__gatherOnLibraryChange?.();
 }
+
+// ---- Firestore Cloud Sync bridge for Saved Scenes & Media Library ----
+(function initCloudSyncPersistence() {
+  const authBtn = $('#cloudAuthBtn');
+  const signOutBtn = $('#cloudSignOutBtn');
+  const titleEl = $('#cloudSyncTitle');
+  const statusEl = $('#cloudSyncStatus');
+  let syncedInitialUid = '';
+
+  function updateCloudSyncUI(snap) {
+    if (!titleEl || !statusEl) return;
+    if (snap?.user) {
+      titleEl.textContent = `Synced · ${snap.user.displayName || snap.user.email || 'Google account'}`;
+      statusEl.textContent = `${snap.scenes.length} scene${snap.scenes.length === 1 ? '' : 's'} · ${snap.mediaLibrary.length} media · ${snap.triggers.length} trigger${snap.triggers.length === 1 ? '' : 's'} in Firestore`;
+      if (authBtn) authBtn.hidden = true;
+      if (signOutBtn) signOutBtn.hidden = false;
+    } else {
+      titleEl.textContent = 'Cloud persistence';
+      statusEl.textContent = 'Sign in with Google to sync scenes, library & triggers across refreshes';
+      if (authBtn) authBtn.hidden = false;
+      if (signOutBtn) signOutBtn.hidden = true;
+    }
+  }
+
+  function mergeFirestoreScenes(remoteScenes) {
+    if (!Array.isArray(remoteScenes)) return;
+    const local = savedLayouts();
+    const byName = new Map(local.map((s) => [s.name, s]));
+    let changed = false;
+    for (const rs of remoteScenes) {
+      if (!rs?.name) continue;
+      const cur = byName.get(rs.name);
+      if (!cur || (Number(rs.lastUsedAt) || 0) >= (Number(cur.lastUsedAt) || 0)) {
+        byName.set(rs.name, {
+          id: rs.id,
+          name: rs.name,
+          desc: rs.desc || cur?.desc || '',
+          participants: Array.isArray(rs.participants) ? rs.participants : (cur?.participants || []),
+          layout: rs.layout || cur?.layout || 'custom',
+          elements: Array.isArray(rs.elements) && rs.elements.length ? rs.elements : (cur?.elements || []),
+          media: rs.media || cur?.media || '',
+          savedAt: Number(rs.savedAt) || cur?.savedAt || Date.now(),
+          lastUsedAt: Number(rs.lastUsedAt) || cur?.lastUsedAt || Date.now(),
+          archived: !!rs.archived,
+          autoArchived: !!rs.autoArchived,
+        });
+        changed = true;
+      }
+    }
+    if (changed) {
+      const merged = [...byName.values()].sort((a, b) => (Number(b.savedAt) || 0) - (Number(a.savedAt) || 0)).slice(0, 20);
+      try { store.set('layouts', merged); } catch {}
+      renderSaved();
+      renderScenes();
+    }
+  }
+
+  async function pushLocalSeedToFirestore(snap) {
+    if (!snap?.user || syncedInitialUid === snap.user.uid) return;
+    syncedInitialUid = snap.user.uid;
+    // Push any local-only saved scenes to Firestore so nothing is lost on first sign-in
+    const remoteSceneNames = new Set((snap.scenes || []).map((s) => s.name));
+    for (const ls of savedLayouts()) {
+      if (ls?.name && !remoteSceneNames.has(ls.name)) {
+        window.gatherCloud.saveScene(ls).catch(() => {});
+      }
+    }
+    // Push any local-only media library items to Firestore
+    const remoteMediaIds = new Set((snap.mediaLibrary || []).map((m) => m.id));
+    for (const lm of S.library || []) {
+      if (lm?.id && !remoteMediaIds.has(lm.id)) {
+        window.gatherCloud.saveMediaItem({
+          id: lm.id, name: lm.name, kind: lm.kind, url: lm.url || '',
+          mimeType: lm.type || '', sizeBytes: lm.size || 0, added: lm.added || Date.now(),
+        }).catch(() => {});
+      }
+    }
+  }
+
+  let cloudBound = false;
+  authBtn?.addEventListener('click', async () => {
+    authBtn.disabled = true;
+    try {
+      const cloud = await ensureFirebaseCloud();
+      if (!cloud) return toast('Cloud sync is not available in this session.', { err: true });
+      bind();
+      const snap = await cloud.signInWithGoogle({ requestDrive: true });
+      toast(`Signed in as ${snap.user?.displayName || snap.user?.email || 'Google user'} — Firestore & Drive ready.`);
+    } catch (e) {
+      toast(e?.message || 'Google sign-in was cancelled.', { err: true });
+    } finally {
+      authBtn.disabled = false;
+    }
+  });
+
+  signOutBtn?.addEventListener('click', async () => {
+    try {
+      await window.gatherCloud?.signOut?.();
+      syncedInitialUid = '';
+      toast('Signed out of cloud sync.');
+    } catch {}
+  });
+
+  const bind = () => {
+    if (cloudBound || !window.gatherCloud?.subscribe) return;
+    cloudBound = true;
+    window.gatherCloud.subscribe((snap, reason) => {
+      updateCloudSyncUI(snap);
+      if (reason === 'profile' && snap.profile) {
+        if (typeof snap.profile.autoPrune === 'boolean' && snap.profile.autoPrune !== autoPruneEnabled()) {
+          store.set('autoPrune', snap.profile.autoPrune);
+          renderSaved(); renderScenes();
+        }
+      }
+      if (reason === 'scenes' && snap.user) {
+        mergeFirestoreScenes(snap.scenes);
+      }
+      if (reason === 'mediaLibrary' && snap.user) {
+        libLoad();
+      }
+      if (snap.user && (reason === 'auth' || reason === 'scenes' || reason === 'mediaLibrary')) {
+        pushLocalSeedToFirestore(snap);
+      }
+    });
+  };
+  if (window.gatherCloud) bind();
+  else window.addEventListener('gather:cloud-ready', bind, { once: true });
+})();
 
 // ---------------------------------------------------------------- AI producer: name it, talk to it, it runs the show → ./producer.js
 const producer = createProducer({
   $, $$, store, S, isHost, toast, audioCtx, syncMedia, mixInMedia, stopPresentation, presentScreen, creds,
   setStage, participants, g, mixHex, accentOf, hexA, uid, withDefaults, AI_NAME, plainMd, elementsCopy,
   upsertAI, actChip, renderAILog, renderAIPanel, setAiSetup, autoGrow, cap, sendCaption, showCaption, setTab,
-  sceneList, activeSceneId, applyScene, renderOffBg, libLoad, presentLibrary
+  sceneList, activeSceneId, applyScene, renderOffBg, libLoad, presentLibrary, getCanvas: () => canvas,
 });
 const { speechHub } = producer;
 function renderProducerUI(...args) { return producer.renderProducerUI(...args); }
@@ -5563,8 +6666,15 @@ function renderVoiceNames(...args) { return producer.renderVoiceNames(...args); 
 function setCmd(...args) { return producer.setCmd(...args); }
 function offerOpen(...args) { return producer.offerOpen(...args); }
 function askProducer(...args) { return producer.askProducer(...args); }
+function askStageVision(...args) { return producer.askStageVision(...args); }
 function drawOrb(...args) { return producer.drawOrb(...args); }
 function syncCaptions(...args) { return producer.syncCaptions(...args); }
+$('#aiVisionBtn')?.addEventListener('click', () => {
+  const prompt = $('#aiInput')?.value?.trim() || '';
+  if ($('#aiInput')) $('#aiInput').value = '';
+  askStageVision(prompt);
+});
+$('#gemVisionSnapBtn')?.addEventListener('click', () => askStageVision(''));
 
 // ---------------------------------------------------------------- enter studio (green room)
 let enterMode = 'create', previewing = false;
@@ -5572,6 +6682,7 @@ const previewActive = () => previewing && !S.studio;
 function stopPreviewLoop() { previewing = false; }
 async function openEnter(mode, code) {
   if (S.studio) return openInvite();
+  ensureStudioBundles();
   setEnterMode(mode || 'create');
   if (code) $('#enterCode').value = code;
   $('#enterName').value = S.name;
@@ -5589,6 +6700,7 @@ async function openEnter(mode, code) {
   if (S.local.camOn && !S.local.cam) S.local.camOn = false;
   if (S.local.micOn) await startMic();
   renderPreview(); renderStageUI();
+  window.__gatherCheckGreenRoom?.(true);
 }
 function renderPreview() {
   const v = $('#previewVideo');
@@ -5604,6 +6716,7 @@ function renderPreview() {
   $('#previewMsg').textContent = S.local.camError && !track ? S.local.camError : 'Camera is off';
   $('#pMic').setAttribute('aria-pressed', String(!(S.local.micOn && S.local.audio)));
   $('#pCam').setAttribute('aria-pressed', String(!track));
+  window.__gatherCheckGreenRoom?.(false);
 }
 $('#pMic').onclick = () => setMic(!(S.local.micOn && S.local.audio));
 $('#pCam').onclick = () => setCam(!S.local.camOn);
@@ -5628,6 +6741,7 @@ function setEnterMode(m) {
   $('#enterSub').textContent = m === 'join' ? 'Check your camera and mic, then join the host backstage.' : 'Check how you look and sound. Your studio is ready behind this.';
   S.hostEntering = m !== 'join' && $('#enterDlg').open;
   renderHeader();
+  window.__gatherCheckGreenRoom?.(false);
 }
 $$('#enterForm .seg button[data-mode]').forEach((b) => b.addEventListener('click', () => setEnterMode(b.dataset.mode)));
 $('#enterForm').addEventListener('submit', async (e) => {
@@ -5914,6 +7028,7 @@ const TOUR = [
   ['#aiDock', 'Your AI producer', 'Ask it anything on air, or tell it to switch scenes, show a banner or find a video. Press / any time.'],
   ['.rail-btn[data-tab="show"]', 'Show', 'Your watch page, super chats, voice questions, viewer features and stage options.'],
   ['.rail-btn[data-tab="look"]', 'Look', 'Arrange layouts, set your brand colours and fonts, and run banners, tickers and custom emotes.'],
+  ['.rail-btn[data-tab="highlights"]', 'Smart Highlights', 'Drag 30-second clips into a playlist, preview the combined reel, and export to a file or live stream overlay.'],
   ['.rail-btn[data-tab="shop"]', 'Shop', 'Pin products from Shopify or any link onto the stage and run flash sales.'],
   ['.rail-btn[data-tab="polls"]', 'Polls', 'Launch live polls and predictions with real-time results on stage.'],
   ['.rail-btn[data-tab="gaming"]', 'Play with me', 'Let viewers queue up with their gamertag and call the next player on stage.'],
@@ -5989,36 +7104,120 @@ document.addEventListener('keydown', (e) => {
   next.focus(); next.click();
 });
 
-// ---------------------------------------------------------------- the public watch page (/w/<studio>) → ./audience.js
-const audience = createAudience({
-  $, smooth, $$, store, get W() { return W; }, get H() { return H; }, S, isHost, watchCfg, normalizeHex,
-  hexLuminance, notifier, toast, fmtTime, copy, get recDest() { return recDest; }, audioCtx, mixInMedia, api,
-  creds, wsSend, setStage, canvas, g, speaking, rr, stageElements, get camRects() { return camRects; },
-  chatShell, uid, withDefaults, assetImg, setAssetData, storeAsset, compressImage, wrapLines, px, superAlert,
-  playScVoice, elementsCopy, freeSpot, acct, acctApi, setUser, openAccount, parseHashtags,
-  rasterizeSvg, appendLog, setTab, flashBtn, renderInviteDialog, chime
-});
-const { watchSlug, watchLinkUrl, watchLinkText, money, shopCfg } = audience;
-function viewerWant(...args) { return audience.viewerWant(...args); }
-function viewerSignal(...args) { return audience.viewerSignal(...args); }
-function closeViewer(...args) { return audience.closeViewer(...args); }
-function closeAllViewers(...args) { return audience.closeAllViewers(...args); }
-function gotSuperchat(...args) { return audience.gotSuperchat(...args); }
-function renderBountyPanel(...args) { return audience.renderBountyPanel(...args); }
-function drawBountyEl(...args) { return audience.drawBountyEl(...args); }
-function refreshSupers(...args) { return audience.refreshSupers(...args); }
-function reactFloat(...args) { autoMoments?.onReact(); return audience.reactFloat(...args); }
-function setWatch(...args) { return audience.setWatch(...args); }
-function renderWatchSec(...args) { return audience.renderWatchSec(...args); }
-function setShop(...args) { return audience.setShop(...args); }
-function drawProduct(...args) { return audience.drawProduct(...args); }
-function drawPoll(...args) { return audience.drawPoll(...args); }
-function gotQueue(...args) { return audience.gotQueue(...args); }
-function renderQueue(...args) { return audience.renderQueue(...args); }
-function gotVoice(...args) { return audience.gotVoice(...args); }
-function dropVoice(...args) { return audience.dropVoice(...args); }
-function refreshVoice(...args) { return audience.refreshVoice(...args); }
-function drawWatchBadge(...args) { return audience.drawWatchBadge(...args); }
+// ---------------------------------------------------------------- lazy-loaded studio-only bundles
+// Kept off the splash page cold load (-1.1+ MB); loaded dynamically when entering a studio.
+let audience = null;
+let audienceLoadP = null;
+let cloudLoadP = null;
+let toolsLoadP = null;
+let studioToolsReady = false;
+
+function ensureFirebaseCloud() {
+  if (window.gatherCloud) return Promise.resolve(window.gatherCloud);
+  if (!cloudLoadP) {
+    cloudLoadP = import('/firebase-client.js')
+      .then(() => {
+        try { window.dispatchEvent(new CustomEvent('gather:cloud-ready')); } catch {}
+        return window.gatherCloud || null;
+      })
+      .catch((err) => {
+        console.warn('[cloud] lazy load failed:', err);
+        cloudLoadP = null;
+        return null;
+      });
+  }
+  return cloudLoadP;
+}
+
+function ensureAudience() {
+  if (audience) return Promise.resolve(audience);
+  if (!audienceLoadP) {
+    audienceLoadP = import('./audience.js')
+      .then(({ createAudience }) => {
+        audience = createAudience({
+          $, smooth, $$, store, get W() { return W; }, get H() { return H; }, S, isHost, watchCfg, normalizeHex,
+          hexLuminance, notifier, toast, fmtTime, copy, get recDest() { return recDest; }, audioCtx, mixInMedia, api,
+          creds, wsSend, setStage, canvas, g, speaking, rr, stageElements, get camRects() { return camRects; },
+          chatShell, uid, withDefaults, assetImg, setAssetData, storeAsset, compressImage, wrapLines, px, superAlert,
+          playScVoice, elementsCopy, freeSpot, acct, acctApi, setUser, openAccount, parseHashtags,
+          rasterizeSvg, appendLog, setTab, flashBtn, renderInviteDialog, chime
+        });
+        try { audience.renderWatchSec(); audience.renderBountyPanel(); } catch {}
+        if (S.studio && S.host === S.id) {
+          try { audience.refreshSupers(); audience.refreshVoice(); } catch {}
+        }
+        requestStageRender();
+        return audience;
+      })
+      .catch((err) => {
+        console.warn('[audience] lazy load failed:', err);
+        audienceLoadP = null;
+        return null;
+      });
+  }
+  return audienceLoadP;
+}
+
+function ensureStudioTools() {
+  if (studioToolsReady) return Promise.resolve(true);
+  if (!toolsLoadP) {
+    toolsLoadP = Promise.all([
+      import('/mood-chart.js').catch(() => null),
+      import('./studio-tools.js'),
+    ])
+      .then(([, toolsMod]) => {
+        if (!studioToolsReady && typeof toolsMod?.initStudioTools === 'function') {
+          studioToolsReady = true;
+          toolsMod.initStudioTools(sharedToolsApi);
+          try { refreshSections(); } catch {}
+          try { window.__gatherCheckGreenRoom?.(false); } catch {}
+        }
+        return true;
+      })
+      .catch((err) => {
+        console.warn('[studio-tools] lazy load failed:', err);
+        toolsLoadP = null;
+        return false;
+      });
+  }
+  return toolsLoadP;
+}
+
+function ensureStudioBundles() {
+  return Promise.all([
+    ensureAudience(),
+    ensureStudioTools(),
+    ensureFirebaseCloud(),
+  ]);
+}
+window.__ensureStudioBundles = ensureStudioBundles;
+window.__ensureGatherCloud = ensureFirebaseCloud;
+
+function watchSlug() { return audience ? audience.watchSlug() : (S.studio || ''); }
+function watchLinkUrl() { return audience ? audience.watchLinkUrl() : (S.studio ? `${location.origin}/w/${S.studio}` : ''); }
+function watchLinkText() { return audience ? audience.watchLinkText() : (S.studio ? `${location.host}/w/${S.studio}` : ''); }
+function money(c) { return audience ? audience.money(c) : '$' + ((Number(c) || 0) / 100).toFixed(2); }
+function shopCfg() { return audience ? audience.shopCfg() : (S.state?.shop || { items: [], pinned: '', sale: null }); }
+function viewerWant(...args) { return audience ? audience.viewerWant(...args) : ensureAudience().then((a) => a?.viewerWant(...args)); }
+function viewerSignal(...args) { return audience ? audience.viewerSignal(...args) : ensureAudience().then((a) => a?.viewerSignal(...args)); }
+function closeViewer(...args) { return audience?.closeViewer(...args); }
+function closeAllViewers(...args) { return audience?.closeAllViewers(...args); }
+function gotSuperchat(...args) { return audience ? audience.gotSuperchat(...args) : ensureAudience().then((a) => a?.gotSuperchat(...args)); }
+function renderBountyPanel(...args) { return audience?.renderBountyPanel(...args); }
+function drawBountyEl(...args) { return audience?.drawBountyEl(...args); }
+function refreshSupers(...args) { return audience ? audience.refreshSupers(...args) : ensureAudience().then((a) => a?.refreshSupers(...args)); }
+function reactFloat(...args) { autoMoments?.onReact(); return audience ? audience.reactFloat(...args) : ensureAudience().then((a) => a?.reactFloat(...args)); }
+function setWatch(...args) { return audience ? audience.setWatch(...args) : ensureAudience().then((a) => a?.setWatch(...args)); }
+function renderWatchSec(...args) { return audience?.renderWatchSec(...args); }
+function setShop(...args) { return audience ? audience.setShop(...args) : ensureAudience().then((a) => a?.setShop(...args)); }
+function drawProduct(...args) { return audience?.drawProduct(...args); }
+function drawPoll(...args) { return audience?.drawPoll(...args); }
+function gotQueue(...args) { return audience ? audience.gotQueue(...args) : ensureAudience().then((a) => a?.gotQueue(...args)); }
+function renderQueue(...args) { return audience?.renderQueue(...args); }
+function gotVoice(...args) { return audience ? audience.gotVoice(...args) : ensureAudience().then((a) => a?.gotVoice(...args)); }
+function dropVoice(...args) { return audience?.dropVoice(...args); }
+function refreshVoice(...args) { return audience ? audience.refreshVoice(...args) : ensureAudience().then((a) => a?.refreshVoice(...args)); }
+function drawWatchBadge(...args) { return audience?.drawWatchBadge(...args); }
 
 // ---------------------------------------------------------------- live viewers on every platform → ./viewers.js
 const viewerCount = createViewerCount({ S, isHost });
@@ -6148,8 +7347,159 @@ const sharedToolsApi = {
   triggerShareGame: () => $('[data-present="game"]')?.click(),
   applyGameScene: () => {
     const sc = sceneList().find((x) => x.id === 'game' || x.id === 'present') || sceneList()[0];
-    if (sc) pickScene(sc.id);
+    if (sc) applyScene(sc);
   },
+  getSceneList: () => sceneList(),
+  activeSceneId: () => activeSceneId(),
+  applyScene: (sc) => applyScene(sc),
+  applySceneById: (id) => {
+    const sc = sceneList().find((x) => x.id === id);
+    if (sc) applyScene(sc);
+    return sc || null;
+  },
+  scenePreview: (sc) => scenePreview(sc),
+  getLocal: () => S.local,
+  outVideo: () => outVideo(),
+  getMirror: () => !!S.videoFx?.mirror,
+  toggleStage: (id) => toggleStage(id),
+  mutePeer: (id) => { wsSend({ type: 'mute', id }); },
+  getStudioCode: () => S.studio || '',
+  getLiveStatus: () => ({
+    live: S.live?.phase === 'live',
+    rec: !!S.rec?.on,
+    micOn: !!(S.local.audio && S.local.micOn),
+    camOn: !!(S.local.cam && S.local.camOn),
+    captionsOn: !!S.state?.captions?.on,
+    viewers: S.watch?.viewers || S.viewers?.size || 0,
+    title: S.state?.title || DEFAULT_TITLE,
+  }),
+  toggleMic: () => $('#micBtn')?.click(),
+  toggleCam: () => $('#camBtn')?.click(),
+  toggleRec: () => $('#recBtn')?.click(),
+  toggleGoLive: () => $('#liveBtn')?.click(),
+  toggleCaptions: () => setStage({ captions: { ...(S.state.captions || {}), on: !S.state?.captions?.on } }),
+  getPendingSupers: () => [...(S.supers?.values?.() || [])]
+    .filter((x) => x && x.status === 'pending')
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, 6)
+    .map((x) => ({ id: x.id, name: x.name, amount: x.amount, method: x.method, text: x.text || '', bounty: !!x.bounty, status: x.status, ts: x.ts || 0 })),
+  getRecentSupers: () => {
+    const out = [];
+    const seen = new Set();
+    for (const x of [...(S.supers?.values?.() || [])].sort((a, b) => (b.ts || 0) - (a.ts || 0))) {
+      if (!x || x.status === 'dismissed') continue;
+      seen.add(x.id);
+      out.push({ id: x.id, name: x.name || 'Viewer', amount: Number(x.amount) || 0, method: x.method || '', text: x.text || '', bounty: !!x.bounty, status: x.status || 'pending', ts: Number(x.ts) || 0 });
+    }
+    for (const m of (S.feed || []).slice(-30).reverse()) {
+      if (!m?.paid || seen.has(m.id)) continue;
+      const amt = parseFloat(String(m.paid).replace(/[^0-9.]/g, '')) || 0;
+      out.push({ id: m.id, name: m.name || 'Viewer', amount: amt, method: m.src || 'watch', text: m.text || '', bounty: false, status: 'confirmed', ts: Number(m.ts) || 0 });
+    }
+    return out.slice(0, 8);
+  },
+  getRecentMessages: () => (S.feed || [])
+    .filter((m) => m && (m.text || m.paid))
+    .slice(-24)
+    .map((m) => ({
+      id: m.id,
+      src: m.src || 'studio',
+      name: m.name || 'Guest',
+      text: String(m.text || '').slice(0, 180),
+      color: m.color || '',
+      paid: m.paid || '',
+      ts: Number(m.ts) || 0,
+    })),
+  getFeatured: () => S.state?.featured || null,
+  featureMessage: (m) => {
+    if (!isHost()) return false;
+    if (!m) { setStage({ featured: null }); return true; }
+    setStage({ featured: { id: m.id || uid(), src: m.src || 'studio', name: m.name || 'Viewer', text: String(m.text || '').slice(0, 200), color: m.color || '', ...(m.paid ? { paid: m.paid } : {}) } });
+    return true;
+  },
+  getActivePoll: () => S.state?.poll || null,
+  askSamQuick: () => { setTab('chat'); setTimeout(() => $('#samBtn')?.click(), 40); },
+  triggerStageVision: () => { setTab('chat'); setTimeout(() => $('#aiVisionBtn')?.click(), 40); },
+  openQuickPoll: () => { setTab('polls'); },
+  confirmSuper: (id) => {
+    const item = S.supers?.get?.(id);
+    if (!item || !isHost()) return false;
+    audience.superAct(item, 'confirm');
+    return true;
+  },
+  dismissSuper: (id) => {
+    const item = S.supers?.get?.(id);
+    if (!item || !isHost()) return false;
+    audience.superAct(item, 'dismiss');
+    return true;
+  },
+  wsSend,
+  reactFloat: (emoji) => reactFloat(emoji),
+  getTranscript: () => Array.isArray(S.transcript) ? S.transcript.slice(-60) : [],
+  getSrtEvents: () => {
+    const base = Array.isArray(S.srtLog) ? S.srtLog.slice() : [];
+    const seenIds = new Set(base.map((x) => x.id));
+    const aiItems = Array.isArray(S.ai?.items) ? S.ai.items : [];
+    for (const it of aiItems) {
+      if (!it?.text || it.error) continue;
+      if (it.role === 'assistant' && it.done === false) continue;
+      const aid = `ai-${it.id}`;
+      if (seenIds.has(aid)) continue;
+      const clean = String(it.text).replace(/\s+/g, ' ').trim();
+      if (!clean) continue;
+      const words = clean.split(/\s+/).filter(Boolean).length;
+      const dur = Math.max(2000, Math.min(8000, words * 360 + 1000));
+      const ts = Number(it.ts) || Date.now();
+      base.push({
+        id: aid,
+        startMs: Math.max(0, ts - dur),
+        endMs: ts,
+        speaker: it.role === 'assistant' ? (S.aiName || 'Sam') : (S.name || 'Host'),
+        text: clean.slice(0, 1200),
+        source: 'ai',
+      });
+    }
+    base.sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+    return {
+      events: base,
+      anchors: {
+        sessionStartAt: Number(S.sessionStartAt) || Date.now(),
+        recStartAt: Number(S.rec?.t0 || (S.state?.rec?.on && S.state.rec.since) || 0),
+        liveStartAt: Number((S.live?.phase === 'live' && S.live?.t0) || (S.state?.live?.on && S.state.live.since) || 0),
+      },
+    };
+  },
+  addSrtEvent: (ev) => pushSrtEntry(ev || {}),
+  clearSrtEvents: () => {
+    S.srtLog = [];
+    window.__gatherOnSrtChange?.();
+  },
+  getLibrary: () => Array.isArray(S.library) ? [...S.library] : [],
+  presentLibrary: (it) => presentLibrary(it),
+  presentVideoBlob: (blob, name = 'Cloud Clip.webm') => presentFile(new File([blob], name, { type: blob.type || 'video/webm' })),
+  openTab: (tab) => setTab(tab),
+  offerOpen: (url, label) => offerOpen(url, label),
+  showCaption: (id, who, text, fin) => showCaption(id, who, text, fin),
+  sendCaption: (text, fin) => sendCaption(text, fin),
+  getAiName: () => S.aiName || 'Sam',
+  libLoad: () => libLoad(),
+  addLibraryBlob: async ({ name, kind = 'image', blob, type = 'image/png' }) => {
+    if (!blob) return null;
+    const item = { id: uid() + uid(), name: String(name || 'Highlight').slice(0, 80), kind, blob, type: type || blob.type || 'image/png', size: blob.size || 0, added: Date.now() };
+    await libTx('readwrite', (s) => s.put(item));
+    window.gatherCloud?.saveMediaItem?.({ id: item.id, name: item.name, kind: item.kind, mimeType: item.type, sizeBytes: item.size, added: item.added }).catch(() => {});
+    await libLoad();
+    return item;
+  },
+  setBanner: (text, sub = '') => setStage({ banner: text ? { text: String(text).slice(0, 120), sub: String(sub || '').slice(0, 120), on: true } : null }),
+  getEnterMode: () => enterMode,
+  setLocalReady: (ready, latencyMs) => {
+    S.local.ready = !!ready;
+    if (Number.isFinite(Number(latencyMs))) S.local.latencyMs = Math.max(0, Math.round(Number(latencyMs)));
+    if (S.studio) sendMeta({ ready: S.local.ready, latencyMs: S.local.latencyMs });
+    if (S.studio) renderCrew();
+  },
+  isPresenting: () => !!(S.local.pres || [...S.peers.values()].some((p) => p.sharing) || S.state?.media?.on),
   onBrandSync: (fn) => {
     if (typeof fn !== 'function') return;
     brandSyncSubs.push(fn);
@@ -6271,16 +7621,761 @@ const sharedToolsApi = {
       setTimeout(() => { try { duckBus.gain.setTargetAtTime(1, actx.currentTime, 0.25); } catch {} }, ms);
     } catch {}
   },
+  connectMediaElementAudio: (() => {
+    const srcMap = new WeakMap();
+    return (el, { duck = false, monitor = true, volume = 1 } = {}) => {
+      if (!el) return null;
+      try {
+        const ctx = audioCtx();
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        let src = srcMap.get(el);
+        if (!src) {
+          src = ctx.createMediaElementSource(el);
+          srcMap.set(el, src);
+        }
+        const gain = ctx.createGain();
+        const clamped = Math.max(0, Math.min(1.5, Number.isFinite(Number(volume)) ? Number(volume) : 1));
+        gain.gain.value = clamped;
+        src.connect(gain);
+        const mix = mixInMedia(gain, { duck, monitor });
+        syncOutgoingAudio();
+        let disposed = false;
+        return {
+          setVolume(v) {
+            const next = Math.max(0, Math.min(1.5, Number(v) || 0));
+            try { gain.gain.setTargetAtTime(next, ctx.currentTime, 0.02); } catch {}
+          },
+          setMuted(m) {
+            try { gain.gain.setTargetAtTime(m ? 0 : clamped, ctx.currentTime, 0.02); } catch {}
+          },
+          isRouted: () => !disposed,
+          dispose() {
+            if (disposed) return;
+            disposed = true;
+            try { src.disconnect(gain); } catch {}
+            mix.dispose();
+            syncOutgoingAudio();
+          },
+        };
+      } catch (err) {
+        console.warn('[media-element-mix]', err);
+        return null;
+      }
+    };
+  })(),
   aidAddFiles,
-  setTab,
   applyAdaptiveAccent,
   chime,
-  requestStageRender,
 };
+// ---------------------------------------------------------------- OBS Studio Integration (OBS WebSocket v5 LAN/local client)
+function createObsIntegration() {
+  const DEFAULT_URL = 'ws://127.0.0.1:4455';
+  const OP = { Hello: 0, Identify: 1, Identified: 2, Reidentify: 3, Event: 5, Request: 6, RequestResponse: 7 };
+  // EventSubscription bitmask: General (1) | Scenes (4) | Outputs (64) | Ui (1024) = 1093
+  const EVENT_SUBS = 1 | 4 | 64 | 1024;
+
+  const state = {
+    status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'error'
+    url: store.get('obsUrl', DEFAULT_URL) || DEFAULT_URL,
+    autoSync: !!store.get('obsAutoSync', false),
+    sceneMap: store.get('obsSceneMap', {}) || {},
+    scenes: [],
+    currentProgramScene: '',
+    currentPreviewScene: '',
+    studioMode: false,
+    streaming: false,
+    recording: false,
+    obsVersion: '',
+    lastError: '',
+  };
+
+  let ws = null;
+  let reqSeq = 0;
+  let manualClose = false;
+  let reconnectTimer = null;
+  let reconnectAttempts = 0;
+  let pending = new Map();
+  let lastPassword = '';
+
+  // RFC 6234 SHA-256 fallback so OBS WebSocket auth works even on plain HTTP LAN origins where crypto.subtle is undefined.
+  function sha256BytesFallback(inputBytes) {
+    const K = [
+      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ];
+    const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    const l = inputBytes.length;
+    const bitLen = l * 8;
+    const paddedLen = Math.ceil((l + 9) / 64) * 64;
+    const msg = new Uint8Array(paddedLen);
+    msg.set(inputBytes);
+    msg[l] = 0x80;
+    const dv = new DataView(msg.buffer);
+    dv.setUint32(paddedLen - 8, Math.floor(bitLen / 0x100000000), false);
+    dv.setUint32(paddedLen - 4, bitLen >>> 0, false);
+    const W = new Uint32Array(64);
+    const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+    for (let o = 0; o < paddedLen; o += 64) {
+      for (let i = 0; i < 16; i++) W[i] = dv.getUint32(o + i * 4, false);
+      for (let i = 16; i < 64; i++) {
+        const s0 = rotr(W[i - 15], 7) ^ rotr(W[i - 15], 18) ^ (W[i - 15] >>> 3);
+        const s1 = rotr(W[i - 2], 17) ^ rotr(W[i - 2], 19) ^ (W[i - 2] >>> 10);
+        W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
+      }
+      let [a, b, c, d, e, f, g, h] = H;
+      for (let i = 0; i < 64; i++) {
+        const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+        const ch = (e & f) ^ (~e & g);
+        const t1 = (h + S1 + ch + K[i] + W[i]) >>> 0;
+        const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (S0 + maj) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    const out = new Uint8Array(32);
+    const outDv = new DataView(out.buffer);
+    for (let i = 0; i < 8; i++) outDv.setUint32(i * 4, H[i], false);
+    return out;
+  }
+
+  async function sha256Base64(text) {
+    const bytes = new TextEncoder().encode(String(text || ''));
+    let digest;
+    if (globalThis.crypto?.subtle?.digest) {
+      digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
+    } else {
+      digest = sha256BytesFallback(bytes);
+    }
+    let bin = '';
+    for (let i = 0; i < digest.length; i++) bin += String.fromCharCode(digest[i]);
+    return btoa(bin);
+  }
+
+  async function computeAuth(password, salt, challenge) {
+    const secret = await sha256Base64(String(password || '') + String(salt || ''));
+    return sha256Base64(secret + String(challenge || ''));
+  }
+
+  function normalizeObsUrl(raw) {
+    let val = String(raw || '').trim();
+    if (!val) val = DEFAULT_URL;
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(val)) val = 'ws://' + val;
+    let parsed;
+    try { parsed = new URL(val); } catch { return { error: 'Enter a valid ws:// or wss:// OBS WebSocket URL.' }; }
+    if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+      return { error: 'OBS WebSocket URL must start with ws:// or wss://.' };
+    }
+    const isLoopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname.toLowerCase());
+    const mixedLan = location.protocol === 'https:' && parsed.protocol === 'ws:' && !isLoopback;
+    if (mixedLan) {
+      return {
+        url: parsed.toString(),
+        mixedLan: true,
+        warn: 'HTTPS blocks insecure ws:// to LAN IPs (browsers allow ws:// only for 127.0.0.1). Proxy OBS with wss:// (see LAN help below).',
+      };
+    }
+    return { url: parsed.toString(), mixedLan: false };
+  }
+
+  function clearPending(reason) {
+    for (const [, p] of pending) {
+      clearTimeout(p.timer);
+      p.reject(new Error(reason || 'OBS connection closed'));
+    }
+    pending.clear();
+  }
+
+  function sendPacket(op, d) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({ op, d }));
+    return true;
+  }
+
+  function request(requestType, requestData = {}) {
+    return new Promise((resolve, reject) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN || state.status !== 'connected') {
+        return reject(new Error('OBS Studio is not connected.'));
+      }
+      const requestId = `gather-obs-${++reqSeq}`;
+      const timer = setTimeout(() => {
+        pending.delete(requestId);
+        reject(new Error(`OBS request timed out (${requestType})`));
+      }, 8000);
+      pending.set(requestId, { resolve, reject, timer });
+      const ok = sendPacket(OP.Request, { requestType, requestId, requestData });
+      if (!ok) {
+        clearTimeout(timer);
+        pending.delete(requestId);
+        reject(new Error('OBS WebSocket is not open.'));
+      }
+    });
+  }
+
+  async function refreshScenes({ silent = false } = {}) {
+    if (state.status !== 'connected') return [];
+    try {
+      const [listRes, studioRes, streamRes, recRes] = await Promise.allSettled([
+        request('GetSceneList'),
+        request('GetStudioModeEnabled'),
+        request('GetStreamStatus'),
+        request('GetRecordStatus'),
+      ]);
+      if (listRes.status === 'fulfilled' && listRes.value) {
+        const raw = Array.isArray(listRes.value.scenes) ? listRes.value.scenes : [];
+        // OBS returns scenes bottom-to-top; reverse so top OBS scene appears first.
+        state.scenes = raw.slice().reverse().map((s) => ({
+          name: String(s.sceneName || ''),
+          index: Number(s.sceneIndex ?? 0),
+        })).filter((s) => s.name);
+        state.currentProgramScene = String(listRes.value.currentProgramSceneName || '');
+        state.currentPreviewScene = String(listRes.value.currentPreviewSceneName || '');
+      }
+      if (studioRes.status === 'fulfilled' && studioRes.value) {
+        state.studioMode = !!studioRes.value.studioModeEnabled;
+      }
+      if (streamRes.status === 'fulfilled' && streamRes.value) {
+        state.streaming = !!streamRes.value.outputActive;
+      }
+      if (recRes.status === 'fulfilled' && recRes.value) {
+        state.recording = !!recRes.value.outputActive;
+      }
+      renderObsUI();
+      return state.scenes;
+    } catch (err) {
+      if (!silent) toast(`OBS refresh failed: ${err.message || 'Unknown error'}`, { err: true });
+      return [];
+    }
+  }
+
+  async function switchScene(sceneName, { silent = false, preview = false } = {}) {
+    const name = String(sceneName || '').trim();
+    if (!name) return false;
+    if (state.status !== 'connected') {
+      if (!silent) toast('Connect OBS Studio first to trigger scene switches.', { err: true });
+      return false;
+    }
+    const usePreview = preview && state.studioMode;
+    try {
+      await request(usePreview ? 'SetCurrentPreviewScene' : 'SetCurrentProgramScene', { sceneName: name });
+      if (usePreview) state.currentPreviewScene = name;
+      else state.currentProgramScene = name;
+      renderObsUI();
+      if (!silent) toast(`OBS ${usePreview ? 'preview' : 'scene'} → ${name}`);
+      return true;
+    } catch (err) {
+      if (!silent) toast(`OBS scene switch failed: ${err.message || 'Request rejected'}`, { err: true });
+      return false;
+    }
+  }
+
+  async function triggerCut() {
+    if (state.status !== 'connected' || !state.studioMode) return false;
+    try {
+      await request('TriggerStudioModeTransition');
+      toast('OBS Studio Mode transition triggered.');
+      return true;
+    } catch (err) {
+      toast(`OBS Cut failed: ${err.message || 'Request rejected'}`, { err: true });
+      return false;
+    }
+  }
+
+  function handleObsEvent(ev) {
+    if (!ev || !ev.eventType) return;
+    const d = ev.eventData || {};
+    switch (ev.eventType) {
+      case 'CurrentProgramSceneChanged':
+        state.currentProgramScene = String(d.sceneName || '');
+        renderObsUI();
+        break;
+      case 'CurrentPreviewSceneChanged':
+        state.currentPreviewScene = String(d.sceneName || '');
+        renderObsUI();
+        break;
+      case 'SceneListChanged':
+        if (Array.isArray(d.scenes)) {
+          state.scenes = d.scenes.slice().reverse().map((s) => ({
+            name: String(s.sceneName || ''),
+            index: Number(s.sceneIndex ?? 0),
+          })).filter((s) => s.name);
+          renderObsUI();
+        } else {
+          refreshScenes({ silent: true });
+        }
+        break;
+      case 'StudioModeStateChanged':
+        state.studioMode = !!d.studioModeEnabled;
+        renderObsUI();
+        break;
+      case 'StreamStateChanged':
+        state.streaming = !!d.outputActive;
+        renderObsUI();
+        break;
+      case 'RecordStateChanged':
+        state.recording = !!d.outputActive;
+        renderObsUI();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function scheduleReconnect() {
+    if (manualClose || reconnectTimer) return;
+    const delay = Math.min(15000, 2000 * Math.pow(2, reconnectAttempts));
+    reconnectAttempts = Math.min(reconnectAttempts + 1, 4);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (!manualClose && state.status !== 'connected') {
+        connect(state.url, lastPassword, { silent: true, isReconnect: true });
+      }
+    }, delay);
+  }
+
+  function disconnect({ silent = false } = {}) {
+    manualClose = true;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    reconnectAttempts = 0;
+    const sock = ws;
+    ws = null;
+    clearPending('Disconnected from OBS Studio');
+    if (sock) {
+      try { sock.onopen = sock.onmessage = sock.onerror = sock.onclose = null; sock.close(1000, 'User disconnect'); } catch {}
+    }
+    state.status = 'disconnected';
+    state.scenes = [];
+    state.currentProgramScene = '';
+    state.currentPreviewScene = '';
+    state.studioMode = false;
+    state.streaming = false;
+    state.recording = false;
+    state.obsVersion = '';
+    state.lastError = '';
+    renderObsUI();
+    if (!silent) toast('Disconnected from OBS Studio.');
+  }
+
+  function connect(rawUrl, password = '', { silent = false, isReconnect = false } = {}) {
+    const norm = normalizeObsUrl(rawUrl ?? $('#obsUrl')?.value ?? state.url);
+    if (norm.error) {
+      state.status = 'error';
+      state.lastError = norm.error;
+      renderObsUI();
+      if (!silent) toast(norm.error, { err: true });
+      return false;
+    }
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (ws) {
+      try { ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; ws.close(1000, 'Reconnect'); } catch {}
+      ws = null;
+    }
+    clearPending('Reconnecting to OBS Studio');
+    manualClose = false;
+    state.url = norm.url;
+    lastPassword = String(password || '');
+    store.set('obsUrl', state.url);
+    state.status = 'connecting';
+    state.lastError = norm.warn || '';
+    renderObsUI();
+
+    let sock;
+    try {
+      toast.dismiss('obs-err');
+      sock = new WebSocket(state.url);
+    } catch (err) {
+      state.status = 'error';
+      state.lastError = err?.message || 'Could not open OBS WebSocket connection.';
+      renderObsUI();
+      if (!silent) toast(state.lastError, { err: true, key: 'obs-err' });
+      return false;
+    }
+    ws = sock;
+
+    sock.onmessage = async (ev) => {
+      if (ws !== sock) return;
+      let msg;
+      try { msg = JSON.parse(String(ev.data || '{}')); } catch { return; }
+      const { op, d } = msg || {};
+      if (op === OP.Hello) {
+        state.obsVersion = String(d?.obsWebSocketVersion || '5.x');
+        const identify = { rpcVersion: Number(d?.rpcVersion || 1), eventSubscriptions: EVENT_SUBS };
+        if (d?.authentication?.challenge && d?.authentication?.salt) {
+          try {
+            identify.authentication = await computeAuth(lastPassword, d.authentication.salt, d.authentication.challenge);
+          } catch {
+            state.status = 'error';
+            state.lastError = 'Failed to compute OBS WebSocket authentication hash.';
+            renderObsUI();
+            return;
+          }
+        }
+        sendPacket(OP.Identify, identify);
+      } else if (op === OP.Identified) {
+        reconnectAttempts = 0;
+        state.status = 'connected';
+        state.lastError = '';
+        toast.dismiss('obs-err');
+        renderObsUI();
+        if (!silent) toast(`Connected to OBS Studio (${state.obsVersion || 'WebSocket v5'}).`, { key: 'obs-conn', ms: 3200 });
+        await refreshScenes({ silent: true });
+      } else if (op === OP.Event) {
+        handleObsEvent(d);
+      } else if (op === OP.RequestResponse) {
+        const entry = pending.get(d?.requestId);
+        if (!entry) return;
+        pending.delete(d.requestId);
+        clearTimeout(entry.timer);
+        if (d?.requestStatus?.result) {
+          entry.resolve(d.responseData || {});
+        } else {
+          const comment = d?.requestStatus?.comment || `OBS error code ${d?.requestStatus?.code ?? 'unknown'}`;
+          entry.reject(new Error(comment));
+        }
+      }
+    };
+
+    sock.onerror = () => {
+      if (ws !== sock) return;
+      if (state.status === 'connecting') {
+        state.lastError = norm.warn || 'Could not reach OBS WebSocket. Verify OBS 28+ is running with WebSocket Server enabled.';
+      }
+    };
+
+    sock.onclose = (ev) => {
+      if (ws !== sock) return;
+      ws = null;
+      const wasConnected = state.status === 'connected';
+      clearPending('OBS WebSocket closed');
+      if (manualClose) {
+        state.status = 'disconnected';
+        renderObsUI();
+        return;
+      }
+      if (ev.code === 4009) {
+        // OBS WebSocket 4009 = AuthenticationFailed — do not loop reconnect with bad password.
+        manualClose = true;
+        state.status = 'error';
+        state.lastError = 'OBS authentication failed. Check your WebSocket server password.';
+        renderObsUI();
+        if (!silent) toast(state.lastError, { err: true, key: 'obs-err' });
+        return;
+      }
+      state.status = 'error';
+      if (!state.lastError) {
+        state.lastError = wasConnected
+          ? 'Connection to OBS lost. Retrying on local network…'
+          : (norm.warn || 'Could not reach OBS WebSocket at ' + state.url);
+      }
+      renderObsUI();
+      if (!silent && !isReconnect && !wasConnected) toast(state.lastError, { err: true, key: 'obs-err' });
+      if (wasConnected) scheduleReconnect();
+    };
+
+    return true;
+  }
+
+  function resolveMappedObsScene(sc) {
+    if (!sc) return '';
+    const mapped = state.sceneMap[sc.id];
+    if (mapped && state.scenes.some((s) => s.name === mapped)) return mapped;
+    // Fallback: case-insensitive exact match between Gather scene name and OBS scene name.
+    const needle = String(sc.name || '').trim().toLowerCase();
+    const match = state.scenes.find((s) => s.name.trim().toLowerCase() === needle);
+    return match ? match.name : '';
+  }
+
+  function onGatherScene(sc) {
+    if (!state.autoSync || state.status !== 'connected' || !sc) return;
+    const target = resolveMappedObsScene(sc);
+    if (!target || target === state.currentProgramScene) return;
+    switchScene(target, { silent: true }).then((ok) => {
+      if (ok) toast(`OBS synced → ${target}`, { key: 'obs-sync', ms: 2600 });
+    });
+  }
+
+  function renderMapPopover() {
+    const list = $('#obsMapList');
+    if (!list) return;
+    const gatherScenes = sceneList().slice(0, 12);
+    const rows = gatherScenes.map((sc) => {
+      const row = document.createElement('div');
+      row.className = 'obs-map-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'obs-map-lbl';
+      lbl.textContent = sc.name;
+      const sel = document.createElement('select');
+      sel.className = 'input sm obs-map-sel';
+      sel.setAttribute('aria-label', `OBS scene for ${sc.name}`);
+      const noneOpt = document.createElement('option');
+      noneOpt.value = '';
+      noneOpt.textContent = state.scenes.length ? 'Match by name / None' : 'Connect OBS to choose…';
+      sel.append(noneOpt);
+      for (const os of state.scenes) {
+        const opt = document.createElement('option');
+        opt.value = os.name;
+        opt.textContent = os.name;
+        sel.append(opt);
+      }
+      const saved = state.sceneMap[sc.id] || '';
+      if (saved && !state.scenes.some((s) => s.name === saved)) {
+        const opt = document.createElement('option');
+        opt.value = saved;
+        opt.textContent = `${saved} (saved)`;
+        sel.append(opt);
+      }
+      sel.value = saved;
+      sel.onchange = () => {
+        if (sel.value) state.sceneMap[sc.id] = sel.value;
+        else delete state.sceneMap[sc.id];
+        store.set('obsSceneMap', state.sceneMap);
+      };
+      row.append(lbl, sel);
+      return row;
+    });
+    replaceKids(list, ...rows);
+  }
+
+  function renderObsUI() {
+    const statusEl = $('#obsStatus');
+    const statusTxt = $('#obsStatusText');
+    const metaEl = $('#obsMeta');
+    const tabDot = $('#obsTabDot');
+    const urlInput = $('#obsUrl');
+    const passInput = $('#obsPass');
+    const connBtn = $('#obsConnectBtn');
+    const refBtn = $('#obsRefreshBtn');
+    const cutBtn = $('#obsCutBtn');
+    const syncChk = $('#obsAutoSync');
+    const strip = $('#obsSceneStrip');
+    const empty = $('#obsEmpty');
+    const hint = $('#obsHint');
+    if (!statusEl) return;
+
+    const connected = state.status === 'connected';
+    const connecting = state.status === 'connecting';
+
+    statusEl.dataset.state = state.status;
+    if (tabDot) tabDot.dataset.state = connected ? 'on' : connecting ? 'busy' : state.status === 'error' ? 'err' : 'off';
+    if (statusTxt) {
+      statusTxt.textContent = connected
+        ? 'Connected'
+        : connecting
+          ? 'Connecting…'
+          : state.status === 'error'
+            ? 'Connection failed'
+            : 'Disconnected';
+    }
+    if (metaEl) {
+      const parts = [];
+      if (connected && state.scenes.length) parts.push(`${state.scenes.length} scene${state.scenes.length === 1 ? '' : 's'}`);
+      if (connected && state.streaming) parts.push('OBS Live');
+      if (connected && state.recording) parts.push('OBS Rec');
+      metaEl.textContent = parts.join(' · ');
+      metaEl.hidden = !parts.length;
+    }
+
+    if (urlInput && document.activeElement !== urlInput && !urlInput.value) urlInput.value = state.url;
+    if (urlInput) urlInput.disabled = connected || connecting;
+    if (passInput) passInput.disabled = connected || connecting;
+
+    if (connBtn) {
+      connBtn.textContent = connected ? 'Disconnect' : connecting ? 'Cancel' : 'Connect';
+      connBtn.classList.toggle('primary', !connected && !connecting);
+      connBtn.classList.toggle('ghost', connected || connecting);
+    }
+    if (refBtn) refBtn.hidden = !connected;
+    if (cutBtn) cutBtn.hidden = !connected || !state.studioMode;
+    if (syncChk) syncChk.checked = state.autoSync;
+
+    if (strip && empty) {
+      if (connected && state.scenes.length) {
+        strip.hidden = false;
+        empty.hidden = true;
+        const buttons = state.scenes.map((sc, idx) => {
+          const isProg = sc.name === state.currentProgramScene;
+          const isPrev = state.studioMode && sc.name === state.currentPreviewScene && !isProg;
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'obs-scene-btn' + (isProg ? ' is-program' : '') + (isPrev ? ' is-preview' : '');
+          b.setAttribute('aria-pressed', String(isProg));
+          b.tabIndex = isProg || (idx === 0 && !state.currentProgramScene) ? 0 : -1;
+          b.title = state.studioMode
+            ? `Switch OBS Program to "${sc.name}" (Shift-click for Preview)`
+            : `Switch OBS scene to "${sc.name}"`;
+
+          const badge = document.createElement('span');
+          badge.className = 'obs-sc-idx num';
+          badge.textContent = isProg ? 'LIVE' : isPrev ? 'PVW' : String(idx + 1).padStart(2, '0');
+
+          const name = document.createElement('span');
+          name.className = 'obs-sc-name';
+          name.textContent = sc.name;
+
+          b.append(badge, name);
+          b.onclick = (ev) => switchScene(sc.name, { preview: !!(ev.shiftKey && state.studioMode) });
+          return b;
+        });
+        replaceKids(strip, ...buttons);
+      } else {
+        strip.hidden = true;
+        empty.hidden = false;
+        if (hint) {
+          hint.textContent = state.lastError
+            ? state.lastError
+            : connected
+              ? 'Connected to OBS Studio — no scenes found in the active scene collection.'
+              : 'Connect to local OBS Studio 28+ (Tools → WebSocket Server Settings · port 4455) to trigger scene switches from this deck.';
+        }
+      }
+    }
+    renderMapPopover();
+  }
+
+  // Bind OBS deck controls once
+  const urlInput = $('#obsUrl');
+  const passInput = $('#obsPass');
+  const lanBtn = $('#obsLanBtn');
+  const lanGuide = $('#obsLanGuide');
+  const lanClose = $('#obsLanClose');
+  const lanCopyBtn = $('#obsLanCopyBtn');
+  const lanUseLocalBtn = $('#obsLanUseLocalBtn');
+  let lanGuideForced = null; // null = auto, true/false = user toggled
+
+  if (urlInput) urlInput.value = state.url;
+
+  function syncLanGuide(rawUrl) {
+    if (!lanGuide) return;
+    const norm = normalizeObsUrl(rawUrl ?? urlInput?.value ?? state.url);
+    const show = lanGuideForced !== null ? lanGuideForced : !!norm.mixedLan;
+    lanGuide.hidden = !show;
+    lanGuide.dataset.mixed = norm.mixedLan ? '1' : '0';
+    if (lanBtn) {
+      lanBtn.setAttribute('aria-expanded', String(show));
+      lanBtn.classList.toggle('on', show);
+    }
+  }
+
+  const triggerConnect = () => {
+    if (state.status === 'connected' || state.status === 'connecting') {
+      disconnect();
+    } else {
+      const norm = normalizeObsUrl(urlInput?.value || state.url);
+      if (norm.mixedLan) { lanGuideForced = true; syncLanGuide(urlInput?.value); }
+      connect(urlInput?.value || state.url, passInput?.value || '');
+    }
+  };
+  $('#obsConnectBtn')?.addEventListener('click', triggerConnect);
+  urlInput?.addEventListener('input', () => { lanGuideForced = null; syncLanGuide(urlInput.value); });
+  urlInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); triggerConnect(); } });
+  passInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); triggerConnect(); } });
+  $('#obsRefreshBtn')?.addEventListener('click', () => refreshScenes());
+  $('#obsCutBtn')?.addEventListener('click', () => triggerCut());
+  $('#obsAutoSync')?.addEventListener('change', (e) => {
+    state.autoSync = !!e.target.checked;
+    store.set('obsAutoSync', state.autoSync);
+    toast(state.autoSync ? 'OBS Auto-sync on — switching Gather scenes updates OBS.' : 'OBS Auto-sync off.');
+  });
+
+  lanBtn?.addEventListener('click', () => {
+    lanGuideForced = lanGuide ? lanGuide.hidden : true;
+    syncLanGuide();
+  });
+  lanClose?.addEventListener('click', () => {
+    lanGuideForced = false;
+    syncLanGuide();
+  });
+  lanCopyBtn?.addEventListener('click', () => {
+    const cmd = $('#obsLanCmd')?.textContent?.trim() || 'caddy reverse-proxy --from :4456 --to 127.0.0.1:4455';
+    copy(cmd, 'Caddy WSS command copied.');
+  });
+  lanUseLocalBtn?.addEventListener('click', () => {
+    if (urlInput) urlInput.value = DEFAULT_URL;
+    state.url = DEFAULT_URL;
+    store.set('obsUrl', DEFAULT_URL);
+    lanGuideForced = false;
+    syncLanGuide(DEFAULT_URL);
+    toast('OBS URL set to ws://127.0.0.1:4455.');
+  });
+
+  const mapBtn = $('#obsMapBtn');
+  const mapPop = $('#obsMapPop');
+  if (mapBtn && mapPop) {
+    mapBtn.addEventListener('click', () => {
+      renderMapPopover();
+      togglePopover(mapPop, mapBtn);
+    });
+  }
+
+  // Roving keyboard navigation in #obsSceneStrip
+  $('#obsSceneStrip')?.addEventListener('keydown', (e) => {
+    const all = [...$('#obsSceneStrip').querySelectorAll('.obs-scene-btn')];
+    const i = all.indexOf(document.activeElement);
+    if (i < 0) return;
+    const to = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key];
+    if (to == null) return;
+    e.preventDefault();
+    const next = all[Math.max(0, Math.min(all.length - 1, to))];
+    all.forEach((b) => { b.tabIndex = b === next ? 0 : -1; });
+    next.focus();
+    next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
+  renderObsUI();
+  syncLanGuide();
+
+  const api = {
+    connect,
+    disconnect,
+    switchScene,
+    triggerCut,
+    refreshScenes,
+    request,
+    onGatherScene,
+    setMapping: (gatherSceneId, obsSceneName) => {
+      if (!gatherSceneId) return;
+      if (obsSceneName) state.sceneMap[gatherSceneId] = String(obsSceneName);
+      else delete state.sceneMap[gatherSceneId];
+      store.set('obsSceneMap', state.sceneMap);
+      renderMapPopover();
+    },
+    getState: () => ({
+      status: state.status,
+      url: state.url,
+      autoSync: state.autoSync,
+      scenes: state.scenes.map((s) => s.name),
+      currentProgramScene: state.currentProgramScene,
+      currentPreviewScene: state.currentPreviewScene,
+      studioMode: state.studioMode,
+      streaming: state.streaming,
+      recording: state.recording,
+      obsVersion: state.obsVersion,
+      lastError: state.lastError,
+      sceneMap: { ...state.sceneMap },
+    }),
+  };
+  window.__gatherObs = api;
+  return api;
+}
+
+const obsStudio = (() => { try { return createObsIntegration(); } catch (e) { console.warn('obs-integration init:', e); return null; } })();
+if (obsStudio) sharedToolsApi.obs = obsStudio;
+
 const audioStudioApi = (() => { try { return initAudioStudio(sharedToolsApi); } catch (e) { console.warn('audio-studio init:', e); return null; } })();
 if (audioStudioApi) sharedToolsApi.audioClips = audioStudioApi.audioClips;
-try { initStudioTools(sharedToolsApi); } catch (e) { console.warn('studio-tools init:', e); }
 try { liveEvents.initLiveEvents({ ...sharedToolsApi, send: wsSend, inStudio: () => !!S.studio, requestStageRender }); } catch (e) { console.warn('live-events init:', e); }
 try { refreshSections(); } catch {}
+// If the user opened a direct studio link or is already entering a studio, kick off studio bundles immediately;
+// otherwise keep studio-tools.js, audience.js, and firebase-client.js off the splash page cold load.
+if (linkCode || S.studio || S.hostEntering) ensureStudioBundles();
+preloadStudioAssets();
 setInterval(syncAirPill, 1000);
 syncAirPill();

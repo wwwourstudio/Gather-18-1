@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#080c18">
+  <title>3D Stream Remote — Gather</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070b15;
+      --glass-top: rgba(26, 33, 62, 0.84);
+      --glass-mid: rgba(13, 18, 36, 0.90);
+      --glass-bot: rgba(34, 17, 42, 0.84);
+      --pad-bg: linear-gradient(165deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
+      --pad-border: rgba(255, 255, 255, 0.14);
+      --pad-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -2px 0 rgba(0, 0, 0, 0.4);
+      --border: rgba(255, 255, 255, 0.12);
+      --ink: #f8fafc;
+      --ink-2: #cbd5e1;
+      --ink-3: #94a3b8;
+      --accent: #f43f5e;
+      --accent-2: #6366f1;
+      --cyan: #22d3ee;
+      --gold: #fbbf24;
+      --emerald: #34d399;
+      --font-ui: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+    :root[data-theme="light"] {
+      --bg: #eef2f9;
+      --glass-top: rgba(255, 255, 255, 0.92);
+      --glass-mid: rgba(248, 250, 252, 0.94);
+      --glass-bot: rgba(238, 242, 255, 0.92);
+      --pad-bg: linear-gradient(165deg, #ffffff, #f1f5f9);
+      --pad-border: rgba(15, 23, 42, 0.12);
+      --pad-shadow: 0 5px 12px -6px rgba(15, 23, 42, 0.18), inset 0 1px 0 #ffffff, inset 0 -2px 0 rgba(15, 23, 42, 0.08);
+      --border: rgba(15, 23, 42, 0.11);
+      --ink: #0f172a;
+      --ink-2: #334155;
+      --ink-3: #64748b;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(640px 340px at 10% 0%, rgba(99, 102, 241, 0.24), transparent 65%),
+        radial-gradient(560px 320px at 92% 8%, rgba(244, 63, 94, 0.22), transparent 65%),
+        radial-gradient(480px 340px at 50% 100%, rgba(34, 211, 238, 0.14), transparent 70%),
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      -webkit-font-smoothing: antialiased;
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .ctrl-page {
+      max-width: 470px;
+      margin: 0 auto;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .ctrl-conn-banner {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(34, 211, 238, 0.08));
+      backdrop-filter: blur(14px);
+      font-size: 12px;
+      color: var(--ink-2);
+      line-height: 1.45;
+    }
+    .ctrl-conn-banner[hidden] { display: none; }
+
+    /* 3D Gradient Glassmorphism Remote Chassis */
+    .ctrl-remote-3d {
+      display: grid;
+      gap: 13px;
+      padding: 15px;
+      border-radius: 22px;
+      background: linear-gradient(155deg, var(--glass-top), var(--glass-mid) 52%, var(--glass-bot));
+      backdrop-filter: blur(24px) saturate(165%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow:
+        0 28px 60px -16px rgba(0, 0, 0, 0.78),
+        0 10px 24px -10px rgba(99, 102, 241, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.24),
+        inset 0 -3px 0 rgba(0, 0, 0, 0.32);
+    }
+
+    .ctrl-deck-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 11px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ctrl-deck-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .ctrl-title-stack { display: grid; gap: 2px; min-width: 0; }
+    .ctrl-title-stack b {
+      font: 700 14.5px/1.2 var(--font-ui);
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ctrl-air-led {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex: none;
+      background: #64748b;
+      box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4);
+    }
+    .ctrl-air-led.is-live {
+      background: #ef4444;
+      box-shadow: 0 0 12px #ef4444, inset 0 1px 2px rgba(255, 255, 255, 0.65);
+      animation: led-pulse 1.5s infinite ease-in-out;
+    }
+    .ctrl-air-led.is-rec {
+      background: #f59e0b;
+      box-shadow: 0 0 10px #f59e0b;
+    }
+    @keyframes led-pulse { 50% { opacity: 0.55; transform: scale(0.92); } }
+    .ctrl-meta {
+      font: 600 11.5px/1.2 var(--font-ui);
+      color: var(--ink-3);
+      white-space: nowrap;
+    }
+    .ctrl-meta.is-live { color: #fb7185; }
+    .ctrl-sync-ok { color: var(--emerald); }
+
+    /* Super Chat Notification Bar */
+    .ctrl-super-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 11px;
+      border-radius: 14px;
+      border: 1px solid rgba(251, 191, 36, 0.28);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(245, 158, 11, 0.04));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 8px 20px -12px rgba(245, 158, 11, 0.35);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .ctrl-super-bar.has-alert {
+      border-color: rgba(251, 191, 36, 0.72);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(244, 63, 94, 0.14));
+      box-shadow: 0 10px 26px -10px rgba(251, 191, 36, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    }
+    .ctrl-super-bar.is-pulse { animation: sc-pop 0.55s cubic-bezier(.2, .9, .3, 1.15); }
+    @keyframes sc-pop { 0% { transform: scale(0.97); } 50% { transform: scale(1.02); } 100% { transform: none; } }
+    .csb-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      font: 800 15px/1 var(--font-ui);
+      color: #0f172a;
+      background: linear-gradient(145deg, #fde047, #f59e0b);
+      box-shadow: 0 6px 14px -4px rgba(245, 158, 11, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .csb-body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+    .csb-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .csb-top b { font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .csb-amt { font: 800 12px/1 var(--font-ui); color: var(--gold); padding: 2px 6px; border-radius: 6px; background: rgba(251, 191, 36, 0.18); flex: none; }
+    .csb-amt[hidden] { display: none; }
+    .csb-msg { margin: 0; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .csb-acts { display: flex; gap: 5px; flex: none; }
+    .csb-acts[hidden] { display: none; }
+    .csb-btn {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--pad-border);
+      background: var(--pad-bg);
+      color: var(--ink);
+      font: 700 11.5px/1 var(--font-ui);
+      cursor: pointer;
+    }
+    .csb-btn.primary {
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      border-color: rgba(254, 215, 170, 0.5);
+      color: #fff;
+    }
+
+    /* Rotating Live Comment Ticker */
+    .ctrl-ticker {
+      display: grid;
+      gap: 7px;
+      padding: 10px 11px;
+      border-radius: 14px;
+      border: 1px solid rgba(34, 211, 238, 0.24);
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.65), rgba(30, 41, 59, 0.45));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+    }
+    .ctk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ctk-lbl { display: inline-flex; align-items: center; gap: 6px; font: 700 11px/1 var(--font-ui); letter-spacing: 0.04em; text-transform: uppercase; color: var(--cyan); }
+    .ctk-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+    .ctk-nav { display: flex; gap: 4px; }
+    .ctk-ic {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      border: 1px solid var(--pad-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--ink-2);
+      font-size: 12px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+    .ctk-ic:hover { color: var(--ink); border-color: rgba(34, 211, 238, 0.5); }
+    .ctk-track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .ctk-slide { flex: 1; min-width: 0; display: grid; gap: 2px; }
+    .ctk-slide.ctk-swap { animation: ctk-in 0.28s ease-out; }
+    @keyframes ctk-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .ctk-who { font: 700 11.5px/1.2 var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ctk-txt { font-size: 12px; line-height: 1.35; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ctk-stage-btn {
+      flex: none;
+      height: 30px;
+      padding: 0 11px;
+      border-radius: 9px;
+      border: 1px solid rgba(34, 211, 238, 0.42);
+      background: linear-gradient(145deg, rgba(34, 211, 238, 0.2), rgba(99, 102, 241, 0.16));
+      color: var(--ink);
+      font: 700 11.5px/1 var(--font-ui);
+      cursor: pointer;
+      box-shadow: var(--pad-shadow);
+    }
+    .ctk-stage-btn.is-on { background: linear-gradient(135deg, #06b6d4, #2563eb); color: #fff; border-color: rgba(255,255,255,0.4); }
+    .ctk-stage-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+
+    .ctrl-sec { display: grid; gap: 8px; }
+    .ctrl-sec[hidden] { display: none !important; }
+    .ctrl-sec-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font: 700 11.5px/1.2 var(--font-ui);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+
+    /* 3D Tactile Hardware Remote Pads */
+    .ctrl-transport {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .ctrl-key {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 44px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--pad-border);
+      background: var(--pad-bg);
+      box-shadow: var(--pad-shadow);
+      color: var(--ink-2);
+      font: 700 12px/1.2 var(--font-ui);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    }
+    .ctrl-key:hover:not(:disabled) { color: var(--ink); border-color: rgba(129, 140, 248, 0.6); transform: translateY(-1px); }
+    .ctrl-key:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.55); }
+    .ctrl-led {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex: none;
+      background: rgba(148, 163, 184, 0.35);
+      box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.5);
+    }
+    .ctrl-key.is-on {
+      background: linear-gradient(155deg, rgba(99, 102, 241, 0.34), rgba(59, 130, 246, 0.18));
+      border-color: rgba(129, 140, 248, 0.72);
+      color: #ffffff;
+    }
+    .ctrl-key.is-on .ctrl-led { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+    .ctrl-key.is-hot {
+      background: linear-gradient(155deg, rgba(244, 63, 94, 0.42), rgba(220, 38, 38, 0.24));
+      border-color: rgba(251, 113, 133, 0.8);
+      color: #fff1f2;
+    }
+    .ctrl-key.is-hot .ctrl-led { background: #ff4d6d; box-shadow: 0 0 10px #ff4d6d; }
+    .ctrl-key:disabled, .ctrl-scene-btn:disabled, .mc-btn:disabled, .ctrl-ai-apply:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* AI Director & Workflow Module */
+    .ctrl-ai-rec {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 11px;
+      border-radius: 13px;
+      border: 1px solid rgba(129, 140, 248, 0.34);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(244, 63, 94, 0.08));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    .ctrl-ai-rec-copy { display: grid; gap: 2px; min-width: 0; }
+    .ctrl-ai-rec-copy b { font-size: 12.5px; color: var(--ink); }
+    .ctrl-ai-rec-copy small { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ctrl-ai-apply {
+      flex: none;
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      color: #fff;
+      font: 700 11.5px/1 var(--font-ui);
+      cursor: pointer;
+      box-shadow: 0 6px 14px -6px rgba(236, 72, 153, 0.7);
+    }
+    .ctrl-ai-apply.is-active { background: rgba(52, 211, 153, 0.22); border-color: rgba(52, 211, 153, 0.55); color: var(--emerald); box-shadow: none; }
+    .ctrl-ai-actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .ctrl-wf-btn {
+      height: 34px;
+      padding: 0 6px;
+      border-radius: 10px;
+      border: 1px solid var(--pad-border);
+      background: var(--pad-bg);
+      box-shadow: var(--pad-shadow);
+      color: var(--ink-2);
+      font: 600 11px/1 var(--font-ui);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .ctrl-wf-btn:hover { color: var(--ink); border-color: rgba(129, 140, 248, 0.6); }
+
+    /* Multi-Cam Grid */
+    .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 8px; }
+    .mc-empty { grid-column: 1 / -1; padding: 14px 10px; text-align: center; font-size: 12px; color: var(--ink-3); border: 1px dashed var(--border); border-radius: 12px; }
+    .mc-tile { display: grid; gap: 7px; padding: 7px; border-radius: 13px; border: 1px solid var(--pad-border); background: var(--pad-bg); box-shadow: var(--pad-shadow); }
+    .mc-tile.on-stage { border-color: rgba(52, 211, 153, 0.65); }
+    .mc-video-box { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #070b15; }
+    .mc-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .mc-thumb[hidden] { display: none; }
+    .mc-ini { position: absolute; inset: 0; display: grid; place-items: center; background: #0f172a; }
+    .mc-ini[hidden] { display: none; }
+    .mc-ini span { width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; font: 700 13px/1 var(--font-ui); color: #e2e8f0; background: rgba(99, 102, 241, 0.3); border: 1px solid rgba(129, 140, 248, 0.5); }
+    .mc-state { position: absolute; top: 6px; left: 6px; z-index: 2147483000 !important; padding: 2px 6px; border-radius: 5px; font: 700 10px/1.2 var(--font-ui); background: rgba(9, 13, 26, 0.84); color: #cbd5e1; }
+    .mc-state.on { background: rgba(16, 185, 129, 0.92); color: #042f2e; }
+    .mc-vu { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+    .mc-vu i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #22c55e, #facc15, #ef4444); transition: width 0.12s linear; }
+    .mc-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+    .mc-name { position: relative; z-index: 2147483000 !important; font: 600 12px/1.2 var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mc-btns { display: flex; gap: 4px; flex: none; }
+    .mc-btn { padding: 5px 9px; border-radius: 7px; border: 1px solid var(--pad-border); background: var(--pad-bg); color: var(--ink-2); font: 600 11px/1.1 var(--font-ui); cursor: pointer; }
+    .mc-btn.on { border-color: rgba(244, 63, 94, 0.65); background: rgba(244, 63, 94, 0.22); color: #fff; }
+
+    /* 3D Quick Scenes */
+    .ctrl-scenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .ctrl-scene-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 11px;
+      border-radius: 11px;
+      border: 1px solid var(--pad-border);
+      background: var(--pad-bg);
+      box-shadow: var(--pad-shadow);
+      color: var(--ink-2);
+      font: 600 12px/1.2 var(--font-ui);
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .ctrl-scene-btn span { overflow: hidden; text-overflow: ellipsis; }
+    .ctrl-scene-btn:hover:not(:disabled) { color: var(--ink); border-color: rgba(129, 140, 248, 0.55); }
+    .ctrl-scene-btn.is-active {
+      background: linear-gradient(145deg, rgba(244, 63, 94, 0.3), rgba(99, 102, 241, 0.22));
+      border-color: rgba(251, 113, 133, 0.72);
+      color: #fff;
+    }
+    .ctrl-scene-btn.is-active .ctrl-led { background: #fb7185; box-shadow: 0 0 8px #fb7185; }
+
+    /* Banner + Presets */
+    .ctrl-banner-row { display: flex; align-items: center; gap: 6px; }
+    .input { flex: 1; min-width: 0; height: 36px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--pad-border); background: rgba(7, 11, 21, 0.55); color: var(--ink); font: 500 12.5px/1 var(--font-ui); }
+    .input::placeholder { color: var(--ink-3); }
+    .btn { height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--pad-border); background: var(--pad-bg); box-shadow: var(--pad-shadow); color: var(--ink); font: 700 12px/1 var(--font-ui); cursor: pointer; }
+    .btn.primary { background: linear-gradient(135deg, #f43f5e, #6366f1); border-color: rgba(255, 255, 255, 0.25); color: #fff; }
+    .btn.ghost { background: transparent; box-shadow: none; color: var(--ink-2); }
+    .ctrl-banner-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ctrl-pre-chip { height: 26px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--ink-2); font: 600 11px/1 var(--font-ui); cursor: pointer; }
+    .ctrl-pre-chip:hover { color: var(--ink); border-color: rgba(129, 140, 248, 0.55); }
+
+    .ctrl-supers { display: grid; gap: 8px; }
+    .ctrl-super-item { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.1); }
+    .ctrl-super-top { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; }
+    .ctrl-super-top b { color: var(--gold); }
+    .ctrl-super-item p { margin: 0; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+    .ctrl-super-acts { display: flex; gap: 6px; }
+    .ctrl-super-acts .btn { height: 30px; padding: 0 10px; font-size: 11.5px; }
+  </style>
+</head>
+<body>
+  <main class="ctrl-page">
+    <div class="ctrl-conn-banner" id="ctrlWaitBanner">
+      Connecting to your live Gather studio… Keep your main studio tab open in this browser.
+    </div>
+
+    <div class="ctrl-deck ctrl-remote-3d" id="ctrlDeck">
+      <header class="ctrl-deck-head">
+        <div class="ctrl-deck-title">
+          <span class="ctrl-air-led" id="ctrlAirLed" aria-hidden="true"></span>
+          <div class="ctrl-title-stack">
+            <b id="ctrlShowTitle">Gather 3D Stream Remote</b>
+            <span class="ctrl-meta num" id="ctrlStatusMeta">Waiting for studio</span>
+          </div>
+        </div>
+        <span class="ctrl-meta num ctrl-sync-ok" id="ctrlSyncMeta">Syncing</span>
+      </header>
+
+      <section class="ctrl-super-bar" id="ctrlSuperBar" aria-live="polite" aria-label="Super Chat notifications">
+        <div class="csb-icon" aria-hidden="true">$</div>
+        <div class="csb-body">
+          <div class="csb-top">
+            <b id="ctrlSuperTitle">Super Chats Ready</b>
+            <span class="csb-amt num" id="ctrlSuperAmt" hidden>$0</span>
+          </div>
+          <p class="csb-msg" id="ctrlSuperMsg">Paid tips &amp; bounties alert here for 1-tap stage airing.</p>
+        </div>
+        <div class="csb-acts" id="ctrlSuperActs" hidden>
+          <button type="button" class="csb-btn primary" id="ctrlSuperAir">Air</button>
+          <button type="button" class="csb-btn ghost" id="ctrlSuperDismiss" aria-label="Dismiss alert">✕</button>
+        </div>
+      </section>
+
+      <section class="ctrl-ticker" id="ctrlTicker" aria-label="Rotating live comment ticker">
+        <div class="ctk-head">
+          <span class="ctk-lbl"><i class="ctk-dot" aria-hidden="true"></i>Live Comment Ticker</span>
+          <div class="ctk-nav">
+            <button type="button" class="ctk-ic" id="ctrlTickPrev" aria-label="Previous comment">‹</button>
+            <button type="button" class="ctk-ic" id="ctrlTickPause" aria-label="Pause comment rotation" aria-pressed="false">⏸</button>
+            <button type="button" class="ctk-ic" id="ctrlTickNext" aria-label="Next comment">›</button>
+          </div>
+        </div>
+        <div class="ctk-track">
+          <div class="ctk-slide" id="ctrlTickSlide">
+            <span class="ctk-who" id="ctrlTickWho">Live feed</span>
+            <span class="ctk-txt" id="ctrlTickTxt">Viewer &amp; studio comments rotate here automatically.</span>
+          </div>
+          <button type="button" class="ctk-stage-btn" id="ctrlTickStage" disabled>Stage</button>
+        </div>
+      </section>
+
+      <section class="ctrl-sec" aria-label="Live transport">
+        <div class="ctrl-sec-head"><span>Broadcast Controls</span></div>
+        <div class="ctrl-transport" id="ctrlTransport">
+          <button type="button" class="ctrl-key" data-ctrl="mic" aria-pressed="false"><i class="ctrl-led" aria-hidden="true"></i><span>Mic</span></button>
+          <button type="button" class="ctrl-key" data-ctrl="cam" aria-pressed="false"><i class="ctrl-led" aria-hidden="true"></i><span>Camera</span></button>
+          <button type="button" class="ctrl-key" data-ctrl="live" aria-pressed="false"><i class="ctrl-led" aria-hidden="true"></i><span>Go live</span></button>
+          <button type="button" class="ctrl-key" data-ctrl="rec" aria-pressed="false"><i class="ctrl-led" aria-hidden="true"></i><span>Record</span></button>
+          <button type="button" class="ctrl-key" data-ctrl="captions" aria-pressed="false"><i class="ctrl-led" aria-hidden="true"></i><span>Captions</span></button>
+          <button type="button" class="ctrl-key" data-ctrl="clip"><i class="ctrl-led" aria-hidden="true"></i><span>30s Clip</span></button>
+        </div>
+      </section>
+
+      <section class="ctrl-sec" aria-label="AI Director and Workflow">
+        <div class="ctrl-sec-head">
+          <span>AI Director &amp; Workflow</span>
+          <span class="ctrl-meta num" id="ctrlAiCtx">Studio</span>
+        </div>
+        <div class="ctrl-ai-rec">
+          <div class="ctrl-ai-rec-copy">
+            <b id="ctrlAiRecName">Solo recommended</b>
+            <small id="ctrlAiRecReason">AI monitors participants &amp; screen shares live</small>
+          </div>
+          <button type="button" class="ctrl-ai-apply" id="ctrlAiApply">Apply</button>
+        </div>
+        <div class="ctrl-ai-actions" id="ctrlAiActions">
+          <button type="button" class="ctrl-wf-btn" data-ai-act="sam">Ask Sam</button>
+          <button type="button" class="ctrl-wf-btn" data-ai-act="vision">Stage Vision</button>
+          <button type="button" class="ctrl-wf-btn" data-ai-act="poll">Quick Poll</button>
+          <button type="button" class="ctrl-wf-btn" data-ai-act="hype">Hype 🔥</button>
+        </div>
+      </section>
+
+      <section class="ctrl-sec" aria-label="Multi-cam switcher">
+        <div class="ctrl-sec-head">
+          <span>Multi-Cam Switcher</span>
+          <span class="ctrl-meta num" id="multiCamMeta">0 cameras</span>
+        </div>
+        <div class="mc-grid" id="multiCamGrid"></div>
+      </section>
+
+      <section class="ctrl-sec" aria-label="Quick scenes">
+        <div class="ctrl-sec-head"><span>Quick Scenes</span></div>
+        <div class="ctrl-scenes" id="ctrlScenes"></div>
+      </section>
+
+      <section class="ctrl-sec" aria-label="Quick banner">
+        <div class="ctrl-sec-head"><span>Quick Banner</span></div>
+        <div class="ctrl-banner-row">
+          <input class="input" id="ctrlBannerInput" maxlength="120" placeholder="Type a live banner announcement…">
+          <button type="button" class="btn primary" id="ctrlBannerShow">Show</button>
+          <button type="button" class="btn ghost" id="ctrlBannerHide">Hide</button>
+        </div>
+        <div class="ctrl-banner-presets" id="ctrlBannerPresets">
+          <button type="button" class="ctrl-pre-chip" data-banner="Drop your questions in chat — answering live!">Q&amp;A live</button>
+          <button type="button" class="ctrl-pre-chip" data-banner="Follow &amp; subscribe for the next live stream!">Subscribe</button>
+          <button type="button" class="ctrl-pre-chip" data-banner="Quick break — right back in 2 minutes!">BRB 2m</button>
+        </div>
+      </section>
+
+      <section class="ctrl-sec" id="ctrlSupersSec" hidden aria-label="Pending super chats and bounties">
+        <div class="ctrl-sec-head">
+          <span>Pending Tips &amp; Bounties</span>
+          <span class="ctrl-meta num" id="ctrlSupersCount">0</span>
+        </div>
+        <div class="ctrl-supers" id="ctrlSupersList"></div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/controller.js"></script>
+</body>
+</html>

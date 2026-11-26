@@ -34,23 +34,60 @@ export function createProducer(app) {
     $('#aiWake').checked = !!S.aiWake;
     const v = voiceMode();
     $$('#aiVoiceSeg button').forEach((b) => b.classList.toggle('on', b.dataset.voice === v));
-    $('#aiVoiceNameRow').hidden = v !== 'openai';
+    $('#aiVoiceNameRow').hidden = !['gemini', 'gemini-podcast', 'openai'].includes(v);
     $('#aiVoiceTest').hidden = v === 'off';
+    renderVoiceNames();
     $('#aiVoiceName').value = voiceName();
-    $('#aiVoiceNote').textContent = v === 'openai' ? (store.get('aiKey:openai', '') || S.houseVoice ? 'A natural voice. Everyone in the stream and the recording hears it.' : 'Needs a ChatGPT (OpenAI) key, saved under ChatGPT above.') : v === 'browser' ? 'Your device’s own voice. Only you hear it.' : `${S.aiName} replies without speaking.`;
+    $('#aiVoiceNote').textContent =
+      v === 'gemini'
+        ? 'Google Gemini 3.8 Flash Lite TTS. Everyone in the stream and recording hears it.'
+        : v === 'gemini-podcast'
+          ? 'Google Gemini 3.8 Flash Expressive TTS. Warm podcast co-host delivery on air.'
+          : v === 'openai'
+            ? (store.get('aiKey:openai', '') || S.houseVoice ? 'Natural stream voice heard by everyone.' : 'Add a ChatGPT key under Advanced, or switch to Gemini voice.')
+            : v === 'browser'
+              ? 'Your device’s own voice. Only you hear it.'
+              : `${S.aiName} replies without speaking.`;
   }
-  $('#aiName').addEventListener('input', (e) => { S.aiName = e.target.value.trim().slice(0, 20) || 'Sam'; store.set('aiName', S.aiName); renderProducerUI(); renderAILog(); });
+  $('#aiName').addEventListener('input', (e) => {
+    S.aiName = e.target.value.trim().slice(0, 20) || 'Sam';
+    store.set('aiName', S.aiName);
+    window.gatherCloud?.updateProfilePrefs?.({ aiName: S.aiName }).catch(() => {});
+    renderProducerUI(); renderAILog();
+  });
   $('#aiWake').onchange = (e) => { S.aiWake = e.target.checked; store.set('aiWake', S.aiWake); syncCaptions(); toast(S.aiWake ? `Say “Hey ${S.aiName}” and then what you need.` : 'Wake word off.'); };
-  $$('#aiVoiceSeg button').forEach((b) => b.addEventListener('click', () => { store.set('aiVoice', b.dataset.voice); renderProducerUI(); }));
-  $('#aiVoiceName').onchange = (e) => store.set(elevenVoice() ? 'aiVoiceName:eleven' : 'aiVoiceName', e.target.value);
-  // The natural "Stream" voice is the default whenever this server has a house voice; otherwise the device's voice.
-  function voiceMode() { return store.get('aiVoice', null) || (S.houseVoice ? 'openai' : 'browser'); }
-  // Without an OpenAI key of your own, the house voice service picks the list of voices.
-  function elevenVoice() { return !store.get('aiKey:openai', '') && S.houseVoice?.provider === 'elevenlabs'; }
-  function voiceName() { return elevenVoice() ? store.get('aiVoiceName:eleven', 'rachel') : store.get('aiVoiceName', 'coral'); }
+  $$('#aiVoiceSeg button').forEach((b) => b.addEventListener('click', () => {
+    store.set('aiVoice', b.dataset.voice);
+    window.gatherCloud?.updateProfilePrefs?.({ aiVoice: b.dataset.voice }).catch(() => {});
+    renderProducerUI();
+  }));
+  $('#aiVoiceName').onchange = (e) => {
+    const key = geminiVoiceMode() ? 'aiVoiceName:gemini' : elevenVoice() ? 'aiVoiceName:eleven' : 'aiVoiceName';
+    store.set(key, e.target.value);
+    window.gatherCloud?.updateProfilePrefs?.({ aiVoiceName: e.target.value }).catch(() => {});
+  };
+  // Gemini 3.8 TTS is the default stream voice when available; falls back to browser voice otherwise.
+  function voiceMode() {
+    const saved = store.get('aiVoice', null);
+    if (saved) return saved;
+    if (S.houseVoice?.provider === 'gemini') return 'gemini';
+    return S.houseVoice ? 'openai' : 'gemini';
+  }
+  function geminiVoiceMode() {
+    const m = voiceMode();
+    return m === 'gemini' || m === 'gemini-podcast' || (m === 'openai' && !store.get('aiKey:openai', '') && S.houseVoice?.provider === 'gemini');
+  }
+  function elevenVoice() { return !geminiVoiceMode() && !store.get('aiKey:openai', '') && S.houseVoice?.provider === 'elevenlabs'; }
+  function voiceName() {
+    if (geminiVoiceMode()) return store.get('aiVoiceName:gemini', 'Zephyr');
+    return elevenVoice() ? store.get('aiVoiceName:eleven', 'rachel') : store.get('aiVoiceName', 'coral');
+  }
   function renderVoiceNames() {
-    const list = elevenVoice() ? [['rachel', 'Rachel · warm'], ['sarah', 'Sarah · bright'], ['elli', 'Elli · young'], ['adam', 'Adam · deep'], ['josh', 'Josh · friendly'], ['antoni', 'Antoni · smooth']]
-      : [['coral', 'Coral · warm'], ['sage', 'Sage · calm'], ['ash', 'Ash · clear'], ['ballad', 'Ballad · soft'], ['verse', 'Verse · lively'], ['nova', 'Nova · bright'], ['alloy', 'Alloy · neutral'], ['echo', 'Echo · low'], ['fable', 'Fable · British'], ['onyx', 'Onyx · deep'], ['shimmer', 'Shimmer · light']];
+    const list = geminiVoiceMode()
+      ? [['Zephyr', 'Zephyr · warm co-host'], ['Kore', 'Kore · crisp studio'], ['Puck', 'Puck · upbeat lively'], ['Charon', 'Charon · calm steady'], ['Fenrir', 'Fenrir · deep broadcast']]
+      : elevenVoice()
+        ? [['rachel', 'Rachel · warm'], ['sarah', 'Sarah · bright'], ['elli', 'Elli · young'], ['adam', 'Adam · deep'], ['josh', 'Josh · friendly'], ['antoni', 'Antoni · smooth']]
+        : [['coral', 'Coral · warm'], ['sage', 'Sage · calm'], ['ash', 'Ash · clear'], ['ballad', 'Ballad · soft'], ['verse', 'Verse · lively'], ['nova', 'Nova · bright'], ['alloy', 'Alloy · neutral'], ['echo', 'Echo · low'], ['fable', 'Fable · British'], ['onyx', 'Onyx · deep'], ['shimmer', 'Shimmer · light']];
     const sel = $('#aiVoiceName'), key = list.map((x) => x[0]).join();
     if (sel.dataset.list !== key) { sel.dataset.list = key; replaceKids(sel, ...list.map(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; })); }
     sel.value = voiceName();
@@ -169,6 +206,7 @@ export function createProducer(app) {
       let buf = '', failed = '';
       const onEvent = async (ev) => {
         if (ev.t === 'text') { reply += ev.d; ans.text = reply; upsertAI({ id: ans.id, text: reply }); $('#cmdReply').textContent = plainMd(reply); }
+        else if (ev.t === 'sources' && Array.isArray(ev.sources)) { ans.sources = ev.sources; upsertAI({ id: ans.id, sources: ev.sources }); }
         else if (ev.t === 'action' && ev.a) { ans.actions = [...ans.actions, ev.a]; upsertAI({ id: ans.id, actions: ans.actions }); $('#cmdActs').append(actChip(ev.a, false)); await runActions([ev.a]); }
         else if (ev.t === 'error') failed = ev.message || 'The AI request failed.';
       };
@@ -181,7 +219,7 @@ export function createProducer(app) {
       }
       if (failed) throw new Error(failed);
       if (!reply.trim()) reply = ans.actions.length ? 'Done.' : '(No answer came back.)';
-      upsertAI({ id: ans.id, text: reply, done: true });
+      upsertAI({ id: ans.id, text: reply, sources: ans.sources || [], done: true });
       $('#cmdReply').textContent = plainMd(reply);
       S.ai.busy = false;
       await speak(spokenPart(reply));
@@ -190,17 +228,65 @@ export function createProducer(app) {
       toast(e.message, { err: true });
     } finally { S.ai.busy = false; if (S.aiStatus === 'thinking') setAiStatus('idle'); else renderAIPanel(); }
   }
-  // Voice out: OpenAI voice goes into the stream mix; the browser voice is heard only by the host.
+  // Stage Vision: capture the current live stage canvas and analyze it with Gemini 4 Hydrogen
+  async function askStageVision(customPrompt = '') {
+    if (S.ai.busy) return;
+    if (!isHost()) return toast('Only the host can use stage vision.', { err: true });
+    const stageCanvas = app.getCanvas?.();
+    if (!stageCanvas || !stageCanvas.width) return toast('Enter the studio first to inspect the live stage.', { err: true });
+    const tmp = document.createElement('canvas');
+    tmp.width = 640; tmp.height = 360;
+    tmp.getContext('2d').drawImage(stageCanvas, 0, 0, tmp.width, tmp.height);
+    const image = tmp.toDataURL('image/jpeg', 0.78);
+    const prompt = String(customPrompt || '').trim() || 'Look at my live stage right now and give quick visual feedback or a talking point.';
+    const ans = { id: uid(), role: 'assistant', text: '', provider: 'gemini', done: false, actions: [] };
+    upsertAI({ id: uid(), role: 'user', text: `[Stage Vision] ${prompt}`, provider: 'gemini', done: true });
+    upsertAI(ans);
+    S.ai.busy = true; setAiStatus('thinking');
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'vision', image, prompt, studioContext: producerCtx().now }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || 'Stage vision failed.');
+      const text = j.text || 'I checked the live stage.';
+      upsertAI({ id: ans.id, text, done: true });
+      S.ai.busy = false;
+      await speak(spokenPart(text));
+    } catch (e) {
+      upsertAI({ ...ans, text: e.message || 'Stage vision failed.', error: true, done: true });
+      toast(e.message || 'Stage vision failed.', { err: true });
+    } finally {
+      S.ai.busy = false;
+      if (S.aiStatus === 'thinking') setAiStatus('idle'); else renderAIPanel();
+    }
+  }
+  // Voice out: Gemini 3.8 TTS or OpenAI voice goes into the stream mix; browser voice is host-only.
   async function speak(text) {
     const mode = voiceMode();
     if (mode === 'off' || !text) return;
     setAiStatus('speaking');
     try {
-      if (mode === 'openai') {
-        const key = store.get('aiKey:openai', '');
-        const house = !key && S.houseVoice && S.studio ? { studio: S.studio, id: S.id, tok: S.tok } : null;
-        if (!key && !house) throw new Error('Add a ChatGPT (OpenAI) key in the AI panel for the stream voice.');
-        const res = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'tts', apiKey: key || undefined, house: house || undefined, text, voice: voiceName() }) });
+      if (mode === 'gemini' || mode === 'gemini-podcast' || mode === 'openai') {
+        const useGemini = mode === 'gemini' || mode === 'gemini-podcast' || (!store.get('aiKey:openai', '') && S.houseVoice?.provider === 'gemini');
+        const key = useGemini ? store.get('aiKey:gemini', '') : store.get('aiKey:openai', '');
+        const house = !key && S.studio ? { studio: S.studio, id: S.id, tok: S.tok } : null;
+        if (!useGemini && !key && !S.houseVoice) throw new Error('Add a ChatGPT key under Advanced, or switch to Gemini voice.');
+        const res = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'tts',
+            provider: useGemini ? (mode === 'gemini-podcast' ? 'gemini-podcast' : 'gemini') : 'openai',
+            expressive: mode === 'gemini-podcast',
+            apiKey: key || undefined,
+            house: house || undefined,
+            text,
+            voice: voiceName(),
+          }),
+        });
         if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'The voice request failed.'); }
         const ctx = audioCtx();
         const buf = await ctx.decodeAudioData(await res.arrayBuffer());
@@ -311,5 +397,5 @@ export function createProducer(app) {
   libLoad();
   renderOffBg();
 
-  return { renderProducerUI, renderVoiceNames, setCmd, offerOpen, askProducer, drawOrb, speechHub, syncCaptions };
+  return { renderProducerUI, renderVoiceNames, setCmd, offerOpen, askProducer, askStageVision, drawOrb, speechHub, syncCaptions };
 }
