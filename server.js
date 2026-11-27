@@ -51,6 +51,8 @@ const MIME = {
   '.wasm': 'application/wasm',
   '.webp': 'image/webp',
   '.woff2': 'font/woff2',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
 };
 const COMPRESSIBLE_EXT = new Set(['.html', '.js', '.mjs', '.css', '.svg', '.json', '.wasm']);
 const STATIC_CACHE_MAX = 96;
@@ -178,6 +180,7 @@ function serveStaticFile(req, res, u, relPath) {
 }
 
 function json(res, status, obj) {
+  if (res.writableEnded) return;
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
@@ -187,53 +190,78 @@ function json(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
+function readJsonBody(req, res, limitBytes, onReady) {
+  let raw = '';
+  let tooLarge = false;
+  req.on('data', (c) => {
+    if (tooLarge) return;
+    raw += c;
+    if (raw.length > limitBytes) {
+      tooLarge = true;
+      json(res, 413, { error: 'Request payload too large.' });
+      req.resume();
+    }
+  });
+  req.on('end', () => {
+    if (tooLarge || res.writableEnded) return;
+    let body = {};
+    try { body = raw ? JSON.parse(raw) : {}; } catch {}
+    Promise.resolve(onReady(body)).catch((e) => {
+      if (!e?.status) console.error(redactSecrets(e?.message || e));
+      json(res, e?.status || 500, { error: redactSecrets(e?.status ? e.message : 'The server hit an unexpected error.') });
+    });
+  });
+}
+
+const ROBOTS_TXT = 'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\nDisallow: /c/\nDisallow: /controller\n';
+
 const gatherServer = http.createServer((req, res) => {
-  if (!enforceUsGeo(req, res)) return;
   const u = new URL(req.url, 'http://x');
+  if ((u.pathname === '/health' || u.pathname === '/api/health') && (req.method === 'GET' || req.method === 'HEAD')) {
+    return json(res, 200, { ok: true, uptime: Math.round(process.uptime()), relay: !!builtInRelay });
+  }
+  if (!enforceUsGeo(req, res)) return;
+  if (u.pathname === '/robots.txt' && (req.method === 'GET' || req.method === 'HEAD')) {
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    return res.end(req.method === 'HEAD' ? undefined : ROBOTS_TXT);
+  }
   if (u.pathname === '/api/brand-import' && req.method === 'POST') {
-    let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 16 * 1024) req.destroy(); });
-    req.on('end', async () => {
-      let body = {};
-      try { body = JSON.parse(raw || '{}'); } catch {}
+    return readJsonBody(req, res, 16 * 1024, async (body) => {
       try { json(res, 200, await importBrandFromUrl(body.url)); }
       catch (e) { json(res, 400, { error: e.message || 'Could not read that website.' }); }
     });
-    return;
   }
   if (u.pathname === '/api/translate' && req.method === 'POST') {
-    let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 32 * 1024) req.destroy(); });
-    req.on('end', () => {
-      let body = {};
-      try { body = JSON.parse(raw || '{}'); } catch {}
-      translate(body, { ip: accountHandler.ipOf(req) }).then((out) => json(res, 200, out));
+    return readJsonBody(req, res, 32 * 1024, async (body) => {
+      const out = await translate(body, { ip: accountHandler.ipOf(req) });
+      json(res, 200, out);
     });
-    return;
   }
   if (u.pathname === '/api/ai' && req.method === 'POST') {
-    let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 3 * 1024 * 1024) req.destroy(); }); // room for up to 3 reference images
-    req.on('end', () => { let body = {}; try { body = JSON.parse(raw || '{}'); } catch {} handleAI(req, res, body); });
-    return;
+    return readJsonBody(req, res, 3 * 1024 * 1024, (body) => handleAI(req, res, body));
   }
   if (u.pathname === '/api/account' && req.method === 'POST') {
-    let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 2 * 1024 * 1024) req.destroy(); });
-    req.on('end', () => { try { req.body = JSON.parse(raw || '{}'); } catch { req.body = {}; } req.query = Object.fromEntries(u.searchParams); accountHandler(req, res); });
-    return;
+    return readJsonBody(req, res, 2 * 1024 * 1024, (body) => {
+      req.body = body;
+      req.query = Object.fromEntries(u.searchParams);
+      return accountHandler(req, res);
+    });
   }
   if (u.pathname === '/api/studio') {
-    let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 4 * 1024 * 1024) req.destroy(); }); // room for studio file uploads + voice questions
-    req.on('end', async () => {
-      let body = {};
-      try { body = raw ? JSON.parse(raw) : {}; } catch {}
-      if (req.method === 'GET' && ['wfeed', 'wemote'].includes(u.searchParams.get('action'))) body = { studio: u.searchParams.get('studio'), asset: u.searchParams.get('asset') };
+    return readJsonBody(req, res, 4 * 1024 * 1024, async (body) => {
+      if (req.method === 'GET' && ['wfeed', 'wemote'].includes(u.searchParams.get('action'))) {
+        body = { studio: u.searchParams.get('studio'), asset: u.searchParams.get('asset') };
+      }
       try { json(res, 200, await handle(u.searchParams.get('action'), body)); }
-      catch (e) { if (!e.status) console.error(redactSecrets(e?.message || e)); json(res, e.status || 500, { error: redactSecrets(e.status ? e.message : `The studio server hit an error: ${e.message}`) }); }
+      catch (e) {
+        if (!e.status) console.error(redactSecrets(e?.message || e));
+        json(res, e.status || 500, { error: redactSecrets(e.status ? e.message : `The studio server hit an error: ${e.message}`) });
+      }
     });
-    return;
   }
   let p;
   try { p = decodeURIComponent(u.pathname); } catch { res.writeHead(400); return res.end('Bad request'); }
@@ -241,11 +269,20 @@ const gatherServer = http.createServer((req, res) => {
   else if (p.startsWith('/w/')) p = '/watch.html';
   else if (p === '/controller' || p.startsWith('/controller/')) p = '/controller.html';
   else if (p === '/privacy' || p === '/terms') p += '.html';
+  else if (p === '/favicon.ico') p = '/icon.png';
   serveStaticFile(req, res, u, p);
 }).listen(PORT, '0.0.0.0', () => console.log(`gather studio → http://0.0.0.0:${PORT}`));
 // One bad request must never drop every studio on a self-hosted server: log and keep serving.
 process.on('uncaughtException', (e) => console.error('Uncaught error (server kept running):', redactSecrets(e?.message || e)));
 process.on('unhandledRejection', (e) => console.error('Unhandled rejection (server kept running):', redactSecrets(e?.message || e)));
+
+function shutdown(sig) {
+  console.log(`[server] ${sig} received, shutting down gracefully`);
+  gatherServer.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 const geminiLive = createGeminiLiveBridge();
 let builtInRelay = null;
