@@ -33,6 +33,7 @@ const { importBrandFromUrl } = require('./lib/brand-import');
 const accountHandler = require('./api/account');
 const { translate } = require('./lib/translate');
 const { enforceUsGeo } = require('./lib/geo');
+const { createGeminiLiveBridge, redactSecrets } = require('./lib/gemini');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -123,7 +124,7 @@ function serveStaticFile(req, res, u, relPath) {
   }
 
   const ext = path.extname(resolved.file).toLowerCase();
-  const hasVersion = u.searchParams.has('v');
+  const hasVersion = /^[A-Za-z0-9._-]{1,32}$/.test(u.searchParams.get('v') || '');
   const isVendor = relPath.startsWith('/vendor/');
   const cacheControl = (hasVersion || isVendor)
     ? 'public, max-age=31536000, immutable'
@@ -136,6 +137,8 @@ function serveStaticFile(req, res, u, relPath) {
     'Cache-Control': cacheControl,
     ETag: entry.etag,
     Vary: 'Accept-Encoding',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
   };
 
   if (req.headers['if-none-match'] === entry.etag) {
@@ -169,7 +172,12 @@ function serveStaticFile(req, res, u, relPath) {
 }
 
 function json(res, status, obj) {
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  });
   res.end(JSON.stringify(obj));
 }
 
@@ -217,7 +225,7 @@ const gatherServer = http.createServer((req, res) => {
       try { body = raw ? JSON.parse(raw) : {}; } catch {}
       if (req.method === 'GET' && ['wfeed', 'wemote'].includes(u.searchParams.get('action'))) body = { studio: u.searchParams.get('studio'), asset: u.searchParams.get('asset') };
       try { json(res, 200, await handle(u.searchParams.get('action'), body)); }
-      catch (e) { if (!e.status) console.error(e); json(res, e.status || 500, { error: e.status ? e.message : `The studio server hit an error: ${e.message}` }); }
+      catch (e) { if (!e.status) console.error(redactSecrets(e?.message || e)); json(res, e.status || 500, { error: redactSecrets(e.status ? e.message : `The studio server hit an error: ${e.message}`) }); }
     });
     return;
   }
@@ -230,10 +238,9 @@ const gatherServer = http.createServer((req, res) => {
   serveStaticFile(req, res, u, p);
 }).listen(PORT, '0.0.0.0', () => console.log(`gather studio → http://0.0.0.0:${PORT}`));
 // One bad request must never drop every studio on a self-hosted server: log and keep serving.
-process.on('uncaughtException', (e) => console.error('Uncaught error (server kept running):', e));
-process.on('unhandledRejection', (e) => console.error('Unhandled rejection (server kept running):', e));
+process.on('uncaughtException', (e) => console.error('Uncaught error (server kept running):', redactSecrets(e?.message || e)));
+process.on('unhandledRejection', (e) => console.error('Unhandled rejection (server kept running):', redactSecrets(e?.message || e)));
 
-const { createGeminiLiveBridge } = require('./lib/gemini');
 const geminiLive = createGeminiLiveBridge();
 let builtInRelay = null;
 

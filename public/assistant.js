@@ -186,7 +186,7 @@ export function createAssistant(app) {
     const body = $('#msgs').parentElement; body.scrollTop = body.scrollHeight;
   }));
   $$('#aiProv button').forEach((b) => b.addEventListener('click', () => { S.aiProv = b.dataset.prov; store.set('aiProv', S.aiProv); renderAIPanel(); }));
-  $('#aiKey').addEventListener('change', (e) => { store.set('aiKey:' + S.aiProv, e.target.value.trim()); toast(e.target.value.trim() ? `${AI_NAME[S.aiProv]} key saved in this browser.` : 'Key removed.'); renderAIPanel(); });
+  $('#aiKey').addEventListener('change', (e) => { store.set('aiKey:' + S.aiProv, e.target.value.trim()); toast(e.target.value.trim() ? `${AI_NAME[S.aiProv]} key active for this session only.` : 'Key cleared.'); renderAIPanel(); });
   $('#aiModel').addEventListener('change', (e) => store.set('aiModel:' + S.aiProv, e.target.value.trim()));
   $('#aiClear').onclick = () => { S.ai.items = []; renderAILog(); if (S.studio && isHost()) wsSend({ type: 'ai', item: { id: 'clear', role: 'system', text: '', done: true } }); };
   $('#aiForm').addEventListener('submit', (ev) => { ev.preventDefault(); const t = $('#aiInput'); const v = t.value; t.value = ''; autoGrow(t); askProducer(v); });

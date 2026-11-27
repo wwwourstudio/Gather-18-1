@@ -58,8 +58,8 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <!-- Stage brand fonts (used in Typography preview cards and drawn into the program canvas). -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@600;700&family=JetBrains+Mono:wght@600;800&family=Playfair+Display:wght@700;800&family=Bebas+Neue&family=DM+Serif+Display&display=swap">
-<link rel="stylesheet" href="/tokens.css">
-<link rel="stylesheet" href="/ui.css">
+<link rel="stylesheet" href="/tokens.css?v=20261126f">
+<link rel="stylesheet" href="/ui.css?v=20261126f">
 <link rel="stylesheet" href="/style.css?v=20261126f">
 </head>
 <body class="pre">
@@ -618,7 +618,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
                 </div>
               </div>
               <label class="fld"><span id="aiKeyLabel">API key</span><input id="aiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Leave blank to use built-in Gemini"></label>
-              <p class="hint"><span id="aiKeyHelp"></span> Kept in this browser only; gather passes it to the provider with each request and never stores it.</p>
+              <p class="hint"><span id="aiKeyHelp"></span> Kept in memory for this tab session only (cleared on reload/close); never saved to browser storage or our servers.</p>
               <p class="hint" id="aiHouseNote" hidden></p>
               <label class="fld"><span>Model ID <em>leave blank for default</em></span><input id="aiModel" spellcheck="false"></label>
             </div></details>

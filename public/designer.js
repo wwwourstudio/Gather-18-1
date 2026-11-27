@@ -164,7 +164,7 @@ export function createDesigner(app) {
     if (!open) return;
     const prov = store.get('aiImgProv', 'gemini');
     $('#aidProv').value = prov; $('#aidKey').value = store.get('aiKey:' + prov, '');
-    $('#aidKeyNote').textContent = prov === 'gemini' ? 'Get a free Gemini key at aistudio.google.com/apikey. It stays in this browser.' : 'It stays in this browser.';
+    $('#aidKeyNote').textContent = prov === 'gemini' ? 'Get a free Gemini key at aistudio.google.com/apikey. Kept in memory for this session only.' : 'Kept in memory for this session only.';
   }
   async function aidAddFiles(files) {
     for (const f of [...files].filter((x) => x.type.startsWith('image/')).slice(0, 3 - AID.refs.length)) {
@@ -188,7 +188,7 @@ export function createDesigner(app) {
     const prov = $('#aidProv').value, key = $('#aidKey').value.trim();
     if (!key) return toast('Paste your key first.', { err: true });
     store.set('aiImgProv', prov); store.set('aiKey:' + prov, key);
-    aidKeys(false); aidRender(); syncWizAiBar(); toast(`${AI_NAME[prov] || prov} key saved in this browser.`);
+    aidKeys(false); aidRender(); syncWizAiBar(); toast(`${AI_NAME[prov] || prov} key active for this session only.`);
   });
   $('#aidGo').addEventListener('click', async () => {
     const t = AID.target;

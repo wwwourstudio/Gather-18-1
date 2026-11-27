@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "build": "node scripts/build-assets.js && node scripts/check.js",
-    "build:assets": "node scripts/build-assets.js",
+    "build": "node build-assets.cjs",
+    "build:assets": "node build-assets.cjs",
     "build:charts": "esbuild src/mood-chart.js --bundle --format=esm --target=es2022 --minify --outfile=public/mood-chart.js",
     "build:cloud": "esbuild src/firebase-client.js --bundle --format=esm --target=es2022 --minify --outfile=public/firebase-client.js",
     "lint": "node scripts/check.js",

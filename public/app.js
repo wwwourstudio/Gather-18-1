@@ -66,15 +66,30 @@ for (const k of BIG_KEYS) {
   // One-time move out of localStorage.
   try { const raw = localStorage.getItem('gather:' + k); if (raw != null) { if (!bigMem.has(k)) { bigMem.set(k, JSON.parse(raw)); bigPut(k, JSON.parse(raw)); } localStorage.removeItem('gather:' + k); } } catch {}
 }
+// API keys must never persist to localStorage or sessionStorage; keep any optional key in memory only
+// and purge legacy gather:aiKey:* entries on startup.
+const secretMem = new Map();
+const isSecretKey = (k) => typeof k === 'string' && k.startsWith('aiKey:');
+try {
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('gather:aiKey:')) localStorage.removeItem(k);
+  }
+} catch {}
 const store = mkStore(() => localStorage, true);
 const sess = mkStore(() => sessionStorage);
 function mkStore(get, big) {
   return {
     get(k, d) {
+      if (isSecretKey(k)) { const v = secretMem.get(k); return v == null ? d : v; }
       if (big && BIG_KEYS.has(k)) { const v = bigMem.get(k); return v == null ? d : v; }
       try { const v = get().getItem('gather:' + k); if (v == null) return d; const p = JSON.parse(v); return p == null ? d : p; } catch { return d; }
     },
     set(k, v) {
+      if (isSecretKey(k)) {
+        if (v) secretMem.set(k, v); else secretMem.delete(k);
+        try { localStorage.removeItem('gather:' + k); } catch {}
+        return;
+      }
       if (big && BIG_KEYS.has(k)) { bigMem.set(k, v); bigPut(k, v); return; }
       try { get().setItem('gather:' + k, JSON.stringify(v)); } catch {}
     },
@@ -7115,7 +7130,7 @@ let studioToolsReady = false;
 function ensureFirebaseCloud() {
   if (window.gatherCloud) return Promise.resolve(window.gatherCloud);
   if (!cloudLoadP) {
-    cloudLoadP = import('/firebase-client.js')
+    cloudLoadP = import('/firebase-client.js?v=20261126f')
       .then(() => {
         try { window.dispatchEvent(new CustomEvent('gather:cloud-ready')); } catch {}
         return window.gatherCloud || null;
@@ -7132,7 +7147,7 @@ function ensureFirebaseCloud() {
 function ensureAudience() {
   if (audience) return Promise.resolve(audience);
   if (!audienceLoadP) {
-    audienceLoadP = import('./audience.js')
+    audienceLoadP = import('./audience.js?v=20261126f')
       .then(({ createAudience }) => {
         audience = createAudience({
           $, smooth, $$, store, get W() { return W; }, get H() { return H; }, S, isHost, watchCfg, normalizeHex,
@@ -7162,8 +7177,8 @@ function ensureStudioTools() {
   if (studioToolsReady) return Promise.resolve(true);
   if (!toolsLoadP) {
     toolsLoadP = Promise.all([
-      import('/mood-chart.js').catch(() => null),
-      import('./studio-tools.js'),
+      import('/mood-chart.js?v=20261126f').catch(() => null),
+      import('./studio-tools.js?v=20261126f'),
     ])
       .then(([, toolsMod]) => {
         if (!studioToolsReady && typeof toolsMod?.initStudioTools === 'function') {
