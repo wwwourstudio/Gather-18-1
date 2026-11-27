@@ -119,7 +119,7 @@ export function createWatchHub(app) {
 
     const nBox = $('#wNoticesList');
     const w = info.watch || {};
-    const canMic = w.voice !== false && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder;
+    const canMic = false;
     const canTip = !!(w.supers && w.chat !== false);
     const mode = info.found && MODE_CFG[info.streamType] ? info.streamType : '';
     const nKey = JSON.stringify([notices, canMic, canTip, info.found, mode]);

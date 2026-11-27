@@ -167,7 +167,14 @@ export function createAssistant(app) {
     $('#chatFilterAi').textContent = S.aiName;
     $('#samBtn')?.setAttribute('aria-label', 'Ask ' + S.aiName); $('#samBtn')?.setAttribute('data-tip', 'Ask ' + S.aiName);
     $('#aiInput').placeholder = `Ask ${S.aiName} or tell it what to do…`;
-    $('#chatHint').textContent = host ? `Studio only · @${S.aiName} asks your AI` : 'Only people in the studio see this';
+    const scope = S.chatScope || (S.state?.chatOpts?.defaultScope === 'guests' ? 'guests' : 'every');
+    $('#chatHint').textContent = !S.studio
+      ? 'Enter a studio to chat.'
+      : host && scope === 'every'
+        ? `Sending to studio guests & Watch Party viewers · @${S.aiName} asks AI`
+        : host
+          ? `Shared with invited studio guests only · @${S.aiName} asks AI`
+          : 'Only people in the studio see this';
     renderAILog();
   }
   // The AI tab is its settings; talking to it happens in the live chat.

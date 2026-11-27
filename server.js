@@ -132,11 +132,17 @@ function serveStaticFile(req, res, u, relPath) {
       ? 'no-cache'
       : 'public, max-age=86400';
 
+  const isStudioPath = u.pathname.startsWith('/s/') || u.pathname.startsWith('/c/');
+  const permissionsPolicy = isStudioPath
+    ? 'camera=(self), microphone=(self), display-capture=(self)'
+    : 'camera=(), microphone=()';
+
   const baseHeaders = {
     'Content-Type': entry.contentType,
     'Cache-Control': cacheControl,
     ETag: entry.etag,
     Vary: 'Accept-Encoding',
+    'Permissions-Policy': permissionsPolicy,
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
   };

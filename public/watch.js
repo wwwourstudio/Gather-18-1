@@ -292,7 +292,7 @@ function render(info) {
   tip.dataset.tip = w.supers ? 'Super chat' : 'Tips aren’t on for this show';
   if (!w.supers && !$('#wTipDock').hidden) closeTipDock();
   else if (w.supers && !$('#wTipDock').hidden) superChat?.syncLive?.();
-  $('#wMic').hidden = w.voice === false || !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder;
+  $('#wMic').hidden = true;
   $('#wChatState').textContent = !info.found ? '' : w.chat === false ? 'Chat off' : w.slow ? `Slow · ${w.slow}s` : '';
   $('#wCompose').hidden = !info.found || w.chat === false;
 
@@ -1222,7 +1222,6 @@ function handMenu(open) {
     m.append(
       item('video', 'Join on camera', 'Ask to come on the show with video', () => raiseHand('camera')),
       item('phone', 'Join by voice', 'Call in with your mic, no camera', () => raiseHand('voice')),
-      item('mic', 'Leave a voice message', 'Record up to 45 s for the host', () => voiceOpen()),
       item('message-square', 'Ask in chat', 'Your next message is a question', () => { setAsk(true); $('#wText').focus(); }),
     );
     $('#wAsk').closest('.wv-tools')?.append(m);
@@ -1487,33 +1486,14 @@ createClipStudio({
 // ---------------------------------------------------------------- voice questions
 const VQ = { rec: null, chunks: [], stream: null, t0: 0, timer: null, sr: null, text: '', blob: null, meter: null };
 const MAX_S = 45;
-function voiceOpen() { $('#wVoiceName').value = sess?.named ? sess.name : store.get('name', ''); voiceReset(); showErr('#wVoiceErr', ''); $('#wVoiceDlg').showModal(); }
+function voiceOpen() { toast('Microphone access is only enabled inside the studio.'); }
 function voiceReset() {
   VQ.blob = null; VQ.text = ''; $('#wRecPlay').hidden = true; $('#wRecPlay').removeAttribute('src');
   $('#wRecText').hidden = true; $('#wRecSend').disabled = true; $('#wRecAgain').hidden = true;
-  $('#wRecTime').textContent = `0:00 / 0:${MAX_S}`; $('#wRecHint').textContent = 'Tap the red button and speak.'; $('#wRecBtn').classList.remove('on');
+  $('#wRecTime').textContent = `0:00 / 0:${MAX_S}`; $('#wRecHint').textContent = 'Microphone is disabled on the watch page.'; $('#wRecBtn').classList.remove('on');
 }
 async function voiceStart() {
-  try { VQ.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-  catch { return showErr('#wVoiceErr', 'Allow the microphone to record a question (the lock icon in the address bar).'); }
-  const v = W.direct.video; VQ.wasMuted = v?.muted; if (v) v.muted = true;
-  const mime = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
-  VQ.chunks = []; VQ.rec = new MediaRecorder(VQ.stream, { mimeType: mime, audioBitsPerSecond: 32000 });
-  VQ.rec.ondataavailable = (e) => { if (e.data.size) VQ.chunks.push(e.data); };
-  VQ.rec.onstop = voiceStopped;
-  VQ.rec.start(500); VQ.t0 = Date.now();
-  $('#wRecBtn').classList.add('on'); $('#wRecBtn').setAttribute('aria-label', 'Stop recording'); $('#wRecHint').textContent = 'Recording… tap to stop.';
-  VQ.timer = setInterval(() => { const s = Math.floor((Date.now() - VQ.t0) / 1000); $('#wRecTime').textContent = `0:${String(s).padStart(2, '0')} / 0:${MAX_S}`; if (s >= MAX_S) voiceStop(); }, 250);
-  try { const ac = new AudioContext(), an = ac.createAnalyser(); ac.createMediaStreamSource(VQ.stream).connect(an); const buf = new Uint8Array(an.fftSize); VQ.meter = { ac, id: setInterval(() => { an.getByteTimeDomainData(buf); let p = 0; for (const x of buf) p = Math.max(p, Math.abs(x - 128)); $('#wRecLevel').style.width = Math.min(100, p * 1.6) + '%'; }, 80) }; } catch {}
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SR) {
-    try {
-      const sr = new SR(); sr.continuous = true; sr.interimResults = true; sr.lang = navigator.language || 'en-US';
-      let finals = '';
-      sr.onresult = (e) => { let interim = ''; for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) finals += e.results[i][0].transcript + ' '; else interim += e.results[i][0].transcript; } VQ.text = (finals + interim).trim(); $('#wRecText').hidden = !VQ.text; $('#wRecText').textContent = VQ.text; };
-      sr.onerror = () => {}; sr.start(); VQ.sr = sr;
-    } catch {}
-  }
+  showErr('#wVoiceErr', 'Microphone access is only enabled inside the studio.');
 }
 function voiceStop() { if (VQ.rec?.state === 'recording') VQ.rec.stop(); }
 function voiceStopped() {

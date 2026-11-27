@@ -285,9 +285,11 @@ export function createDesigner(app) {
   $('#wTitle').addEventListener('input', () => { if (!$('#wHeadline').dataset.touched) $('#wHeadline').value = $('#wTitle').value; drawThumb(); renderKitVisualPreviews(); });
   $('#wHeadline').addEventListener('input', () => { $('#wHeadline').dataset.touched = '1'; });
   const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  if ($('#wSnap') && !/^\/[sc]\//.test(location.pathname)) $('#wSnap').hidden = true;
   $('#wSnap').onclick = async () => {
+    if (!/^\/[sc]\//.test(location.pathname) && !S.studio) return toast('Upload a photo here, or take a camera snapshot once inside the studio.');
     const v = $(`#card-${cssId(myId())} video`) || $('#previewVideo');
-    if (!v?.videoWidth) return toast('Turn your camera on in the green room first, or upload a photo.', { err: true });
+    if (!v?.videoWidth) return toast('Turn your camera on in the studio first, or upload a photo.', { err: true });
     const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0); wiz.photo = await loadImg(c.toDataURL('image/jpeg', .9)); wiz.upload = null; drawThumb(); thumbState();
   };

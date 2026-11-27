@@ -58,9 +58,9 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
 <!-- Stage brand fonts (used in Typography preview cards and drawn into the program canvas). -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@600;700&family=JetBrains+Mono:wght@600;800&family=Playfair+Display:wght@700;800&family=Bebas+Neue&family=DM+Serif+Display&display=swap">
-<link rel="stylesheet" href="/tokens.css?v=20261126f">
-<link rel="stylesheet" href="/ui.css?v=20261126f">
-<link rel="stylesheet" href="/style.css?v=20261126f">
+<link rel="stylesheet" href="/tokens.css?v=20261126h">
+<link rel="stylesheet" href="/ui.css?v=20261126h">
+<link rel="stylesheet" href="/style.css?v=20261126h">
 </head>
 <body class="pre">
 <div class="boot" id="boot" role="status" aria-live="polite">
@@ -399,6 +399,8 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
                   <button type="button" class="btn primary sm" id="obsConnectBtn">Connect</button>
                   <button type="button" class="icon-btn sm" id="obsRefreshBtn" hidden aria-label="Refresh OBS scenes" data-tip="Refresh OBS scenes"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg></button>
                   <button type="button" class="btn sm obs-cut-btn" id="obsCutBtn" hidden data-tip="Transition preview to program in OBS">Cut</button>
+                  <button type="button" class="btn sm obs-stream-btn" id="obsStreamBtn" hidden aria-pressed="false" data-tip="Start OBS live stream"><i class="obs-act-dot" aria-hidden="true"></i><span>OBS Stream</span></button>
+                  <button type="button" class="btn sm obs-rec-btn" id="obsRecordBtn" hidden aria-pressed="false" data-tip="Start OBS recording"><i class="obs-act-dot" aria-hidden="true"></i><span>OBS Rec</span></button>
                   <label class="toggle-inline obs-sync-wrap" id="obsSyncWrap" data-tip="Automatically switch OBS when you switch a Gather scene">
                     <input type="checkbox" class="toggle sm" id="obsAutoSync" role="switch">
                     <span>Auto-sync</span>
@@ -453,8 +455,8 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
             <label class="toggle-inline"><span><b>Public Watch Party chat</b><small>Allow viewers on /w/ to send messages</small></span><input type="checkbox" class="toggle sm" id="optWatchChat" role="switch" checked></label>
             <div class="fld"><span>Default host audience</span>
               <div class="seg sm block" role="radiogroup" aria-label="Default message scope" id="optDefaultScope">
-                <button type="button" role="radio" data-scope="guests" class="on" aria-checked="true">Guests only</button>
-                <button type="button" role="radio" data-scope="every" aria-checked="false">Every chat</button>
+                <button type="button" role="radio" data-scope="guests" aria-checked="false">Guests only</button>
+                <button type="button" role="radio" data-scope="every" class="on" aria-checked="true">Every chat</button>
               </div>
             </div>
             <button type="button" class="btn sm block" id="optEditBriefBtn"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-link"/></svg><span>Guest brief, links &amp; files</span></button>
@@ -494,8 +496,8 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
         <form class="composer" id="chatForm" autocomplete="off">
           <div class="chat-composer-top" id="chatComposerTop" hidden>
             <div class="seg sm chat-scope host-only" id="chatScopeSeg" role="radiogroup" aria-label="Message audience">
-              <button type="button" role="radio" data-scope="guests" class="on" aria-checked="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-lock"/></svg>Guests only</button>
-              <button type="button" role="radio" data-scope="every" aria-checked="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-globe"/></svg>Every chat</button>
+              <button type="button" role="radio" data-scope="guests" aria-checked="false"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-lock"/></svg>Guests only</button>
+              <button type="button" role="radio" data-scope="every" class="on" aria-checked="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-globe"/></svg>Every chat</button>
             </div>
             <div class="chat-file-chip" id="chatFileChip" hidden></div>
           </div>
@@ -524,7 +526,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
               <button class="send-btn" id="chatSend" aria-label="Send message"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-arrow-up"/></svg></button>
             </div>
           </div>
-          <p class="composer-hint"><span id="chatHint">Only people in the studio see this · type @Sam to ask your AI</span></p>
+          <p class="composer-hint"><span id="chatHint">Sending to studio guests &amp; Watch Party viewers · type @Sam to ask your AI</span></p>
         </form>
         <form class="composer host-only" id="aiForm" autocomplete="off" hidden>
           <div class="composer-box composer-stacked">
@@ -3038,7 +3040,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
 <button type="button" class="audio-unblock glass raised" id="audioUnblock" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Your browser paused your guests’ sound. Click to hear them.</button>
 <div class="media-sink" id="mediaSink" aria-hidden="true"></div>
 
-<script src="/app.js?v=20261126f" type="module"></script>
+<script src="/app.js?v=20261126h" type="module"></script>
 <script type="module">import { startHero3D, tiltPreview } from '/hero3d.js'; tiltPreview(); window.requestIdleCallback ? window.requestIdleCallback(() => startHero3D(), { timeout: 800 }) : setTimeout(startHero3D, 200);</script>
 </body>
 </html>

@@ -17,6 +17,7 @@ import { createSamChat } from './sam-chat.js';
 import { createAutoMoments } from './auto-moments.js';
 import { createLiveChat } from './livechat.js';
 import { createViewerCount } from './viewers.js';
+import { createObsIntegration } from './obs-deck.js?v=20261126h';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
@@ -135,11 +136,12 @@ const BGS = {
 };
 
 // ---------------------------------------------------------------- state
+const isStudioRoute = () => /^\/[sc]\//.test(location.pathname);
 const S = {
   id: null, tok: null, studio: null, host: null, short: '', shortInvite: '', phase: 'offline', // offline | connecting | online | reconnecting
   name: store.get('name', ''),
   prefs: { startMic: store.get('startMic', true), startCam: store.get('startCam', true), camId: store.get('camId', ''), micId: store.get('micId', ''), quality: store.get('quality', '720'), noise: store.get('noise', true) },
-  local: { audio: null, cam: null, screen: null, micOn: store.get('startMic', true), camOn: store.get('startCam', true), hand: false, autoMuted: false, camError: '', joinedAt: 0 },
+  local: { audio: null, cam: null, screen: null, micOn: isStudioRoute() ? store.get('startMic', true) : false, camOn: isStudioRoute() ? store.get('startCam', true) : false, hand: false, autoMuted: false, camError: '', joinedAt: 0 },
   peers: new Map(),
   state: localState(),
   iceServers: [],
@@ -147,7 +149,7 @@ const S = {
   rec: null,
   banner: { key: '', t0: 0 },
   audioBlocked: false,
-  chatScope: 'guests',
+  chatScope: 'every',
   pendingChatFile: null,
   brief: null,
   briefExpanded: true,
@@ -163,7 +165,7 @@ function localState() {
   if (bp.color && BAD_ACCENTS.has(String(bp.color).toLowerCase())) bp.color = '#3b82f6';
   return {
     layout: 'solo', stage: ['me'], banner: null, ticker: '',
-    chatOpts: { guestFiles: true, defaultScope: 'guests' },
+    chatOpts: { guestFiles: true, defaultScope: 'every' },
     brand: { color: savedAccent, bg: store.get('bg', 'dusk'), watermark: false, names: true, font: 'jakarta', tag: 'solid', bannerStyle: 'classic', anim: 'slide', frame: 'none', dim: 0.25, logoPos: 'tr', logoSize: 0.12,
       ...bp, bgImage: imgs.bgImage ? 'local-brand-bgImage' : '', overlay: imgs.overlay ? 'local-brand-overlay' : '', logo: imgs.logo ? 'local-brand-logo' : '' },
     title: store.get('title', ''), elements: [], featured: null, feeds: { twitch: '' },
@@ -316,7 +318,9 @@ function mediaErr(e) {
   if (e?.name === 'NotReadableError') return 'The device is busy in another app.';
   return e?.message || 'Unavailable';
 }
+const canUseMedia = () => isStudioRoute() || !!S.studio;
 async function startCam() {
+  if (!canUseMedia()) return null;
   if (S.local.cam) return S.local.cam;
   if (!media?.getUserMedia) { S.local.camError = 'Camera needs HTTPS or localhost.'; return null; }
   try {
@@ -359,6 +363,7 @@ async function applyVideoFx() {
 }
 let localMeter = null;
 async function startMic() {
+  if (!canUseMedia()) return null;
   if (S.local.audio) return S.local.audio;
   if (!media?.getUserMedia) return null;
   try {
@@ -396,6 +401,7 @@ async function applyAudioFx() {
 const outVideo = () => (S.local.camOn ? S.local.cam : null);
 
 async function setMic(on, opts = {}) {
+  if (on && !canUseMedia()) { S.local.micOn = false; return; }
   S.local.micOn = on;
   if (on) {
     S.local.autoMuted = false;
@@ -409,6 +415,7 @@ async function setMic(on, opts = {}) {
   syncCaptions();
 }
 async function setCam(on) {
+  if (on && !canUseMedia()) { S.local.camOn = false; return; }
   if (on) { await startCam(); if (!S.local.cam) { toast('Camera: ' + S.local.camError, { err: true }); on = false; } }
   else stopCam(); // turn the hardware light off
   S.local.camOn = on;
@@ -430,7 +437,7 @@ function syncMedia() {
 }
 
 async function listDevices() {
-  if (!media?.enumerateDevices) return;
+  if (!canUseMedia() || !media?.enumerateDevices) return;
   const devs = await media.enumerateDevices();
   fill($('#camSelect'), devs.filter((d) => d.kind === 'videoinput'), S.local.camRaw?.getSettings().deviceId || S.prefs.camId, 'camera');
   fill($('#micSelect'), devs.filter((d) => d.kind === 'audioinput'), S.local.audio?.getSettings().deviceId || S.prefs.micId, 'microphone');
@@ -439,7 +446,7 @@ async function listDevices() {
     sel.value = [...sel.options].some((o) => o.value === cur) ? cur : '';
   }
 }
-media?.addEventListener?.('devicechange', listDevices);
+media?.addEventListener?.('devicechange', () => { if (canUseMedia()) listDevices(); });
 
 // ---------------------------------------------------------------- presentation: screen, video file, PDF
 // Each connection carries a second video track for whatever is being presented,
@@ -1148,7 +1155,7 @@ async function onServer(m) {
         }
       }
       S.brief = m.brief || null;
-      S.chatScope = m.state?.chatOpts?.defaultScope === 'every' ? 'every' : 'guests';
+      S.chatScope = m.state?.chatOpts?.defaultScope === 'guests' ? 'guests' : 'every';
       S.pendingChatFile = null;
       setPhase('online');
       history.replaceState(null, '', '/s/' + S.studio);
@@ -4986,7 +4993,7 @@ function appendLog(li) {
   if (atBottom || li.classList.contains('me')) body.scrollTop = body.scrollHeight;
 }
 function renderChatOpts() {
-  const opts = { guestFiles: true, defaultScope: 'guests', ...(S.state.chatOpts || {}) };
+  const opts = { guestFiles: true, defaultScope: 'every', ...(S.state.chatOpts || {}) };
   const host = isHost(), inside = !!S.studio;
   const wc = watchCfg();
   if ($('#optGuestFiles')) { $('#optGuestFiles').checked = opts.guestFiles !== false; $('#optGuestFiles').disabled = !host; }
@@ -5028,7 +5035,7 @@ $('#chatOptsBtn')?.addEventListener('click', (ev) => {
 });
 $('#optGuestFiles')?.addEventListener('change', (e) => {
   if (!isHost()) return;
-  const chatOpts = { guestFiles: e.target.checked, defaultScope: S.state.chatOpts?.defaultScope === 'every' ? 'every' : 'guests' };
+  const chatOpts = { guestFiles: e.target.checked, defaultScope: S.state.chatOpts?.defaultScope === 'guests' ? 'guests' : 'every' };
   setStage({ chatOpts });
   toast(e.target.checked ? 'Studio guests can share files in chat.' : 'Guest file uploads paused.');
 });
@@ -5212,7 +5219,7 @@ $('#chatForm').addEventListener('submit', (e) => {
     $('#chatInput').value = ''; autoGrow($('#chatInput'));
     $('#aiInput').value = v.slice(at[0].length); $('#aiForm').requestSubmit(); return;
   }
-  const scope = isHost() ? (S.chatScope || S.state.chatOpts?.defaultScope || 'guests') : 'guests';
+  const scope = isHost() ? (S.chatScope || S.state.chatOpts?.defaultScope || 'every') : 'guests';
   wsSend({ type: 'chat', text: v, scope, ...(S.pendingChatFile ? { file: S.pendingChatFile } : {}) });
   $('#chatInput').value = ''; autoGrow($('#chatInput'));
   if (S.pendingChatFile) { S.pendingChatFile = null; renderChatOpts(); }
@@ -6072,7 +6079,7 @@ function leave(why) {
   sceneFade.active = false;
   S.studio = null; S.id = null; S.tok = null; S.host = null; S.short = ""; S.shortInvite = "";
   S.state = localState();
-  S.local.camOn = S.prefs.startCam; S.local.micOn = S.prefs.startMic; S.local.hand = false; S.local.autoMuted = false;
+  S.local.camOn = false; S.local.micOn = false; S.local.hand = false; S.local.autoMuted = false;
   autoMuteState.peerLastSpeech.clear(); autoMuteState.peerSpeechMs.clear(); autoMuteState.peerMutedAt.clear(); resetAutoMuteTimer();
   $$('#msgs > *').forEach((n) => n.remove());
   $$('.crew-card').forEach((n) => n.remove());
@@ -6080,10 +6087,10 @@ function leave(why) {
   sceneSuggestState.suppressedKey = ''; sceneSuggestState.autoAppliedKey = ''; sceneSuggestState.lastCount = 1; hideSceneSuggestion();
   rumble.url = ''; clearTimeout(rumble.timer); stopYouTube();
   S.local.avatarId = ''; S.local.offbgId = ''; S.prePres = null; cap.lines.clear(); S.lobby = []; speechHub.ptt = false;
-  history.replaceState(null, '', '/');
   setPhase('offline');
   renderChatMood();
-  toast('You left the studio.');
+  try { sessionStorage.setItem('gather:leftToast', '1'); } catch {}
+  location.assign('/');
 }
 addEventListener('beforeunload', (e) => { if (S.studio && (S.rec || S.live || S.peers.size)) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -6695,10 +6702,63 @@ $('#gemVisionSnapBtn')?.addEventListener('click', () => askStageVision(''));
 let enterMode = 'create', previewing = false;
 const previewActive = () => previewing && !S.studio;
 function stopPreviewLoop() { previewing = false; }
+function navigateToStudio(mode, code) {
+  const cleanCode = parseCode(code) || newCode();
+  const isCreate = mode !== 'join';
+  try {
+    if (isCreate) {
+      const payload = {
+        mode: 'create',
+        code: cleanCode,
+        pendingStream: S.pendingStream || { code: cleanCode, id: null, title: S.state.title || '' },
+        title: S.state.title || '',
+        streamType: S.state.streamType || 'live',
+        hashtags: S.state.hashtags || [],
+        countdown: S.state.countdown || null,
+      };
+      sessionStorage.setItem('gather:pendingLaunch', JSON.stringify(payload));
+    } else {
+      sessionStorage.removeItem('gather:pendingLaunch');
+    }
+  } catch {}
+  const prefix = (!isCreate && S.callin) ? '/c/' : '/s/';
+  location.assign(prefix + encodeURIComponent(cleanCode) + (isCreate ? '?host=1' : ''));
+}
 async function openEnter(mode, code) {
   if (S.studio) return openInvite();
+  const targetMode = mode || 'create';
+  // On the Home/index page (/), never turn on camera/mic or prompt for permissions.
+  // Creating a studio or opening a known studio code navigates directly to the studio page (/s/<code>),
+  // where Permissions-Policy allows camera/mic. Entering a code manually uses a code-only modal on /.
+  if (!isStudioRoute()) {
+    if (targetMode === 'create') {
+      if (!S.pendingStream && S.requireAccount && !acct.user) {
+        if (acct.token) {
+          try { await account.acctBootP; } catch {}
+          if (!acct.user && acct.token) try { setUser((await acctApi('me')).user); } catch {}
+        }
+        if (!acct.user) return needAccountThen(() => openEnter('create', code));
+      }
+      navigateToStudio('create', code || S.pendingStream?.code || newCode());
+      return;
+    }
+    if (code) {
+      navigateToStudio('join', code);
+      return;
+    }
+    setEnterMode('join');
+    $('#enterDlg').classList.add('home-code-only');
+    $('#enterName').value = S.name;
+    $('#enterCode').value = '';
+    $('#enterErr').hidden = true;
+    $('#enterGo').disabled = false;
+    $('#enterDlg').showModal();
+    (S.name ? $('#enterCode') : $('#enterName')).focus();
+    return;
+  }
+  $('#enterDlg').classList.remove('home-code-only');
   ensureStudioBundles();
-  setEnterMode(mode || 'create');
+  setEnterMode(targetMode);
   if (code) $('#enterCode').value = code;
   $('#enterName').value = S.name;
   $('#enterErr').hidden = true;
@@ -6707,10 +6767,10 @@ async function openEnter(mode, code) {
   S.hostEntering = enterMode !== 'join'; renderHeader(); // the studio shows behind the host's device check
   checkServer();
   if (acct.token) acctApi('me').then((r) => setUser(r.user)).catch(() => {});
-  (S.name ? (mode === 'join' && !code ? $('#enterCode') : $('#enterGo')) : $('#enterName')).focus();
+  (S.name ? (targetMode === 'join' && !code ? $('#enterCode') : $('#enterGo')) : $('#enterName')).focus();
   previewing = true;
   audioCtx();
-  S.local.micOn = S.prefs.startMic; S.local.camOn = S.prefs.startCam;
+  S.local.micOn = S.prefs.startMic; S.local.camOn = S.voiceOnly ? false : S.prefs.startCam;
   if (S.local.camOn) await startCam(); else stopCam();
   if (S.local.camOn && !S.local.cam) S.local.camOn = false;
   if (S.local.micOn) await startMic();
@@ -6746,17 +6806,21 @@ async function checkServer() {
 }
 function setEnterMode(m) {
   enterMode = m;
+  const onHome = !isStudioRoute();
   $$('#enterForm .seg button[data-mode]').forEach((b) => { const on = b.dataset.mode === m; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('#codeFld').hidden = m !== 'join';
-  $('#enterGo').textContent = m === 'join' ? 'Join studio' : 'Enter the studio';
+  $('#enterGo').textContent = onHome ? (m === 'join' ? 'Continue to studio' : 'Open studio page') : (m === 'join' ? 'Join studio' : 'Enter the studio');
   $('#enterErr').hidden = true;
   // The host (creating) gets the device check over their own studio; a guest joining keeps the join form.
-  $('#enterDlg').classList.toggle('host', m !== 'join');
+  $('#enterDlg').classList.toggle('host', m !== 'join' && !onHome);
+  $('#enterDlg').classList.toggle('home-code-only', onHome);
   $('#enterH').textContent = m === 'join' ? 'Join the show' : 'Step into the studio';
-  $('#enterSub').textContent = m === 'join' ? 'Check your camera and mic, then join the host backstage.' : 'Check how you look and sound. Your studio is ready behind this.';
-  S.hostEntering = m !== 'join' && $('#enterDlg').open;
+  $('#enterSub').textContent = onHome
+    ? (m === 'join' ? 'Enter your name and studio code to open the studio page.' : 'Your camera and mic stay off until the studio page opens.')
+    : (m === 'join' ? 'Check your camera and mic, then join the host backstage.' : 'Check how you look and sound. Your studio is ready behind this.');
+  S.hostEntering = m !== 'join' && !onHome && $('#enterDlg').open;
   renderHeader();
-  window.__gatherCheckGreenRoom?.(false);
+  if (!onHome) window.__gatherCheckGreenRoom?.(false);
 }
 $$('#enterForm .seg button[data-mode]').forEach((b) => b.addEventListener('click', () => setEnterMode(b.dataset.mode)));
 $('#enterForm').addEventListener('submit', async (e) => {
@@ -6774,6 +6838,12 @@ $('#enterForm').addEventListener('submit', async (e) => {
   let code = enterMode === 'join' ? parseCode($('#enterCode').value) : (S.pendingStream?.code || newCode());
   if (!code) { $('#enterErr').textContent = 'Paste the studio code your host sent you.'; $('#enterErr').hidden = false; return $('#enterCode').focus(); }
   S.name = name; store.set('name', name); $('#nameInput').value = name;
+  // From the Home/index page, navigate to /s/<code> so Permissions-Policy enables camera/mic only on the studio page.
+  if (!isStudioRoute()) {
+    $('#enterDlg').close();
+    navigateToStudio(enterMode, code);
+    return;
+  }
   busy($('#enterGo'));
   try { await join(code, { callin: S.callin && enterMode === 'join', create: enterMode !== 'join' }); }
   catch (err) {
@@ -7130,7 +7200,7 @@ let studioToolsReady = false;
 function ensureFirebaseCloud() {
   if (window.gatherCloud) return Promise.resolve(window.gatherCloud);
   if (!cloudLoadP) {
-    cloudLoadP = import('/firebase-client.js?v=20261126f')
+    cloudLoadP = import('/firebase-client.js?v=20261126h')
       .then(() => {
         try { window.dispatchEvent(new CustomEvent('gather:cloud-ready')); } catch {}
         return window.gatherCloud || null;
@@ -7147,7 +7217,7 @@ function ensureFirebaseCloud() {
 function ensureAudience() {
   if (audience) return Promise.resolve(audience);
   if (!audienceLoadP) {
-    audienceLoadP = import('./audience.js?v=20261126f')
+    audienceLoadP = import('./audience.js?v=20261126h')
       .then(({ createAudience }) => {
         audience = createAudience({
           $, smooth, $$, store, get W() { return W; }, get H() { return H; }, S, isHost, watchCfg, normalizeHex,
@@ -7177,8 +7247,8 @@ function ensureStudioTools() {
   if (studioToolsReady) return Promise.resolve(true);
   if (!toolsLoadP) {
     toolsLoadP = Promise.all([
-      import('/mood-chart.js?v=20261126f').catch(() => null),
-      import('./studio-tools.js?v=20261126f'),
+      import('/mood-chart.js?v=20261126h').catch(() => null),
+      import('./studio-tools.js?v=20261126h'),
     ])
       .then(([, toolsMod]) => {
         if (!studioToolsReady && typeof toolsMod?.initStudioTools === 'function') {
@@ -7257,13 +7327,47 @@ S.callin = typeof location?.pathname === 'string' && location.pathname.startsWit
 // with the camera off. The pass is taken out of the address so a reload or a shared link doesn't carry it.
 {
   const q = new URLSearchParams(location.search), pass = q.get('pass');
+  const isHostParam = q.get('host') === '1';
   if (linkCode && pass && /^[\w.-]{4,40}$/.test(pass)) {
     (S.joinPass ||= {})[linkCode] = pass;
     if (q.get('as') === 'voice') { S.local.camOn = false; S.voiceOnly = true; }
     history.replaceState(null, '', location.pathname);
+  } else if (linkCode && isHostParam) {
+    history.replaceState(null, '', location.pathname);
+  }
+  let pendingLaunch = null;
+  try {
+    const raw = sessionStorage.getItem('gather:pendingLaunch');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.code === linkCode) {
+        pendingLaunch = parsed;
+        sessionStorage.removeItem('gather:pendingLaunch');
+      }
+    }
+  } catch {}
+  if (linkCode && (isHostParam || pendingLaunch?.mode === 'create')) {
+    if (pendingLaunch) {
+      if (pendingLaunch.pendingStream) S.pendingStream = pendingLaunch.pendingStream;
+      const patch = {};
+      if (pendingLaunch.title) patch.title = pendingLaunch.title;
+      if (pendingLaunch.streamType) patch.streamType = pendingLaunch.streamType;
+      if (Array.isArray(pendingLaunch.hashtags)) patch.hashtags = pendingLaunch.hashtags;
+      if (pendingLaunch.countdown) patch.countdown = pendingLaunch.countdown;
+      if (Object.keys(patch).length) setStage(patch);
+    }
+    Promise.resolve(account.acctBootP).catch(() => {}).then(() => openEnter('create', linkCode));
+  } else if (linkCode) {
+    openEnter('join', linkCode);
+  } else {
+    try {
+      if (sessionStorage.getItem('gather:leftToast')) {
+        sessionStorage.removeItem('gather:leftToast');
+        toast('You left the studio.');
+      }
+    } catch {}
   }
 }
-if (linkCode) openEnter('join', linkCode);
 window.__gather = S; // handy for debugging in the console
 window.__acct = acct;
 window.__cap = cap;
@@ -7682,706 +7786,15 @@ const sharedToolsApi = {
   applyAdaptiveAccent,
   chime,
 };
-// ---------------------------------------------------------------- OBS Studio Integration (OBS WebSocket v5 LAN/local client)
-function createObsIntegration() {
-  const DEFAULT_URL = 'ws://127.0.0.1:4455';
-  const OP = { Hello: 0, Identify: 1, Identified: 2, Reidentify: 3, Event: 5, Request: 6, RequestResponse: 7 };
-  // EventSubscription bitmask: General (1) | Scenes (4) | Outputs (64) | Ui (1024) = 1093
-  const EVENT_SUBS = 1 | 4 | 64 | 1024;
-
-  const state = {
-    status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'error'
-    url: store.get('obsUrl', DEFAULT_URL) || DEFAULT_URL,
-    autoSync: !!store.get('obsAutoSync', false),
-    sceneMap: store.get('obsSceneMap', {}) || {},
-    scenes: [],
-    currentProgramScene: '',
-    currentPreviewScene: '',
-    studioMode: false,
-    streaming: false,
-    recording: false,
-    obsVersion: '',
-    lastError: '',
-  };
-
-  let ws = null;
-  let reqSeq = 0;
-  let manualClose = false;
-  let reconnectTimer = null;
-  let reconnectAttempts = 0;
-  let pending = new Map();
-  let lastPassword = '';
-
-  // RFC 6234 SHA-256 fallback so OBS WebSocket auth works even on plain HTTP LAN origins where crypto.subtle is undefined.
-  function sha256BytesFallback(inputBytes) {
-    const K = [
-      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-    ];
-    const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
-    const l = inputBytes.length;
-    const bitLen = l * 8;
-    const paddedLen = Math.ceil((l + 9) / 64) * 64;
-    const msg = new Uint8Array(paddedLen);
-    msg.set(inputBytes);
-    msg[l] = 0x80;
-    const dv = new DataView(msg.buffer);
-    dv.setUint32(paddedLen - 8, Math.floor(bitLen / 0x100000000), false);
-    dv.setUint32(paddedLen - 4, bitLen >>> 0, false);
-    const W = new Uint32Array(64);
-    const rotr = (x, n) => (x >>> n) | (x << (32 - n));
-    for (let o = 0; o < paddedLen; o += 64) {
-      for (let i = 0; i < 16; i++) W[i] = dv.getUint32(o + i * 4, false);
-      for (let i = 16; i < 64; i++) {
-        const s0 = rotr(W[i - 15], 7) ^ rotr(W[i - 15], 18) ^ (W[i - 15] >>> 3);
-        const s1 = rotr(W[i - 2], 17) ^ rotr(W[i - 2], 19) ^ (W[i - 2] >>> 10);
-        W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
-      }
-      let [a, b, c, d, e, f, g, h] = H;
-      for (let i = 0; i < 64; i++) {
-        const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
-        const ch = (e & f) ^ (~e & g);
-        const t1 = (h + S1 + ch + K[i] + W[i]) >>> 0;
-        const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
-        const maj = (a & b) ^ (a & c) ^ (b & c);
-        const t2 = (S0 + maj) >>> 0;
-        h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
-      }
-      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
-      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
-    }
-    const out = new Uint8Array(32);
-    const outDv = new DataView(out.buffer);
-    for (let i = 0; i < 8; i++) outDv.setUint32(i * 4, H[i], false);
-    return out;
+// ---------------------------------------------------------------- OBS Studio Integration (extracted to public/obs-deck.js)
+const obsStudio = (() => {
+  try {
+    return createObsIntegration({ $, store, toast, copy, replaceKids, togglePopover, sceneList });
+  } catch (e) {
+    console.warn('obs-integration init:', e);
+    return null;
   }
-
-  async function sha256Base64(text) {
-    const bytes = new TextEncoder().encode(String(text || ''));
-    let digest;
-    if (globalThis.crypto?.subtle?.digest) {
-      digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
-    } else {
-      digest = sha256BytesFallback(bytes);
-    }
-    let bin = '';
-    for (let i = 0; i < digest.length; i++) bin += String.fromCharCode(digest[i]);
-    return btoa(bin);
-  }
-
-  async function computeAuth(password, salt, challenge) {
-    const secret = await sha256Base64(String(password || '') + String(salt || ''));
-    return sha256Base64(secret + String(challenge || ''));
-  }
-
-  function normalizeObsUrl(raw) {
-    let val = String(raw || '').trim();
-    if (!val) val = DEFAULT_URL;
-    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(val)) val = 'ws://' + val;
-    let parsed;
-    try { parsed = new URL(val); } catch { return { error: 'Enter a valid ws:// or wss:// OBS WebSocket URL.' }; }
-    if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
-      return { error: 'OBS WebSocket URL must start with ws:// or wss://.' };
-    }
-    const isLoopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname.toLowerCase());
-    const mixedLan = location.protocol === 'https:' && parsed.protocol === 'ws:' && !isLoopback;
-    if (mixedLan) {
-      return {
-        url: parsed.toString(),
-        mixedLan: true,
-        warn: 'HTTPS blocks insecure ws:// to LAN IPs (browsers allow ws:// only for 127.0.0.1). Proxy OBS with wss:// (see LAN help below).',
-      };
-    }
-    return { url: parsed.toString(), mixedLan: false };
-  }
-
-  function clearPending(reason) {
-    for (const [, p] of pending) {
-      clearTimeout(p.timer);
-      p.reject(new Error(reason || 'OBS connection closed'));
-    }
-    pending.clear();
-  }
-
-  function sendPacket(op, d) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify({ op, d }));
-    return true;
-  }
-
-  function request(requestType, requestData = {}) {
-    return new Promise((resolve, reject) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN || state.status !== 'connected') {
-        return reject(new Error('OBS Studio is not connected.'));
-      }
-      const requestId = `gather-obs-${++reqSeq}`;
-      const timer = setTimeout(() => {
-        pending.delete(requestId);
-        reject(new Error(`OBS request timed out (${requestType})`));
-      }, 8000);
-      pending.set(requestId, { resolve, reject, timer });
-      const ok = sendPacket(OP.Request, { requestType, requestId, requestData });
-      if (!ok) {
-        clearTimeout(timer);
-        pending.delete(requestId);
-        reject(new Error('OBS WebSocket is not open.'));
-      }
-    });
-  }
-
-  async function refreshScenes({ silent = false } = {}) {
-    if (state.status !== 'connected') return [];
-    try {
-      const [listRes, studioRes, streamRes, recRes] = await Promise.allSettled([
-        request('GetSceneList'),
-        request('GetStudioModeEnabled'),
-        request('GetStreamStatus'),
-        request('GetRecordStatus'),
-      ]);
-      if (listRes.status === 'fulfilled' && listRes.value) {
-        const raw = Array.isArray(listRes.value.scenes) ? listRes.value.scenes : [];
-        // OBS returns scenes bottom-to-top; reverse so top OBS scene appears first.
-        state.scenes = raw.slice().reverse().map((s) => ({
-          name: String(s.sceneName || ''),
-          index: Number(s.sceneIndex ?? 0),
-        })).filter((s) => s.name);
-        state.currentProgramScene = String(listRes.value.currentProgramSceneName || '');
-        state.currentPreviewScene = String(listRes.value.currentPreviewSceneName || '');
-      }
-      if (studioRes.status === 'fulfilled' && studioRes.value) {
-        state.studioMode = !!studioRes.value.studioModeEnabled;
-      }
-      if (streamRes.status === 'fulfilled' && streamRes.value) {
-        state.streaming = !!streamRes.value.outputActive;
-      }
-      if (recRes.status === 'fulfilled' && recRes.value) {
-        state.recording = !!recRes.value.outputActive;
-      }
-      renderObsUI();
-      return state.scenes;
-    } catch (err) {
-      if (!silent) toast(`OBS refresh failed: ${err.message || 'Unknown error'}`, { err: true });
-      return [];
-    }
-  }
-
-  async function switchScene(sceneName, { silent = false, preview = false } = {}) {
-    const name = String(sceneName || '').trim();
-    if (!name) return false;
-    if (state.status !== 'connected') {
-      if (!silent) toast('Connect OBS Studio first to trigger scene switches.', { err: true });
-      return false;
-    }
-    const usePreview = preview && state.studioMode;
-    try {
-      await request(usePreview ? 'SetCurrentPreviewScene' : 'SetCurrentProgramScene', { sceneName: name });
-      if (usePreview) state.currentPreviewScene = name;
-      else state.currentProgramScene = name;
-      renderObsUI();
-      if (!silent) toast(`OBS ${usePreview ? 'preview' : 'scene'} → ${name}`);
-      return true;
-    } catch (err) {
-      if (!silent) toast(`OBS scene switch failed: ${err.message || 'Request rejected'}`, { err: true });
-      return false;
-    }
-  }
-
-  async function triggerCut() {
-    if (state.status !== 'connected' || !state.studioMode) return false;
-    try {
-      await request('TriggerStudioModeTransition');
-      toast('OBS Studio Mode transition triggered.');
-      return true;
-    } catch (err) {
-      toast(`OBS Cut failed: ${err.message || 'Request rejected'}`, { err: true });
-      return false;
-    }
-  }
-
-  function handleObsEvent(ev) {
-    if (!ev || !ev.eventType) return;
-    const d = ev.eventData || {};
-    switch (ev.eventType) {
-      case 'CurrentProgramSceneChanged':
-        state.currentProgramScene = String(d.sceneName || '');
-        renderObsUI();
-        break;
-      case 'CurrentPreviewSceneChanged':
-        state.currentPreviewScene = String(d.sceneName || '');
-        renderObsUI();
-        break;
-      case 'SceneListChanged':
-        if (Array.isArray(d.scenes)) {
-          state.scenes = d.scenes.slice().reverse().map((s) => ({
-            name: String(s.sceneName || ''),
-            index: Number(s.sceneIndex ?? 0),
-          })).filter((s) => s.name);
-          renderObsUI();
-        } else {
-          refreshScenes({ silent: true });
-        }
-        break;
-      case 'StudioModeStateChanged':
-        state.studioMode = !!d.studioModeEnabled;
-        renderObsUI();
-        break;
-      case 'StreamStateChanged':
-        state.streaming = !!d.outputActive;
-        renderObsUI();
-        break;
-      case 'RecordStateChanged':
-        state.recording = !!d.outputActive;
-        renderObsUI();
-        break;
-      default:
-        break;
-    }
-  }
-
-  function scheduleReconnect() {
-    if (manualClose || reconnectTimer) return;
-    const delay = Math.min(15000, 2000 * Math.pow(2, reconnectAttempts));
-    reconnectAttempts = Math.min(reconnectAttempts + 1, 4);
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      if (!manualClose && state.status !== 'connected') {
-        connect(state.url, lastPassword, { silent: true, isReconnect: true });
-      }
-    }, delay);
-  }
-
-  function disconnect({ silent = false } = {}) {
-    manualClose = true;
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    reconnectAttempts = 0;
-    const sock = ws;
-    ws = null;
-    clearPending('Disconnected from OBS Studio');
-    if (sock) {
-      try { sock.onopen = sock.onmessage = sock.onerror = sock.onclose = null; sock.close(1000, 'User disconnect'); } catch {}
-    }
-    state.status = 'disconnected';
-    state.scenes = [];
-    state.currentProgramScene = '';
-    state.currentPreviewScene = '';
-    state.studioMode = false;
-    state.streaming = false;
-    state.recording = false;
-    state.obsVersion = '';
-    state.lastError = '';
-    renderObsUI();
-    if (!silent) toast('Disconnected from OBS Studio.');
-  }
-
-  function connect(rawUrl, password = '', { silent = false, isReconnect = false } = {}) {
-    const norm = normalizeObsUrl(rawUrl ?? $('#obsUrl')?.value ?? state.url);
-    if (norm.error) {
-      state.status = 'error';
-      state.lastError = norm.error;
-      renderObsUI();
-      if (!silent) toast(norm.error, { err: true });
-      return false;
-    }
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    if (ws) {
-      try { ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null; ws.close(1000, 'Reconnect'); } catch {}
-      ws = null;
-    }
-    clearPending('Reconnecting to OBS Studio');
-    manualClose = false;
-    state.url = norm.url;
-    lastPassword = String(password || '');
-    store.set('obsUrl', state.url);
-    state.status = 'connecting';
-    state.lastError = norm.warn || '';
-    renderObsUI();
-
-    let sock;
-    try {
-      toast.dismiss('obs-err');
-      sock = new WebSocket(state.url);
-    } catch (err) {
-      state.status = 'error';
-      state.lastError = err?.message || 'Could not open OBS WebSocket connection.';
-      renderObsUI();
-      if (!silent) toast(state.lastError, { err: true, key: 'obs-err' });
-      return false;
-    }
-    ws = sock;
-
-    sock.onmessage = async (ev) => {
-      if (ws !== sock) return;
-      let msg;
-      try { msg = JSON.parse(String(ev.data || '{}')); } catch { return; }
-      const { op, d } = msg || {};
-      if (op === OP.Hello) {
-        state.obsVersion = String(d?.obsWebSocketVersion || '5.x');
-        const identify = { rpcVersion: Number(d?.rpcVersion || 1), eventSubscriptions: EVENT_SUBS };
-        if (d?.authentication?.challenge && d?.authentication?.salt) {
-          try {
-            identify.authentication = await computeAuth(lastPassword, d.authentication.salt, d.authentication.challenge);
-          } catch {
-            state.status = 'error';
-            state.lastError = 'Failed to compute OBS WebSocket authentication hash.';
-            renderObsUI();
-            return;
-          }
-        }
-        sendPacket(OP.Identify, identify);
-      } else if (op === OP.Identified) {
-        reconnectAttempts = 0;
-        state.status = 'connected';
-        state.lastError = '';
-        toast.dismiss('obs-err');
-        renderObsUI();
-        if (!silent) toast(`Connected to OBS Studio (${state.obsVersion || 'WebSocket v5'}).`, { key: 'obs-conn', ms: 3200 });
-        await refreshScenes({ silent: true });
-      } else if (op === OP.Event) {
-        handleObsEvent(d);
-      } else if (op === OP.RequestResponse) {
-        const entry = pending.get(d?.requestId);
-        if (!entry) return;
-        pending.delete(d.requestId);
-        clearTimeout(entry.timer);
-        if (d?.requestStatus?.result) {
-          entry.resolve(d.responseData || {});
-        } else {
-          const comment = d?.requestStatus?.comment || `OBS error code ${d?.requestStatus?.code ?? 'unknown'}`;
-          entry.reject(new Error(comment));
-        }
-      }
-    };
-
-    sock.onerror = () => {
-      if (ws !== sock) return;
-      if (state.status === 'connecting') {
-        state.lastError = norm.warn || 'Could not reach OBS WebSocket. Verify OBS 28+ is running with WebSocket Server enabled.';
-      }
-    };
-
-    sock.onclose = (ev) => {
-      if (ws !== sock) return;
-      ws = null;
-      const wasConnected = state.status === 'connected';
-      clearPending('OBS WebSocket closed');
-      if (manualClose) {
-        state.status = 'disconnected';
-        renderObsUI();
-        return;
-      }
-      if (ev.code === 4009) {
-        // OBS WebSocket 4009 = AuthenticationFailed — do not loop reconnect with bad password.
-        manualClose = true;
-        state.status = 'error';
-        state.lastError = 'OBS authentication failed. Check your WebSocket server password.';
-        renderObsUI();
-        if (!silent) toast(state.lastError, { err: true, key: 'obs-err' });
-        return;
-      }
-      state.status = 'error';
-      if (!state.lastError) {
-        state.lastError = wasConnected
-          ? 'Connection to OBS lost. Retrying on local network…'
-          : (norm.warn || 'Could not reach OBS WebSocket at ' + state.url);
-      }
-      renderObsUI();
-      if (!silent && !isReconnect && !wasConnected) toast(state.lastError, { err: true, key: 'obs-err' });
-      if (wasConnected) scheduleReconnect();
-    };
-
-    return true;
-  }
-
-  function resolveMappedObsScene(sc) {
-    if (!sc) return '';
-    const mapped = state.sceneMap[sc.id];
-    if (mapped && state.scenes.some((s) => s.name === mapped)) return mapped;
-    // Fallback: case-insensitive exact match between Gather scene name and OBS scene name.
-    const needle = String(sc.name || '').trim().toLowerCase();
-    const match = state.scenes.find((s) => s.name.trim().toLowerCase() === needle);
-    return match ? match.name : '';
-  }
-
-  function onGatherScene(sc) {
-    if (!state.autoSync || state.status !== 'connected' || !sc) return;
-    const target = resolveMappedObsScene(sc);
-    if (!target || target === state.currentProgramScene) return;
-    switchScene(target, { silent: true }).then((ok) => {
-      if (ok) toast(`OBS synced → ${target}`, { key: 'obs-sync', ms: 2600 });
-    });
-  }
-
-  function renderMapPopover() {
-    const list = $('#obsMapList');
-    if (!list) return;
-    const gatherScenes = sceneList().slice(0, 12);
-    const rows = gatherScenes.map((sc) => {
-      const row = document.createElement('div');
-      row.className = 'obs-map-row';
-      const lbl = document.createElement('span');
-      lbl.className = 'obs-map-lbl';
-      lbl.textContent = sc.name;
-      const sel = document.createElement('select');
-      sel.className = 'input sm obs-map-sel';
-      sel.setAttribute('aria-label', `OBS scene for ${sc.name}`);
-      const noneOpt = document.createElement('option');
-      noneOpt.value = '';
-      noneOpt.textContent = state.scenes.length ? 'Match by name / None' : 'Connect OBS to choose…';
-      sel.append(noneOpt);
-      for (const os of state.scenes) {
-        const opt = document.createElement('option');
-        opt.value = os.name;
-        opt.textContent = os.name;
-        sel.append(opt);
-      }
-      const saved = state.sceneMap[sc.id] || '';
-      if (saved && !state.scenes.some((s) => s.name === saved)) {
-        const opt = document.createElement('option');
-        opt.value = saved;
-        opt.textContent = `${saved} (saved)`;
-        sel.append(opt);
-      }
-      sel.value = saved;
-      sel.onchange = () => {
-        if (sel.value) state.sceneMap[sc.id] = sel.value;
-        else delete state.sceneMap[sc.id];
-        store.set('obsSceneMap', state.sceneMap);
-      };
-      row.append(lbl, sel);
-      return row;
-    });
-    replaceKids(list, ...rows);
-  }
-
-  function renderObsUI() {
-    const statusEl = $('#obsStatus');
-    const statusTxt = $('#obsStatusText');
-    const metaEl = $('#obsMeta');
-    const tabDot = $('#obsTabDot');
-    const urlInput = $('#obsUrl');
-    const passInput = $('#obsPass');
-    const connBtn = $('#obsConnectBtn');
-    const refBtn = $('#obsRefreshBtn');
-    const cutBtn = $('#obsCutBtn');
-    const syncChk = $('#obsAutoSync');
-    const strip = $('#obsSceneStrip');
-    const empty = $('#obsEmpty');
-    const hint = $('#obsHint');
-    if (!statusEl) return;
-
-    const connected = state.status === 'connected';
-    const connecting = state.status === 'connecting';
-
-    statusEl.dataset.state = state.status;
-    if (tabDot) tabDot.dataset.state = connected ? 'on' : connecting ? 'busy' : state.status === 'error' ? 'err' : 'off';
-    if (statusTxt) {
-      statusTxt.textContent = connected
-        ? 'Connected'
-        : connecting
-          ? 'Connecting…'
-          : state.status === 'error'
-            ? 'Connection failed'
-            : 'Disconnected';
-    }
-    if (metaEl) {
-      const parts = [];
-      if (connected && state.scenes.length) parts.push(`${state.scenes.length} scene${state.scenes.length === 1 ? '' : 's'}`);
-      if (connected && state.streaming) parts.push('OBS Live');
-      if (connected && state.recording) parts.push('OBS Rec');
-      metaEl.textContent = parts.join(' · ');
-      metaEl.hidden = !parts.length;
-    }
-
-    if (urlInput && document.activeElement !== urlInput && !urlInput.value) urlInput.value = state.url;
-    if (urlInput) urlInput.disabled = connected || connecting;
-    if (passInput) passInput.disabled = connected || connecting;
-
-    if (connBtn) {
-      connBtn.textContent = connected ? 'Disconnect' : connecting ? 'Cancel' : 'Connect';
-      connBtn.classList.toggle('primary', !connected && !connecting);
-      connBtn.classList.toggle('ghost', connected || connecting);
-    }
-    if (refBtn) refBtn.hidden = !connected;
-    if (cutBtn) cutBtn.hidden = !connected || !state.studioMode;
-    if (syncChk) syncChk.checked = state.autoSync;
-
-    if (strip && empty) {
-      if (connected && state.scenes.length) {
-        strip.hidden = false;
-        empty.hidden = true;
-        const buttons = state.scenes.map((sc, idx) => {
-          const isProg = sc.name === state.currentProgramScene;
-          const isPrev = state.studioMode && sc.name === state.currentPreviewScene && !isProg;
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = 'obs-scene-btn' + (isProg ? ' is-program' : '') + (isPrev ? ' is-preview' : '');
-          b.setAttribute('aria-pressed', String(isProg));
-          b.tabIndex = isProg || (idx === 0 && !state.currentProgramScene) ? 0 : -1;
-          b.title = state.studioMode
-            ? `Switch OBS Program to "${sc.name}" (Shift-click for Preview)`
-            : `Switch OBS scene to "${sc.name}"`;
-
-          const badge = document.createElement('span');
-          badge.className = 'obs-sc-idx num';
-          badge.textContent = isProg ? 'LIVE' : isPrev ? 'PVW' : String(idx + 1).padStart(2, '0');
-
-          const name = document.createElement('span');
-          name.className = 'obs-sc-name';
-          name.textContent = sc.name;
-
-          b.append(badge, name);
-          b.onclick = (ev) => switchScene(sc.name, { preview: !!(ev.shiftKey && state.studioMode) });
-          return b;
-        });
-        replaceKids(strip, ...buttons);
-      } else {
-        strip.hidden = true;
-        empty.hidden = false;
-        if (hint) {
-          hint.textContent = state.lastError
-            ? state.lastError
-            : connected
-              ? 'Connected to OBS Studio — no scenes found in the active scene collection.'
-              : 'Connect to local OBS Studio 28+ (Tools → WebSocket Server Settings · port 4455) to trigger scene switches from this deck.';
-        }
-      }
-    }
-    renderMapPopover();
-  }
-
-  // Bind OBS deck controls once
-  const urlInput = $('#obsUrl');
-  const passInput = $('#obsPass');
-  const lanBtn = $('#obsLanBtn');
-  const lanGuide = $('#obsLanGuide');
-  const lanClose = $('#obsLanClose');
-  const lanCopyBtn = $('#obsLanCopyBtn');
-  const lanUseLocalBtn = $('#obsLanUseLocalBtn');
-  let lanGuideForced = null; // null = auto, true/false = user toggled
-
-  if (urlInput) urlInput.value = state.url;
-
-  function syncLanGuide(rawUrl) {
-    if (!lanGuide) return;
-    const norm = normalizeObsUrl(rawUrl ?? urlInput?.value ?? state.url);
-    const show = lanGuideForced !== null ? lanGuideForced : !!norm.mixedLan;
-    lanGuide.hidden = !show;
-    lanGuide.dataset.mixed = norm.mixedLan ? '1' : '0';
-    if (lanBtn) {
-      lanBtn.setAttribute('aria-expanded', String(show));
-      lanBtn.classList.toggle('on', show);
-    }
-  }
-
-  const triggerConnect = () => {
-    if (state.status === 'connected' || state.status === 'connecting') {
-      disconnect();
-    } else {
-      const norm = normalizeObsUrl(urlInput?.value || state.url);
-      if (norm.mixedLan) { lanGuideForced = true; syncLanGuide(urlInput?.value); }
-      connect(urlInput?.value || state.url, passInput?.value || '');
-    }
-  };
-  $('#obsConnectBtn')?.addEventListener('click', triggerConnect);
-  urlInput?.addEventListener('input', () => { lanGuideForced = null; syncLanGuide(urlInput.value); });
-  urlInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); triggerConnect(); } });
-  passInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); triggerConnect(); } });
-  $('#obsRefreshBtn')?.addEventListener('click', () => refreshScenes());
-  $('#obsCutBtn')?.addEventListener('click', () => triggerCut());
-  $('#obsAutoSync')?.addEventListener('change', (e) => {
-    state.autoSync = !!e.target.checked;
-    store.set('obsAutoSync', state.autoSync);
-    toast(state.autoSync ? 'OBS Auto-sync on — switching Gather scenes updates OBS.' : 'OBS Auto-sync off.');
-  });
-
-  lanBtn?.addEventListener('click', () => {
-    lanGuideForced = lanGuide ? lanGuide.hidden : true;
-    syncLanGuide();
-  });
-  lanClose?.addEventListener('click', () => {
-    lanGuideForced = false;
-    syncLanGuide();
-  });
-  lanCopyBtn?.addEventListener('click', () => {
-    const cmd = $('#obsLanCmd')?.textContent?.trim() || 'caddy reverse-proxy --from :4456 --to 127.0.0.1:4455';
-    copy(cmd, 'Caddy WSS command copied.');
-  });
-  lanUseLocalBtn?.addEventListener('click', () => {
-    if (urlInput) urlInput.value = DEFAULT_URL;
-    state.url = DEFAULT_URL;
-    store.set('obsUrl', DEFAULT_URL);
-    lanGuideForced = false;
-    syncLanGuide(DEFAULT_URL);
-    toast('OBS URL set to ws://127.0.0.1:4455.');
-  });
-
-  const mapBtn = $('#obsMapBtn');
-  const mapPop = $('#obsMapPop');
-  if (mapBtn && mapPop) {
-    mapBtn.addEventListener('click', () => {
-      renderMapPopover();
-      togglePopover(mapPop, mapBtn);
-    });
-  }
-
-  // Roving keyboard navigation in #obsSceneStrip
-  $('#obsSceneStrip')?.addEventListener('keydown', (e) => {
-    const all = [...$('#obsSceneStrip').querySelectorAll('.obs-scene-btn')];
-    const i = all.indexOf(document.activeElement);
-    if (i < 0) return;
-    const to = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: all.length - 1 }[e.key];
-    if (to == null) return;
-    e.preventDefault();
-    const next = all[Math.max(0, Math.min(all.length - 1, to))];
-    all.forEach((b) => { b.tabIndex = b === next ? 0 : -1; });
-    next.focus();
-    next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  });
-
-  renderObsUI();
-  syncLanGuide();
-
-  const api = {
-    connect,
-    disconnect,
-    switchScene,
-    triggerCut,
-    refreshScenes,
-    request,
-    onGatherScene,
-    setMapping: (gatherSceneId, obsSceneName) => {
-      if (!gatherSceneId) return;
-      if (obsSceneName) state.sceneMap[gatherSceneId] = String(obsSceneName);
-      else delete state.sceneMap[gatherSceneId];
-      store.set('obsSceneMap', state.sceneMap);
-      renderMapPopover();
-    },
-    getState: () => ({
-      status: state.status,
-      url: state.url,
-      autoSync: state.autoSync,
-      scenes: state.scenes.map((s) => s.name),
-      currentProgramScene: state.currentProgramScene,
-      currentPreviewScene: state.currentPreviewScene,
-      studioMode: state.studioMode,
-      streaming: state.streaming,
-      recording: state.recording,
-      obsVersion: state.obsVersion,
-      lastError: state.lastError,
-      sceneMap: { ...state.sceneMap },
-    }),
-  };
-  window.__gatherObs = api;
-  return api;
-}
-
-const obsStudio = (() => { try { return createObsIntegration(); } catch (e) { console.warn('obs-integration init:', e); return null; } })();
+})();
 if (obsStudio) sharedToolsApi.obs = obsStudio;
 
 const audioStudioApi = (() => { try { return initAudioStudio(sharedToolsApi); } catch (e) { console.warn('audio-studio init:', e); return null; } })();

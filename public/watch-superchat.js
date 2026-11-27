@@ -163,7 +163,7 @@ export function createSuperChat(app) {
     })());
     renderMethodsUI(methods);
     $('#wTipSub').textContent = `100% paid straight to ${W.info?.host?.name || 'the streamer'}`;
-    $('#wTipRec').hidden = !navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || w.voice === false;
+    $('#wTipRec').hidden = true;
     const bountiesAllowed = w.bounties !== false;
     if ($('#wBountyWrap')) $('#wBountyWrap').hidden = !bountiesAllowed;
     if (!bountiesAllowed && $('#wBounty')) {
@@ -257,29 +257,15 @@ export function createSuperChat(app) {
   // ---- voice message attached to a super chat (up to 20 s)
   const TV = { rec: null, chunks: [], stream: null, t0: 0, timer: null, blob: null, data: '', dur: 0 };
   async function tipRecStart() {
-    try { TV.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-    catch { return showErr('#wTipErr', 'Allow the microphone to record a voice message (the lock icon in the address bar).'); }
-    const mime = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm'].find((m) => MediaRecorder.isTypeSupported(m)) || '';
-    TV.chunks = []; TV.rec = new MediaRecorder(TV.stream, { mimeType: mime, audioBitsPerSecond: 32000 });
-    TV.rec.ondataavailable = (e) => { if (e.data.size) TV.chunks.push(e.data); };
-    TV.rec.onstop = tipRecStopped;
-    TV.rec.start(250); TV.t0 = Date.now();
-    $('#wTipRec').classList.add('on'); $('#wTipRecLabel').textContent = 'Recording… tap to stop';
-    TV.timer = setInterval(() => { const s = Math.floor((Date.now() - TV.t0) / 1000); $('#wTipRecTime').textContent = `0:${String(s).padStart(2, '0')} / 0:20`; if (s >= 20) TV.rec?.stop(); }, 200);
+    showErr('#wTipErr', 'Microphone access is only enabled inside the studio.');
   }
   async function tipRecStopped() {
     clearInterval(TV.timer); TV.stream?.getTracks().forEach((t) => t.stop()); TV.stream = null;
     $('#wTipRec').classList.remove('on');
-    TV.dur = Math.min(20, Math.round((Date.now() - TV.t0) / 1000));
-    if (TV.dur < 1) return tipRecClear();
-    TV.blob = new Blob(TV.chunks, { type: (TV.rec.mimeType || 'audio/webm').split(';')[0] });
-    TV.data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(TV.blob); });
-    $('#wTipRecPlay').src = URL.createObjectURL(TV.blob); $('#wTipRecPlay').hidden = false; $('#wTipRecX').hidden = false; $('#wTipRec').hidden = true;
-    tipSync();
   }
   function tipRecClear() {
     TV.blob = null; TV.data = ''; TV.dur = 0;
-    $('#wTipRecPlay').hidden = true; $('#wTipRecPlay').removeAttribute('src'); $('#wTipRecX').hidden = true; $('#wTipRec').hidden = false;
+    $('#wTipRecPlay').hidden = true; $('#wTipRecPlay').removeAttribute('src'); $('#wTipRecX').hidden = true; $('#wTipRec').hidden = true;
     $('#wTipRecLabel').textContent = 'Add a voice message'; $('#wTipRecTime').textContent = 'up to 20 s';
     tipSync();
   }
