@@ -10,7 +10,7 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
     status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'warning' | 'error'
     hadHandshake: false,
     url: store.get('obsUrl', DEFAULT_URL) || DEFAULT_URL,
-    autoSync: !!store.get('obsAutoSync', false),
+    autoSync: store.get('obsAutoSync', true) !== false,
     sceneMap: store.get('obsSceneMap', {}) || {},
     scenes: [],
     sceneThumbs: {},
@@ -26,7 +26,9 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
   };
 
   const MAX_RECONNECT_ATTEMPTS = 4;
-  const THUMB_TTL_MS = 15000;
+  const THUMB_TTL_MS = 8000;
+  const HOVER_THUMB_TTL_MS = 2500;
+  const THUMB_POLL_MS = 8000;
   const VALID_THUMB_RE = /^data:image\/(?:jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/i;
 
   let ws = null;
@@ -37,7 +39,12 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
   const pending = new Map();
   let lastPassword = '';
   let thumbGen = 0;
+  let thumbPollTimer = null;
   const sceneThumbTs = new Map();
+  const sceneThumbFailed = new Set();
+  let hoverCardEl = null;
+  let hoveredScene = '';
+  let hoverAnchorEl = null;
 
   // RFC 6234 SHA-256 fallback so OBS WebSocket auth works even on plain HTTP LAN origins where crypto.subtle is undefined.
   function sha256BytesFallback(inputBytes) {
@@ -185,31 +192,155 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
     }
   }
 
-  function patchSceneThumbDom(sceneName, dataUrl) {
-    if (!isValidThumb(dataUrl)) return;
+  function findMappedGatherScenes(obsSceneName) {
+    if (!obsSceneName) return [];
+    const list = typeof sceneList === 'function' ? sceneList() : [];
+    const matched = [];
+    for (const sc of list) {
+      if (state.sceneMap[sc.id] === obsSceneName) matched.push(sc.name);
+    }
+    return matched;
+  }
+
+  function ensureHoverPreview() {
+    if (hoverCardEl && hoverCardEl.isConnected) return hoverCardEl;
+    const el = document.createElement('div');
+    el.className = 'obs-hover-preview glass raised';
+    el.id = 'obsHoverPreview';
+    el.setAttribute('role', 'tooltip');
+    el.hidden = true;
+    const frame = document.createElement('div');
+    frame.className = 'obs-hp-frame';
+    const img = document.createElement('img');
+    img.className = 'obs-hp-img';
+    img.alt = '';
+    img.decoding = 'async';
+    img.hidden = true;
+    const ph = document.createElement('div');
+    ph.className = 'obs-hp-ph';
+    const badge = document.createElement('span');
+    badge.className = 'obs-hp-badge num';
+    frame.append(img, ph, badge);
+
+    const meta = document.createElement('div');
+    meta.className = 'obs-hp-meta';
+    const title = document.createElement('div');
+    title.className = 'obs-hp-title';
+    const sub = document.createElement('div');
+    sub.className = 'obs-hp-sub';
+    meta.append(title, sub);
+
+    el.append(frame, meta);
+    document.body.append(el);
+    hoverCardEl = el;
+    return el;
+  }
+
+  function updateHoverPreviewContent(sceneName) {
+    if (!hoverCardEl || hoverCardEl.hidden || hoveredScene !== sceneName) return;
+    const thumbUrl = state.sceneThumbs[sceneName];
+    const hasThumb = isValidThumb(thumbUrl);
+    const isProg = sceneName === state.currentProgramScene;
+    const isPrev = state.studioMode && sceneName === state.currentPreviewScene && !isProg;
+    const frame = hoverCardEl.querySelector('.obs-hp-frame');
+    const img = hoverCardEl.querySelector('.obs-hp-img');
+    const ph = hoverCardEl.querySelector('.obs-hp-ph');
+    const badge = hoverCardEl.querySelector('.obs-hp-badge');
+    const title = hoverCardEl.querySelector('.obs-hp-title');
+    const sub = hoverCardEl.querySelector('.obs-hp-sub');
+
+    if (frame) {
+      frame.classList.toggle('is-loading', !hasThumb && !sceneThumbFailed.has(sceneName));
+      frame.classList.toggle('is-program', isProg);
+      frame.classList.toggle('is-preview', isPrev);
+    }
+    if (img) {
+      if (hasThumb) {
+        if (img.src !== thumbUrl) img.src = thumbUrl;
+        img.hidden = false;
+      } else {
+        img.hidden = true;
+      }
+    }
+    if (ph) {
+      ph.hidden = hasThumb;
+      ph.textContent = sceneThumbFailed.has(sceneName) ? 'No preview available' : 'Capturing preview…';
+    }
+    if (badge) {
+      badge.textContent = isProg ? 'LIVE IN OBS' : isPrev ? 'PREVIEW' : 'READY';
+      badge.dataset.kind = isProg ? 'live' : isPrev ? 'pvw' : 'ready';
+    }
+    if (title) title.textContent = sceneName;
+    if (sub) {
+      const mapped = findMappedGatherScenes(sceneName);
+      const hint = state.studioMode ? 'Click: Program · Shift-click: Preview' : 'Click to switch OBS Program';
+      sub.textContent = mapped.length ? `Mapped: ${mapped.slice(0, 2).join(', ')} · ${hint}` : hint;
+    }
+  }
+
+  function positionHoverPreview(anchor) {
+    if (!hoverCardEl || !anchor || !anchor.isConnected) return;
+    const rect = anchor.getBoundingClientRect();
+    const cardW = 288;
+    const cardH = 216;
+    const margin = 10;
+    const left = Math.max(margin, Math.min(window.innerWidth - cardW - margin, rect.left + rect.width / 2 - cardW / 2));
+    const top = Math.max(margin, rect.top - cardH - 10);
+    hoverCardEl.style.left = `${Math.round(left)}px`;
+    hoverCardEl.style.top = `${Math.round(top)}px`;
+  }
+
+  function showHoverPreview(sceneName, anchor) {
+    if (!sceneName || state.status !== 'connected') return;
+    const el = ensureHoverPreview();
+    hoveredScene = sceneName;
+    hoverAnchorEl = anchor;
+    el.hidden = false;
+    updateHoverPreviewContent(sceneName);
+    positionHoverPreview(anchor);
+    const lastTs = sceneThumbTs.get(sceneName) || 0;
+    if (!state.sceneThumbs[sceneName] || Date.now() - lastTs > HOVER_THUMB_TTL_MS) {
+      captureSceneThumbnail(sceneName, { force: true });
+    }
+  }
+
+  function hideHoverPreview() {
+    hoveredScene = '';
+    hoverAnchorEl = null;
+    if (hoverCardEl) hoverCardEl.hidden = true;
+  }
+
+  function patchSceneThumbDom(sceneName, dataUrl, { failed = false } = {}) {
     const strip = $('#obsSceneStrip');
     if (strip) {
       const btn = [...strip.querySelectorAll('.obs-scene-btn')].find((b) => b.dataset.obsScene === sceneName);
       if (btn) {
-        let wrap = btn.querySelector('.obs-sc-thumb');
-        let img = wrap?.querySelector('.obs-sc-thumb-img');
-        if (!wrap) {
-          wrap = document.createElement('span');
-          wrap.className = 'obs-sc-thumb';
-          img = document.createElement('img');
-          img.className = 'obs-sc-thumb-img';
-          img.alt = '';
-          img.decoding = 'async';
-          wrap.append(img);
-          const badge = btn.querySelector('.obs-sc-idx');
-          if (badge) wrap.append(badge);
-          btn.prepend(wrap);
-          btn.classList.add('has-thumb');
+        const wrap = btn.querySelector('.obs-sc-thumb');
+        if (wrap) {
+          if (isValidThumb(dataUrl)) {
+            let img = wrap.querySelector('.obs-sc-thumb-img');
+            if (!img) {
+              img = document.createElement('img');
+              img.className = 'obs-sc-thumb-img';
+              img.alt = '';
+              img.decoding = 'async';
+              wrap.prepend(img);
+            }
+            if (img.src !== dataUrl) img.src = dataUrl;
+            img.hidden = false;
+            const ph = wrap.querySelector('.obs-sc-ph');
+            if (ph) ph.hidden = true;
+            wrap.classList.remove('is-loading', 'is-empty');
+            btn.classList.add('has-thumb');
+          } else if (failed) {
+            wrap.classList.remove('is-loading');
+            wrap.classList.add('is-empty');
+          }
         }
-        if (img && img.src !== dataUrl) img.src = dataUrl;
       }
     }
-    patchMapThumbDom(sceneName, dataUrl);
+    if (isValidThumb(dataUrl)) patchMapThumbDom(sceneName, dataUrl);
+    if (hoveredScene === sceneName) updateHoverPreviewContent(sceneName);
   }
 
   async function captureSceneThumbnail(sceneName, { force = false } = {}) {
@@ -224,19 +355,49 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
       const res = await request('GetSourceScreenshot', {
         sourceName: name,
         imageFormat: 'jpeg',
-        imageWidth: 160,
-        imageHeight: 90,
-        imageCompressionQuality: 65,
+        imageWidth: 320,
+        imageHeight: 180,
+        imageCompressionQuality: 72,
       });
       if (gen !== thumbGen || state.status !== 'connected') return null;
       const dataUrl = typeof res?.imageData === 'string' ? res.imageData.trim() : '';
-      if (!isValidThumb(dataUrl)) return null;
+      if (!isValidThumb(dataUrl)) {
+        sceneThumbFailed.add(name);
+        patchSceneThumbDom(name, '', { failed: true });
+        return null;
+      }
+      sceneThumbFailed.delete(name);
       state.sceneThumbs[name] = dataUrl;
       sceneThumbTs.set(name, Date.now());
       patchSceneThumbDom(name, dataUrl);
       return dataUrl;
     } catch {
+      if (gen === thumbGen && !state.sceneThumbs[name]) {
+        sceneThumbFailed.add(name);
+        patchSceneThumbDom(name, '', { failed: true });
+      }
       return null;
+    }
+  }
+
+  function isObsTabVisible() {
+    const layer = $('#obsDeckLayer');
+    return !!(layer && layer.classList.contains('on') && !document.hidden);
+  }
+
+  function startThumbPolling() {
+    if (thumbPollTimer) return;
+    thumbPollTimer = setInterval(() => {
+      if (state.status !== 'connected' || !state.scenes.length) return;
+      if (!isObsTabVisible()) return;
+      refreshSceneThumbnails(null, { force: true });
+    }, THUMB_POLL_MS);
+  }
+
+  function stopThumbPolling() {
+    if (thumbPollTimer) {
+      clearInterval(thumbPollTimer);
+      thumbPollTimer = null;
     }
   }
 
@@ -254,10 +415,10 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
         seen.add(first);
         prioritized.push(first);
       }
-      if (prioritized.length >= 16) break;
+      if (prioritized.length >= 24) break;
     }
     const queue = prioritized.slice();
-    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+    const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
       while (queue.length && gen === thumbGen && state.status === 'connected') {
         const next = queue.shift();
         if (next) await captureSceneThumbnail(next, { force });
@@ -436,6 +597,8 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
   function disconnect({ silent = false } = {}) {
     manualClose = true;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    stopThumbPolling();
+    hideHoverPreview();
     reconnectAttempts = 0;
     thumbGen++;
     const sock = ws;
@@ -449,6 +612,7 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
     state.scenes = [];
     state.sceneThumbs = {};
     sceneThumbTs.clear();
+    sceneThumbFailed.clear();
     state.currentProgramScene = '';
     state.currentPreviewScene = '';
     state.studioMode = false;
@@ -537,6 +701,7 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
         renderObsUI();
         if (!silent) toast(`Connected to OBS Studio (${state.obsVersion || 'WebSocket v5'}).`, { key: 'obs-conn', ms: 3200 });
         await refreshScenes({ silent: true });
+        startThumbPolling();
       } else if (op === OP.Event) {
         handleObsEvent(d);
       } else if (op === OP.RequestResponse) {
@@ -614,21 +779,60 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
 
   function resolveMappedObsScene(sc) {
     if (!sc) return '';
-    const mapped = state.sceneMap[sc.id];
-    if (mapped && state.scenes.some((s) => s.name === mapped)) return mapped;
-    const needle = String(sc.name || '').trim().toLowerCase();
+    const id = typeof sc === 'string' ? sc : String(sc.id || '').trim();
+    const mapped = id ? String(state.sceneMap[id] || '').trim() : '';
+    if (mapped && (!state.scenes.length || state.scenes.some((s) => s.name === mapped))) return mapped;
+    const rawName = typeof sc === 'string' ? sc : String(sc.name || '').trim();
+    const needle = rawName.toLowerCase();
+    if (!needle) return '';
     const match = state.scenes.find((s) => s.name.trim().toLowerCase() === needle);
     return match ? match.name : '';
   }
 
-  function onGatherScene(sc) {
-    if (!state.autoSync || state.status !== 'connected' || !sc) return;
+  let lastAutoTarget = '';
+  let lastAutoAt = 0;
+
+  async function syncObsToGatherScene(sc) {
+    if (!state.autoSync || state.status !== 'connected' || !sc) return false;
     const target = resolveMappedObsScene(sc);
-    if (!target || target === state.currentProgramScene) return;
-    switchScene(target, { silent: true }).then((ok) => {
-      if (ok) toast(`OBS synced → ${target}`, { key: 'obs-sync', ms: 2600 });
-    });
+    if (!target || target === state.currentProgramScene) return false;
+    const now = Date.now();
+    if (target === lastAutoTarget && now - lastAutoAt < 120) return false;
+    lastAutoTarget = target;
+    lastAutoAt = now;
+    try {
+      await request('SetCurrentProgramScene', { sceneName: target });
+      state.currentProgramScene = target;
+      renderObsUI();
+      setTimeout(() => { captureSceneThumbnail(target, { force: true }); }, 180);
+      toast(`OBS synced → ${target}`, { key: 'obs-sync', ms: 2600 });
+      return true;
+    } catch (err) {
+      toast(`OBS auto-sync failed (${target}): ${err?.message || 'Request rejected'}`, { err: true, key: 'obs-sync' });
+      return false;
+    }
   }
+
+  function onGatherScene(sc) {
+    return syncObsToGatherScene(sc);
+  }
+
+  function handleGatherSceneSwitch(ev) {
+    const detail = ev?.detail;
+    if (!detail) return;
+    let sc = detail.scene || detail;
+    if (typeof sc === 'string') {
+      const list = typeof sceneList === 'function' ? sceneList() : [];
+      sc = list.find((item) => item.id === sc || item.name === sc) || { id: sc, name: sc };
+    } else if (sc && (!sc.name || !sc.id)) {
+      const list = typeof sceneList === 'function' ? sceneList() : [];
+      const found = list.find((item) => (sc.id && item.id === sc.id) || (sc.name && item.name === sc.name));
+      if (found) sc = { ...found, ...sc };
+    }
+    syncObsToGatherScene(sc);
+  }
+
+  window.addEventListener('gather:scene-switch', handleGatherSceneSwitch);
 
   function renderMapPopover() {
     const list = $('#obsMapList');
@@ -807,42 +1011,63 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
           const isPrev = state.studioMode && sc.name === state.currentPreviewScene && !isProg;
           const thumbUrl = state.sceneThumbs[sc.name];
           const hasThumb = isValidThumb(thumbUrl);
+          const isFailed = !hasThumb && sceneThumbFailed.has(sc.name);
+          const mappedNames = findMappedGatherScenes(sc.name);
           const b = document.createElement('button');
           b.type = 'button';
           b.dataset.obsScene = sc.name;
-          b.className = 'obs-scene-btn' + (isProg ? ' is-program' : '') + (isPrev ? ' is-preview' : '') + (hasThumb ? ' has-thumb' : '');
+          b.className = 'obs-scene-btn has-thumb' + (isProg ? ' is-program' : '') + (isPrev ? ' is-preview' : '');
           b.setAttribute('aria-pressed', String(isProg));
           b.tabIndex = isProg || (idx === 0 && !state.currentProgramScene) ? 0 : -1;
-          b.title = state.studioMode
-            ? `Switch OBS Program to "${sc.name}" (Shift-click for Preview)`
-            : `Switch OBS scene to "${sc.name}"`;
+          b.setAttribute('aria-label', `${sc.name}${isProg ? ' (Live in OBS)' : isPrev ? ' (Preview)' : ''}`);
 
           const badge = document.createElement('span');
           badge.className = 'obs-sc-idx num';
           badge.textContent = isProg ? 'LIVE' : isPrev ? 'PVW' : String(idx + 1).padStart(2, '0');
 
+          const thumb = document.createElement('span');
+          thumb.className = 'obs-sc-thumb' + (hasThumb ? '' : isFailed ? ' is-empty' : ' is-loading');
+
+          const img = document.createElement('img');
+          img.className = 'obs-sc-thumb-img';
+          img.alt = '';
+          img.decoding = 'async';
+          if (hasThumb) img.src = thumbUrl;
+          else img.hidden = true;
+
+          const ph = document.createElement('span');
+          ph.className = 'obs-sc-ph';
+          ph.textContent = sc.name.slice(0, 2).toUpperCase();
+          ph.hidden = hasThumb;
+
+          thumb.append(img, ph, badge);
+
+          if (mappedNames.length) {
+            const mapBadge = document.createElement('span');
+            mapBadge.className = 'obs-sc-mapped';
+            mapBadge.title = `Mapped to Gather: ${mappedNames.join(', ')}`;
+            mapBadge.textContent = 'SYNC';
+            thumb.append(mapBadge);
+          }
+
           const name = document.createElement('span');
           name.className = 'obs-sc-name';
           name.textContent = sc.name;
 
-          if (hasThumb) {
-            const thumb = document.createElement('span');
-            thumb.className = 'obs-sc-thumb';
-            const img = document.createElement('img');
-            img.className = 'obs-sc-thumb-img';
-            img.src = thumbUrl;
-            img.alt = '';
-            img.decoding = 'async';
-            thumb.append(img, badge);
-            b.append(thumb, name);
-          } else {
-            b.append(badge, name);
-          }
-          b.onclick = (ev) => switchScene(sc.name, { preview: !!(ev.shiftKey && state.studioMode) });
+          b.append(thumb, name);
+          b.addEventListener('pointerenter', () => showHoverPreview(sc.name, b));
+          b.addEventListener('pointerleave', () => { if (hoverAnchorEl === b) hideHoverPreview(); });
+          b.addEventListener('focus', () => showHoverPreview(sc.name, b));
+          b.addEventListener('blur', () => { if (hoverAnchorEl === b) hideHoverPreview(); });
+          b.onclick = (ev) => {
+            hideHoverPreview();
+            switchScene(sc.name, { preview: !!(ev.shiftKey && state.studioMode) });
+          };
           return b;
         });
         replaceKids(strip, ...buttons);
       } else {
+        hideHoverPreview();
         strip.hidden = true;
         empty.hidden = false;
         if (hint) {
@@ -855,6 +1080,7 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
       }
     }
     renderMapPopover();
+    if (hoveredScene) updateHoverPreviewContent(hoveredScene);
   }
 
   // Bind OBS deck controls once
@@ -934,7 +1160,12 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
     });
   }
 
+  $('#obsDeckTab')?.addEventListener('click', () => {
+    if (state.status === 'connected') refreshSceneThumbnails(null, { force: false });
+  });
+  $('#obsSceneStrip')?.addEventListener('scroll', hideHoverPreview, { passive: true });
   $('#obsSceneStrip')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { hideHoverPreview(); return; }
     const all = [...$('#obsSceneStrip').querySelectorAll('.obs-scene-btn')];
     const i = all.indexOf(document.activeElement);
     if (i < 0) return;
@@ -962,6 +1193,13 @@ export function createObsIntegration({ $, store, toast, copy, replaceKids, toggl
     captureSceneThumbnail,
     request,
     onGatherScene,
+    dispose: () => {
+      window.removeEventListener('gather:scene-switch', handleGatherSceneSwitch);
+      stopThumbPolling();
+      hideHoverPreview();
+      if (hoverCardEl) { hoverCardEl.remove(); hoverCardEl = null; }
+      disconnect({ silent: true });
+    },
     setMapping: (gatherSceneId, obsSceneName) => {
       if (!gatherSceneId) return;
       if (obsSceneName) state.sceneMap[gatherSceneId] = String(obsSceneName);

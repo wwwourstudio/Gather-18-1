@@ -12,7 +12,7 @@ import { MOTION_PRESETS, ALERT_STYLES, OVERLAY_PACKS, renderAiCountdownBg } from
 import { replaceKids } from './ui.js';
 import { createClipBuffer } from './clips.js';
 import { createGeminiLiveClient } from './gemini-live.js';
-import { initSmartHighlightsPlaylist } from './smart-highlights.js?v=20261126h';
+import { initSmartHighlightsPlaylist } from './smart-highlights.js?v=20261127h';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -728,11 +728,24 @@ function initOverlaysUpgrades(api) {
     if (firstCard) firstCard.after(ovTools);
     else stageOvBody.prepend(ovTools);
 
+    const rasterizeOverlayTemplate = async (tplId, accentOverride) => {
+      const b = api.getBrand?.() || {};
+      const svgUrl = buildOverlayTemplateSvg(tplId, accentOverride || b.color || '#3b82f6');
+      const img = new Image();
+      img.src = svgUrl;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const c = document.createElement('canvas');
+      c.width = 1280; c.height = 720;
+      c.getContext('2d').drawImage(img, 0, 0, 1280, 720);
+      return c.toDataURL('image/png');
+    };
+
     const syncOvThumbs = (b = {}) => {
       const col = b.color || '#3b82f6';
       $$('.ov-tpl-card', ovTools).forEach((card) => {
         const img = $('img', card);
         if (img) img.src = buildOverlayTemplateSvg(card.dataset.ovtpl, col);
+        card.classList.toggle('on', !!b.overlay && !b.overlayHidden && b.overlayTpl === card.dataset.ovtpl);
       });
       const op = Number.isFinite(Number(b.overlayOpacity)) ? Number(b.overlayOpacity) : 1;
       $('#ovOpacity', ovTools).value = String(op);
@@ -743,17 +756,8 @@ function initOverlaysUpgrades(api) {
     $$('.ov-tpl-card', ovTools).forEach((card) => {
       card.onclick = async () => {
         if (!api.isHost()) return api.toast('Only the host can change stage artwork.', { err: true });
-        const b = api.getBrand?.() || {};
-        const svgUrl = buildOverlayTemplateSvg(card.dataset.ovtpl, b.color || '#3b82f6');
-        // Rasterize crisp 1280x720 transparent PNG so WebRTC / canvas drawImage works reliably everywhere
         try {
-          const img = new Image();
-          img.src = svgUrl;
-          await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-          const c = document.createElement('canvas');
-          c.width = 1280; c.height = 720;
-          c.getContext('2d').drawImage(img, 0, 0, 1280, 720);
-          const pngUrl = c.toDataURL('image/png');
+          const pngUrl = await rasterizeOverlayTemplate(card.dataset.ovtpl);
           await api.brandDataUrl?.('overlay', pngUrl);
           applyBrand({ overlayHidden: false, overlayTpl: card.dataset.ovtpl });
           $$('.ov-tpl-card', ovTools).forEach((x) => x.classList.toggle('on', x === card));
@@ -773,6 +777,7 @@ function initOverlaysUpgrades(api) {
     };
     syncOvThumbs(api.getBrand?.());
     api.onBrandSync?.(syncOvThumbs);
+    panel.__rasterizeOverlayTemplate = rasterizeOverlayTemplate;
   }
 
   // B. Pre-made Overlay Packs
@@ -782,15 +787,19 @@ function initOverlaysUpgrades(api) {
   packsSec.dataset.sec = 'overlay-packs';
   packsSec.open = true;
   packsSec.innerHTML = `
-    <summary><b>Pre-made overlay packs</b><span class="hint">inherits your theme</span></summary>
+    <summary><b>Pre-made overlay packs</b><span class="hint" id="packSummaryHint">inherits your theme</span></summary>
     <div class="psec-body form">
       <div class="pack-grid">
         ${Object.entries(OVERLAY_PACKS).map(([id, p]) => `
-          <button type="button" class="pack-card" data-pack="${id}">
-            <b>${p.name}</b>
+          <button type="button" class="pack-card" data-pack="${id}" aria-pressed="false">
+            <span class="pack-head"><b>${p.name}</b><i class="pack-dot" aria-hidden="true"></i></span>
             <small>${p.desc}</small>
           </button>
         `).join('')}
+      </div>
+      <div class="pack-foot" id="packFoot" hidden>
+        <span class="hint" id="packActiveNote">Active pack synced to your brand colour</span>
+        <button type="button" class="btn sm ghost" id="packResetBtn">Clear pack</button>
       </div>
     </div>
   `;
@@ -943,19 +952,79 @@ function initOverlaysUpgrades(api) {
   panel.prepend(packsSec);
   panel.append(spSec);
 
+  const syncPackCards = (b = {}) => {
+    const activePack = b?.pack && OVERLAY_PACKS[b.pack] ? b.pack : 'none';
+    $$('.pack-card', packsSec).forEach((x) => {
+      const on = x.dataset.pack === activePack;
+      x.classList.toggle('on', on);
+      x.setAttribute('aria-pressed', String(on));
+    });
+    const foot = $('#packFoot', packsSec);
+    if (foot) foot.hidden = activePack === 'none';
+    const sumHint = $('#packSummaryHint', packsSec);
+    if (sumHint) sumHint.textContent = activePack !== 'none' ? OVERLAY_PACKS[activePack].name : 'inherits your theme';
+  };
+
+  const rasterizeForPack = async (tplId) => {
+    if (!tplId) return;
+    if (typeof panel.__rasterizeOverlayTemplate === 'function') {
+      const pngUrl = await panel.__rasterizeOverlayTemplate(tplId);
+      await api.brandDataUrl?.('overlay', pngUrl);
+    } else {
+      const b = api.getBrand?.() || {};
+      const svgUrl = buildOverlayTemplateSvg(tplId, b.color || '#3b82f6');
+      const img = new Image();
+      img.src = svgUrl;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const c = document.createElement('canvas');
+      c.width = 1280; c.height = 720;
+      c.getContext('2d').drawImage(img, 0, 0, 1280, 720);
+      await api.brandDataUrl?.('overlay', c.toDataURL('image/png'));
+    }
+  };
+
   $$('.pack-card', packsSec).forEach((b) => {
-    b.onclick = () => {
+    b.onclick = async () => {
       if (!api.isHost()) return api.toast('Ask the host to apply overlay packs.', { err: true });
-      const pack = OVERLAY_PACKS[b.dataset.pack];
+      const packId = b.dataset.pack;
+      const pack = OVERLAY_PACKS[packId];
       if (!pack) return;
-      applyBrand({ ...pack.brand, pack: b.dataset.pack });
-      $('#cdTitle', cdSec).value = pack.countdown.title;
-      $('#cdSub', cdSec).value = pack.countdown.subtitle;
-      api.setStage({ ticker: pack.ticker });
-      $$('.pack-card', packsSec).forEach((x) => x.classList.toggle('on', x === b));
-      api.toast(`${pack.name} overlay pack applied using your brand colours.`);
+      b.disabled = true;
+      try {
+        if (pack.overlayTpl) await rasterizeForPack(pack.overlayTpl);
+        applyBrand({
+          ...pack.brand,
+          pack: packId,
+          overlayHidden: false,
+          overlayTpl: pack.overlayTpl || '',
+        });
+        $('#cdTitle', cdSec).value = pack.countdown.title;
+        $('#cdSub', cdSec).value = pack.countdown.subtitle;
+        const tickerIn = $('#tickerText');
+        if (tickerIn) tickerIn.value = pack.ticker || '';
+        api.setStage({ ticker: pack.ticker || '' });
+        syncPackCards({ pack: packId });
+        syncLiveCountdownIfOn();
+        api.toast(`${pack.name} overlay pack applied to your stage.`);
+      } catch {
+        api.toast('Could not apply overlay pack.', { err: true });
+      } finally {
+        b.disabled = false;
+      }
     };
   });
+
+  $('#packResetBtn', packsSec)?.addEventListener('click', () => {
+    if (!api.isHost()) return api.toast('Only the host can reset overlays.', { err: true });
+    applyBrand({ pack: 'none', overlay: '', overlayTpl: '', overlayHidden: false, frame: 'none' });
+    const tickerIn = $('#tickerText');
+    if (tickerIn) tickerIn.value = '';
+    api.setStage({ ticker: '' });
+    syncPackCards({ pack: 'none' });
+    api.toast('Cleared active overlay pack.');
+  });
+
+  syncPackCards(api.getBrand?.());
 
   // Countdown state & interactive wiring
   let cdMode = 'starting';
@@ -964,6 +1033,7 @@ function initOverlaysUpgrades(api) {
   let cdAiStyle = 'aurora';
   let cdVidUrl = '';
   let cdAiPreviewRaf = 0;
+  let cdTextTimer = 0;
 
   const getAiCfg = () => ({
     style: cdAiStyle,
@@ -972,10 +1042,14 @@ function initOverlaysUpgrades(api) {
     speed: Number($('#cdAiSpeed', cdSec).value) || 1,
   });
 
-  const buildCountdownPayload = (forceOn = true) => {
+  const getConfiguredTotalSec = () => {
     const mins = Math.max(0, Math.min(60, Number($('#cdMins', cdSec).value) || 0));
     const secs = Math.max(0, Math.min(59, Number($('#cdSecs', cdSec).value) || 0));
-    const totalSec = Math.max(5, mins * 60 + secs);
+    return Math.max(5, mins * 60 + secs);
+  };
+
+  const buildCountdownPayload = (forceOn = true) => {
+    const totalSec = getConfiguredTotalSec();
     return {
       on: forceOn,
       mode: cdMode,
@@ -994,17 +1068,38 @@ function initOverlaysUpgrades(api) {
     };
   };
 
+  const syncCountdownChrome = () => {
+    const live = !!api.getState?.()?.countdown?.on;
+    const startBtn = $('#cdStartBtn', cdSec);
+    const stopBtn = $('#cdStopBtn', cdSec);
+    const hint = $('#cdSummaryHint', cdSec);
+    if (startBtn) startBtn.textContent = live ? 'Restart countdown' : 'Show countdown screen';
+    if (stopBtn) {
+      stopBtn.disabled = !live;
+      stopBtn.classList.toggle('danger', live);
+      stopBtn.classList.toggle('ghost', !live);
+    }
+    if (hint) {
+      hint.textContent = live ? 'Live on stage' : 'timer · video · AI maker';
+      hint.dataset.live = live ? '1' : '0';
+    }
+  };
+
   // Live update active countdown if it's already on stage
-  const syncLiveCountdownIfOn = () => {
+  const syncLiveCountdownIfOn = (resetClock = false) => {
     const cur = api.getState?.()?.countdown;
     if (!cur?.on) return;
+    const nextTotal = resetClock ? getConfiguredTotalSec() : (cur.totalSec || getConfiguredTotalSec());
+    const nextTarget = resetClock ? (Date.now() + nextTotal * 1000) : cur.target;
     api.setStage({
       countdown: {
         ...cur,
         mode: cdMode,
         layout: cdLayout,
-        title: $('#cdTitle', cdSec).value.trim() || cur.title,
+        title: $('#cdTitle', cdSec).value.trim() || cur.title || 'Starting soon',
         subtitle: $('#cdSub', cdSec).value.trim(),
+        totalSec: nextTotal,
+        target: nextTarget,
         autoLive: $('#cdAutoLive', cdSec).checked,
         showChat: $('#cdChat', cdSec).checked,
         showProgress: $('#cdProgress', cdSec).checked,
@@ -1014,6 +1109,7 @@ function initOverlaysUpgrades(api) {
         aiBg: cdBgType === 'ai' ? getAiCfg() : null,
       },
     });
+    syncCountdownChrome();
   };
 
   const stopAiPreviewLoop = () => {
@@ -1036,6 +1132,19 @@ function initOverlaysUpgrades(api) {
     else stopAiPreviewLoop();
   });
 
+  ['#cdTitle', '#cdSub'].forEach((id) => {
+    $(id, cdSec)?.addEventListener('input', () => {
+      clearTimeout(cdTextTimer);
+      cdTextTimer = setTimeout(() => syncLiveCountdownIfOn(false), 120);
+    });
+  });
+  ['#cdMins', '#cdSecs'].forEach((id) => {
+    $(id, cdSec)?.addEventListener('change', () => {
+      $$('#cdPresets button', cdSec).forEach((x) => x.classList.remove('on'));
+      syncLiveCountdownIfOn(true);
+    });
+  });
+
   $$('#cdModeSeg button', cdSec).forEach((b) => {
     b.onclick = () => {
       cdMode = b.dataset.cdm;
@@ -1053,7 +1162,7 @@ function initOverlaysUpgrades(api) {
       const [t, s] = defaults[cdMode] || defaults.starting;
       $('#cdTitle', cdSec).value = t;
       $('#cdSub', cdSec).value = s;
-      syncLiveCountdownIfOn();
+      syncLiveCountdownIfOn(false);
     };
   });
 
@@ -1063,6 +1172,7 @@ function initOverlaysUpgrades(api) {
       $('#cdMins', cdSec).value = String(m);
       $('#cdSecs', cdSec).value = '0';
       $$('#cdPresets button', cdSec).forEach((x) => x.classList.toggle('on', x === b));
+      syncLiveCountdownIfOn(true);
     };
   });
 
@@ -1074,7 +1184,7 @@ function initOverlaysUpgrades(api) {
         x.classList.toggle('on', on);
         x.setAttribute('aria-checked', String(on));
       });
-      syncLiveCountdownIfOn();
+      syncLiveCountdownIfOn(false);
     };
   });
 
@@ -1243,18 +1353,23 @@ function initOverlaysUpgrades(api) {
     }
     const payload = buildCountdownPayload(true);
     api.setStage({ countdown: payload });
+    syncCountdownChrome();
     api.toast(`${payload.title} is now live on stage.`);
   };
   $('#cdStopBtn', cdSec).onclick = () => {
     if (!api.isHost()) return;
     api.setStage({ countdown: null });
+    syncCountdownChrome();
     api.toast('Cut back to live stage.');
   };
 
+  syncCountdownChrome();
   api.onBrandSync?.((b) => {
     if (b?.color && !$('#cdAiPrompt', cdSec).value.trim()) {
       $('#cdAiC1', cdSec).value = b.color;
     }
+    syncPackCards(b);
+    syncCountdownChrome();
   });
 
   function renderSponsors() {
@@ -2013,7 +2128,7 @@ function initGamingPanel(api) {
     if (act === 'scene-game') { api.applyGameScene?.(); api.toast?.('Switched to Game + Cam layout.'); }
     if (act === 'brb') {
       api.setTab?.('overlays');
-      setTimeout(() => { $('#cdTypeSeg [data-cdt="brb"]')?.click(); $('#cdStartBtn')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
+      setTimeout(() => { $('#cdModeSeg [data-cdm="brb"]')?.click(); $('#cdStartBtn')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
     }
   });
 
@@ -2540,8 +2655,26 @@ function initAiRecap(api) {
   const descEl = $('#layoutDesc');
   const countEl = $('#layoutDescCount');
   const partEl = $('#layoutParticipants');
+  const partCountEl = $('#layoutPartCount');
+  const chipsEl = $('#layoutPartChips');
   const nameEl = $('#layoutName');
+  const statusEl = $('#aiRecapStatus');
   if (!btn || !descEl) return;
+
+  const parseParticipants = (raw) => {
+    const seen = new Set();
+    const out = [];
+    for (const piece of String(raw || '').split(',')) {
+      const clean = piece.trim().slice(0, 40);
+      if (!clean) continue;
+      const key = clean.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(clean);
+      if (out.length >= 12) break;
+    }
+    return out;
+  };
 
   const syncCount = () => {
     if (descEl.value.length > 50) descEl.value = descEl.value.slice(0, 50);
@@ -2550,40 +2683,84 @@ function initAiRecap(api) {
       countEl.classList.toggle('is-max', descEl.value.length >= 50);
     }
   };
+
+  const syncParticipantChips = () => {
+    const list = parseParticipants(partEl?.value || '');
+    if (partCountEl) {
+      partCountEl.hidden = !list.length;
+      partCountEl.textContent = `${list.length} ${list.length === 1 ? 'person' : 'people'}`;
+    }
+    if (!chipsEl) return;
+    chipsEl.innerHTML = '';
+    chipsEl.hidden = !list.length;
+    for (const person of list) {
+      const chip = document.createElement('span');
+      chip.className = 'recap-chip';
+      const lbl = document.createElement('span');
+      lbl.textContent = person;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'recap-chip-rm';
+      rm.setAttribute('aria-label', `Remove ${person}`);
+      rm.textContent = '×';
+      rm.onclick = () => {
+        const next = parseParticipants(partEl.value).filter((x) => x.toLowerCase() !== person.toLowerCase());
+        partEl.value = next.join(', ');
+        syncParticipantChips();
+      };
+      chip.append(lbl, rm);
+      chipsEl.append(chip);
+    }
+  };
+
+  const setStatus = (msg, kind = 'ok') => {
+    if (!statusEl) return;
+    statusEl.hidden = !msg;
+    statusEl.textContent = msg || '';
+    statusEl.classList.toggle('is-err', kind === 'err');
+    statusEl.classList.toggle('is-ok', kind === 'ok');
+  };
+
+  const flashInput = (el) => {
+    if (!el) return;
+    el.classList.remove('recap-flash');
+    void el.offsetWidth;
+    el.classList.add('recap-flash');
+    setTimeout(() => el.classList.remove('recap-flash'), 900);
+  };
+
   descEl.addEventListener('input', syncCount);
+  partEl?.addEventListener('input', syncParticipantChips);
   syncCount();
+  syncParticipantChips();
 
   btn.addEventListener('click', async () => {
     const peers = (api.getPeers?.() || []).map((p) => p.name).filter(Boolean);
-    const transcript = (api.getTranscript?.() || []).slice(-20);
-    const speakers = [...new Set([...peers, ...transcript.map((t) => t.speaker).filter(Boolean)])];
+    const myName = String(api.getMyName?.() || '').trim();
+    const transcript = (api.getTranscript?.() || []).slice(-40).map((t) => ({
+      speaker: String(t?.speaker || '').trim(),
+      text: String(t?.text || '').trim(),
+      source: t?.source || 'caption',
+    })).filter((t) => t.text);
+
+    // Include any live in-progress caption visible on stage if not already captured
+    const liveCap = String($('#capText, #capLine')?.textContent || '').trim();
+    if (liveCap && !transcript.some((t) => t.text === liveCap)) {
+      transcript.push({ speaker: myName || 'Host', text: liveCap, source: 'caption' });
+    }
+
+    const speakers = [...new Set([myName, ...peers, ...transcript.map((t) => t.speaker)].filter(Boolean))].slice(0, 12);
     const activeScene = (api.getSceneList?.() || []).find((s) => s.id === api.activeSceneId?.())?.name || 'Studio';
     const presenting = !!api.isPresenting?.();
+    const showTitle = String($('#studioTitle')?.textContent || '').trim();
 
-    const buildFallback = () => {
-      const lastLine = transcript.slice().reverse().find((t) => t.text && t.text.length >= 4);
-      let desc = '';
-      if (lastLine) {
-        const cleaned = lastLine.text.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim();
-        desc = clamp50(cleaned || `${activeScene} with ${speakers.slice(0, 2).join(' & ') || 'host'}`);
-      } else if (presenting) {
-        desc = clamp50(`Live ${activeScene} presentation (${speakers.length || 1} on)`);
-      } else if (speakers.length >= 2) {
-        desc = clamp50(`${activeScene} chat with ${speakers.slice(0, 2).join(' & ')}`);
-      } else {
-        desc = clamp50(`${activeScene} segment with ${speakers[0] || api.getMyName?.() || 'Host'}`);
-      }
-      return {
-        desc: clamp50(desc),
-        participants: speakers.length ? speakers : [api.getMyName?.() || 'Host'],
-        title: `${activeScene} Recap`,
-      };
-    };
-
-    const origHtml = btn.innerHTML;
+    const lblSpan = btn.querySelector('span');
+    const origText = lblSpan ? lblSpan.textContent : btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Generating…';
-    let result = buildFallback();
+    btn.classList.add('is-loading');
+    if (lblSpan) lblSpan.textContent = 'Recapping…';
+    else btn.textContent = 'Recapping…';
+    setStatus('Analyzing transcript with Gemini…', 'info');
 
     try {
       const res = await fetch('/api/ai', {
@@ -2593,32 +2770,56 @@ function initAiRecap(api) {
           mode: 'recap',
           activeScene,
           presenting,
+          showTitle,
           speakers,
           transcript,
         }),
       });
-      if (res.ok) {
-        const parsed = await res.json();
-        if (parsed && !parsed.fallback) {
-          if (parsed.desc) result.desc = clamp50(parsed.desc);
-          if (Array.isArray(parsed.participants) && parsed.participants.length) {
-            result.participants = [...new Set(parsed.participants.map((x) => String(x).trim()).filter(Boolean))];
-          }
-          if (parsed.title && typeof parsed.title === 'string') result.title = parsed.title.trim().slice(0, 38);
-        }
+      const parsed = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(parsed?.error || `Gemini AI Recap failed (${res.status}).`);
       }
-    } catch {
-      // Fall back smoothly to deterministic transcript summary
+
+      const summary = clamp50(parsed.summary || parsed.desc || '');
+      if (!summary) {
+        throw new Error('Gemini returned an empty recap. Try again.');
+      }
+
+      const participants = parseParticipants(
+        Array.isArray(parsed.participants) ? parsed.participants.join(', ') : '',
+      );
+      const suggestedTitle = typeof parsed.title === 'string' ? parsed.title.trim().slice(0, 40) : '';
+
+      descEl.value = summary;
+      syncCount();
+      flashInput(descEl);
+
+      if (partEl) {
+        partEl.value = participants.join(', ');
+        syncParticipantChips();
+        flashInput(partEl);
+      }
+
+      if (nameEl && !nameEl.value.trim() && suggestedTitle) {
+        nameEl.value = suggestedTitle;
+        flashInput(nameEl);
+      }
+
+      const pSummary = participants.length
+        ? ` · ${participants.length} ${participants.length === 1 ? 'participant' : 'participants'}`
+        : '';
+      setStatus(`Gemini recap ready · ${descEl.value.length}/50 chars${pSummary}`, 'ok');
+      api.toast?.(`AI Recap ready (${descEl.value.length}/50 chars${pSummary}).`);
+    } catch (err) {
+      const msg = err?.message || 'Could not generate AI Recap right now.';
+      setStatus(msg, 'err');
+      api.toast?.(msg, { err: true });
     } finally {
       btn.disabled = false;
-      btn.innerHTML = origHtml;
+      btn.classList.remove('is-loading');
+      if (lblSpan) lblSpan.textContent = origText;
+      else btn.textContent = origText;
     }
-
-    descEl.value = clamp50(result.desc);
-    syncCount();
-    if (partEl) partEl.value = result.participants.join(', ');
-    if (nameEl && !nameEl.value.trim() && result.title) nameEl.value = result.title.slice(0, 40);
-    api.toast?.(`AI Recap ready (${descEl.value.length}/50 chars).`);
   });
 }
 

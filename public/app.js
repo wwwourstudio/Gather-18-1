@@ -17,7 +17,7 @@ import { createSamChat } from './sam-chat.js';
 import { createAutoMoments } from './auto-moments.js';
 import { createLiveChat } from './livechat.js';
 import { createViewerCount } from './viewers.js';
-import { createObsIntegration } from './obs-deck.js?v=20261126h';
+import { createObsIntegration } from './obs-deck.js?v=20261127c';
 // gather — client. Full-mesh WebRTC studio with a canvas-composited stage.
 // The stage canvas is the single source of truth for what you see AND what gets recorded.
 
@@ -1142,10 +1142,6 @@ async function onServer(m) {
       S.iceServers = await iceConfig(m.iceServers);
       const pre = S.state;
       S.state = m.state;
-      // Clear any legacy server-saved frame border or old baked-in default overlay when rejoining an older studio.
-      if (S.state?.brand && (S.state.brand.frame === 'border' || S.state.brand.frame === 'corners')) {
-        S.state.brand.frame = 'none';
-      }
       if (S.host === S.id && !store.get('cleanRoomOverlayV3:' + S.studio, false)) {
         store.set('cleanRoomOverlayV3:' + S.studio, true);
         if (S.state?.brand && (S.state.brand.overlay || S.state.brand.frame !== 'none')) {
@@ -1242,7 +1238,7 @@ async function onServer(m) {
       renderCrew();
       break;
     }
-    case 'state': preloadBrandAssets(m.state); preloadSceneElements(m.state?.elements); startSceneFade(S.state, m.state); S.state = m.state; requestStageRender(); renderAll(); renderChatMood(); break;
+    case 'state': preloadBrandAssets(m.state); preloadSceneElements(m.state?.elements); startSceneFade(S.state, m.state); S.state = m.state; requestStageRender(); renderAll(); renderChatMood(); notifyBrandSync(); break;
     case 'chat': addMsg(m.msg); break;
     case 'chat-del': {
       const id = String(m.id || '');
@@ -1780,12 +1776,7 @@ function drawFrame() {
     }
     g.restore();
   }
-  const mode = S.state?.streamType || 'live';
-  const ovTpl = brand.overlayTpl || '';
-  const ovBlocked = (mode === 'live' && (ovTpl === 'esports-hud' || ovTpl === 'live-shop'))
-    || (mode === 'shopping' && ovTpl === 'esports-hud')
-    || (mode === 'gamer' && ovTpl === 'live-shop');
-  const ovSurf = !brand.overlayHidden && !ovBlocked && brand.overlay ? getOverlayCanvas(brand.overlay, W, H) : null;
+  const ovSurf = !brand.overlayHidden && brand.overlay ? getOverlayCanvas(brand.overlay, W, H) : null;
   if (ovSurf) {
     const op = Number(brand.overlayOpacity);
     const t0 = performance.now();
@@ -1946,6 +1937,7 @@ function draw(now = performance.now()) {
   overlay('live-events', () => liveEvents.draw(g, W, H, brand, font, wall, mode));
   overlay('highlights-reel', () => window.__gatherDrawHighlightOverlay?.(g, W, H, brand, font, wall));
   overlay('confetti', () => { if (window.__gatherConfettiUntil > wall) drawGoalConfetti(g, W, H, t, brand.color); });
+  let countdownDrawn = false;
   overlay('countdown', () => {
     if (!S.state.countdown?.on) return;
     if (S.state.countdown.target && S.state.countdown.target <= wall && S.state.countdown.mode !== 'ending') {
@@ -1958,6 +1950,7 @@ function draw(now = performance.now()) {
         return;
       }
     }
+    countdownDrawn = true;
     drawCountdownScreen(g, W, H, S.state.countdown, brand, font, S.feed.slice(-5), wall);
   });
   if (showSafeGuides && !PASS) {
@@ -1992,8 +1985,11 @@ function draw(now = performance.now()) {
       g.save(); g.globalAlpha = Math.max(0, Math.min(1, 1 - ease)); g.drawImage(fadeSnap, 0, 0, W, H); g.restore();
     }
   }
-  // Highest z-order: participant name cards always sit cleanly above frames, HUDs, overlays, captions, alerts, and transitions.
-  for (const nc of pendingNameCards) drawTileNameCard(nc.p, nc.rect);
+  // Highest z-order for on-screen participant tiles only — never paint name cards over fullscreen break/countdown screens or full-stage reels.
+  const fullReelCover = !!(window.__gatherHighlightPlaylist?.isOverlayActive?.() && window.__gatherHighlightPlaylist?.getState?.()?.overlayMode === 'full');
+  if (!countdownDrawn && !fullReelCover) {
+    for (const nc of pendingNameCards) drawTileNameCard(nc.p, nc.rect);
+  }
 }
 // Ambient surround: the letterbox around the stage shows a blurred copy of the program (never recorded).
 {
@@ -2394,7 +2390,10 @@ function sceneElements(id, design) {
   return ensureSystem([...base, ...carryInto(base)], isVertical(), uid);
 }
 function templatePatch(tpl) { return { layout: 'custom', scene: tpl.id, elements: sceneElements(tpl.id, tpl.els) }; }
-function applyTemplate(tpl) { setStage(templatePatch(tpl)); }
+function applyTemplate(tpl, { emitEvent = true } = {}) {
+  setStage(templatePatch(tpl));
+  if (emitEvent && tpl) emitGatherSceneSwitch({ ...tpl, kind: tpl.kind || 'template' }, 'template');
+}
 
 // ---- per-scene arrangements: saved on every edit, restored when the scene comes back (and after a reload)
 let arrT = 0;
@@ -4181,12 +4180,12 @@ $('#saveLayout').onclick = () => {
   if (!savedLayouts().some((l) => l.name === name)) return toast('Could not save. The images may be too large for this browser.', { err: true });
   window.gatherCloud?.saveScene?.(newScene).catch(() => {});
   $('#layoutName').value = '';
-  if ($('#layoutDesc')) $('#layoutDesc').value = '';
-  if ($('#layoutDescCount')) $('#layoutDescCount').textContent = '0/50';
-  if ($('#layoutParticipants')) $('#layoutParticipants').value = '';
+  if ($('#layoutDesc')) { $('#layoutDesc').value = ''; $('#layoutDesc').dispatchEvent(new Event('input')); }
+  if ($('#layoutParticipants')) { $('#layoutParticipants').value = ''; $('#layoutParticipants').dispatchEvent(new Event('input')); }
+  if ($('#aiRecapStatus')) { $('#aiRecapStatus').hidden = true; $('#aiRecapStatus').textContent = ''; }
   renderSaved(); renderScenes(); toast(`Saved scene “${name}”. It's in the scene strip.`);
 };
-async function loadLayout(l) {
+async function loadLayout(l, { emitEvent = true } = {}) {
   touchLayoutUsage(l.name);
   const els = [];
   for (const e of l.elements) {
@@ -4202,6 +4201,7 @@ async function loadLayout(l) {
   }
   await preloadSceneElements(els);
   setStage({ layout: l.layout || 'custom', elements: els, scene: 'saved:' + l.name });
+  if (emitEvent && l) emitGatherSceneSwitch({ id: 'saved:' + l.name, name: l.name, kind: 'saved', layout: l.layout || 'custom', saved: l }, 'saved');
   const it = l.media && S.library.find((x) => x.id === l.media);
   if (it) { if (S.local.pres) stopPresentation(); await presentLibrary(it); }
   renderSaved();
@@ -4454,7 +4454,7 @@ function notifyBrandSync() {
 }
 function brandPref(patch) {
   // Keep the look for the next studio too (images live in this browser).
-  const keep = ['color', 'bg', 'panel', 'panelColor', 'font', 'tag', 'bannerStyle', 'anim', 'motion', 'alertStyle', 'pack', 'frame', 'dim', 'logoPos', 'logoSize'];
+  const keep = ['color', 'bg', 'panel', 'panelColor', 'font', 'tag', 'bannerStyle', 'anim', 'motion', 'alertStyle', 'pack', 'frame', 'dim', 'logoPos', 'logoSize', 'overlayHidden', 'overlayOpacity', 'overlayTpl'];
   const prefs = store.get('brandPrefs', {});
   for (const k of keep) if (k in patch) prefs[k] = patch[k];
   store.set('brandPrefs', prefs);
@@ -5163,9 +5163,10 @@ function openGuestBrief() {
 $('#optEditBriefBtn')?.addEventListener('click', openGuestBrief);
 // Pop-out chat (like StreamYard's): the watch page's live chat on its own, /w/<studio>?chat=1, in a window or on a phone.
 const chatPopUrl = () => watchLinkUrl() + '?chat=1';
+const studioChatPopUrl = () => watchLinkUrl() + '?chat=1&studio=1';
 $('#optPopChat')?.addEventListener('click', () => {
   if (!S.studio) return toast('Enter your studio first.', { err: true });
-  window.open(chatPopUrl(), 'gatherChat', 'popup,width=420,height=760');
+  window.open(studioChatPopUrl(), 'gatherChat', 'popup,width=420,height=760');
 });
 $('#optPhoneChat')?.addEventListener('click', async () => {
   const box = $('#optChatQr'), btn = $('#optPhoneChat');
@@ -5499,6 +5500,12 @@ function renderPresets() {
 // 6-tab rail: Chat, Stage (look: layouts/brand/overlays/music), Gaming (gaming), Audience (show: watch/viewers/supers/stage/polls), Shop, AI.
 const TAB_ALIAS = { banners: 'look:overlays', emotes: 'look:overlays', overlays: 'look:overlays', layouts: 'look:layouts', brand: 'look:brand', music: 'look:music', 'scene-ai': 'look:scene-ai', audio: 'look:music', look: 'look:', stage: 'look:', highlights: 'highlights', clips: 'highlights', playlist: 'highlights', reels: 'highlights', audience: 'show:', play: 'gaming', queue: 'gaming', gaming: 'gaming', poll: 'show:polls', polls: 'show:polls', stream: 'dlg:liveDlg', settings: 'dlg:settingsDlg', help: 'dlg:helpDlg' };
 function openDlg(id) {
+  if (id === 'settingsDlg' && !acct.user) {
+    if ($('#settingsDlg')?.open) $('#settingsDlg').close();
+    S.afterSignIn = () => openDlg('settingsDlg');
+    openAccount('in');
+    return;
+  }
   for (const other of ['liveDlg', 'settingsDlg', 'helpDlg']) if (other !== id && $('#' + other).open) $('#' + other).close();
   const d = $('#' + id);
   if (!d.open) d.showModal();
@@ -5613,13 +5620,27 @@ function activeSceneId() {
   if (S.state.layout !== 'custom') return 'b-' + S.state.layout;
   return S.state.scene || '';
 }
-function applyScene(sc) {
+function emitGatherSceneSwitch(sc, source = 'deck') {
+  if (!sc) return;
+  const detail = {
+    id: sc.id || (sc.kind === 'saved' && sc.name ? 'saved:' + sc.name : ''),
+    name: sc.name || '',
+    kind: sc.kind || 'custom',
+    layout: sc.layout || 'custom',
+    source,
+    scene: sc,
+  };
+  try {
+    window.dispatchEvent(new CustomEvent('gather:scene-switch', { detail }));
+  } catch {}
+}
+function applyScene(sc, opts) {
   if (isHost()) guideMark('scened');
   preloadSceneAssets(sc);
-  try { obsStudio?.onGatherScene?.(sc); } catch {}
+  emitGatherSceneSwitch(sc, opts?.source || 'deck');
   if (sc.kind === 'builtin') return setStage({ layout: sc.layout, scene: sc.id, elements: sceneElements(sc.id, []) });
-  if (sc.kind === 'template') return applyTemplate(sc);
-  return loadLayout(sc.saved);
+  if (sc.kind === 'template') return applyTemplate(sc, { emitEvent: false });
+  return loadLayout(sc.saved, { emitEvent: false });
 }
 function scenePreview(sc) {
   const pv = document.createElement('span'); pv.className = 'sc-pv';

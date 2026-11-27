@@ -51,6 +51,7 @@ export const OVERLAY_PACKS = {
     name: 'Talk show',
     tag: 'Editorial studio',
     desc: 'Clean lower thirds, warm glass panels & Starting Soon screen',
+    overlayTpl: 'studio-clean',
     brand: { tag: 'glass', bannerStyle: 'glass', frame: 'none', motion: 'cinematic', alertStyle: 'broadcast', panel: 'glass' },
     countdown: { title: 'Live talk starting soon', subtitle: 'Grab a seat and drop your questions in chat', mode: 'starting' },
     ticker: 'Live Q&A open · Drop your questions in chat to be featured on stage',
@@ -59,6 +60,7 @@ export const OVERLAY_PACKS = {
     name: 'Live shopping',
     tag: 'Drop ready',
     desc: 'Bold price tags, high-energy alerts & live drop countdown',
+    overlayTpl: 'live-shop',
     brand: { tag: 'solid', bannerStyle: 'bold', frame: 'none', motion: 'playful', alertStyle: 'broadcast', panel: 'glass' },
     countdown: { title: 'Drop goes live in', subtitle: 'Limited stock — check out right on this page', mode: 'starting' },
     ticker: 'Live drop in progress · Tap Buy Now under the video without leaving the stream',
@@ -67,7 +69,8 @@ export const OVERLAY_PACKS = {
     name: 'Gaming & Esports',
     tag: 'High contrast',
     desc: 'Corner brackets, neon alerts & crisp scoreboard frame',
-    brand: { tag: 'solid', bannerStyle: 'bold', frame: 'none', motion: 'esports', alertStyle: 'neon', panel: 'solid' },
+    overlayTpl: 'esports-hud',
+    brand: { tag: 'solid', bannerStyle: 'bold', frame: 'corners', motion: 'esports', alertStyle: 'neon', panel: 'solid' },
     countdown: { title: 'Match loading…', subtitle: 'Lock in your XP predictions before the round starts', mode: 'starting' },
     ticker: 'Predictions open · Stake XP on the round · Play-with-me queue active',
   },
@@ -75,6 +78,7 @@ export const OVERLAY_PACKS = {
     name: 'Church & Community',
     tag: 'Warm & clear',
     desc: 'Gentle transitions, minimal cards & welcoming countdown',
+    overlayTpl: 'minimal-glass',
     brand: { tag: 'minimal', bannerStyle: 'minimal', frame: 'vignette', motion: 'luxury', alertStyle: 'minimal', panel: 'glass' },
     countdown: { title: 'Service begins shortly', subtitle: 'Say hello in chat and share where you’re tuning in from', mode: 'starting' },
     ticker: 'Welcome! Share a prayer request or say hello in the live chat',
@@ -83,6 +87,7 @@ export const OVERLAY_PACKS = {
     name: 'Education & Workshop',
     tag: 'Slide friendly',
     desc: 'Structured glass cards, crisp captions & clear headings',
+    overlayTpl: 'studio-clean',
     brand: { tag: 'outline', bannerStyle: 'classic', frame: 'none', motion: 'cinematic', alertStyle: 'glass', panel: 'glass' },
     countdown: { title: 'Workshop starts soon', subtitle: 'Slides and resources appear below the video', mode: 'starting' },
     ticker: 'Follow along with live captions · Ask questions anytime in chat',
@@ -91,7 +96,8 @@ export const OVERLAY_PACKS = {
     name: 'Podcast',
     tag: 'Audio-first',
     desc: 'Refined editorial frames, sleek name tags & chapter banners',
-    brand: { tag: 'glass', bannerStyle: 'minimal', frame: 'none', motion: 'luxury', alertStyle: 'glass', panel: 'glass' },
+    overlayTpl: 'cinema-scope',
+    brand: { tag: 'glass', bannerStyle: 'minimal', frame: 'vignette', motion: 'luxury', alertStyle: 'glass', panel: 'glass' },
     countdown: { title: 'New episode starting soon', subtitle: 'Send a voice note or super chat to join the conversation', mode: 'starting' },
     ticker: 'Live recording · Voice questions open on the watch page',
   },
@@ -766,7 +772,7 @@ export function drawCountdownScreen(g, W, H, cd, brand, font, recentChat, now) {
       rrect(g, barX + 18, py, Math.max(8, (barW - 36) * progFrac), 4, 2); g.fill();
     }
     if (cd.showChat) {
-      drawChatCard(Math.round(W * 0.69), Math.round(H * 0.07), Math.round(W * 0.265), Math.round(H * 0.58));
+      drawChatCard(Math.round(W * 0.69), Math.round(H * 0.135), Math.round(W * 0.265), Math.round(H * 0.54));
     }
   } else {
     // 'split' (default Broadcast Split) or 'esports' (bold HUD accents)

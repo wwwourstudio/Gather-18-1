@@ -56,7 +56,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="/tokens.css?v=20261126h">
 <link rel="stylesheet" href="/ui.css?v=20261126h">
-<link rel="stylesheet" href="/watch.css?v=20261126h">
+<link rel="stylesheet" href="/watch.css?v=20261127f">
 </head>
 <body>
 <div class="boot" id="boot" role="status" aria-live="polite">
@@ -121,10 +121,24 @@
     </div>
 
     <div class="wv-top-acts">
-      <button type="button" class="btn sm wv-subscribe-top" id="wSubTop" hidden><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-bell"/></svg><span id="wSubTopText">Subscribe</span></button>
-      <button type="button" class="wv-infobtn" id="wInfoBtn" aria-expanded="false" aria-controls="wHostDrawer" title="Show &amp; host details (I)" hidden>
-        <span class="wv-info-av" id="wInfoAv" aria-hidden="true"></span>
-        <span class="wv-info-name" id="wInfoName">Host</span>
+      <div class="wv-user-wrap" id="wAcctWrap">
+        <button type="button" class="wv-user-btn" id="wAcctBtn" aria-label="Sign in" aria-haspopup="menu" aria-expanded="false" aria-controls="wAcctPop">
+          <span class="wv-user-av" id="wAcctAv" aria-hidden="true"></span>
+          <span class="wv-user-ic-orb" id="wAcctIcon" aria-hidden="true"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-user"/></svg></span>
+          <span class="wv-user-label" id="wAcctLabel">Sign in</span>
+        </button>
+        <div class="wv-user-pop glass raised" id="wAcctPop" role="menu" aria-label="Account menu" hidden>
+          <div class="wv-up-head">
+            <span class="wv-up-av" id="wAcctPopAv" aria-hidden="true"></span>
+            <div class="wv-up-id">
+              <b id="wAcctPopName">Account</b>
+              <span id="wAcctPopEmail"></span>
+            </div>
+          </div>
+          <button type="button" class="wv-up-item danger" id="wAcctSignOut" role="menuitem"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-log-out"/></svg><span>Sign out</span></button>
+        </div>
+      </div>
+      <button type="button" class="icon-btn sm wv-info-ic" id="wInfoBtn" aria-expanded="false" aria-controls="wHostDrawer" aria-label="Show &amp; host details (I)" data-tip="Show details (I)" hidden>
         <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-info"/></svg>
       </button>
       <button type="button" class="icon-btn sm wv-theater-btn" id="wTheaterBtn" aria-pressed="false" aria-label="Theater mode (T)" data-tip="Theater mode (T)"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-monitor"/></svg></button>
@@ -316,36 +330,73 @@
               </section>
             </div>
 
-            <!-- AI Catch-up: "Missed 10 minutes?" -->
+            <!-- AI Catch-up: 2-card Bento Dock matching Party card aesthetics -->
             <div class="wv-sc-pane wv-catchup-v2" id="wPaneCatchup" role="tabpanel" hidden>
-              <div class="wv-cu-head">
-                <div>
-                  <b>Missed 10 minutes?</b>
-                  <small>Built live from show captions &amp; chat moments.</small>
+              <section class="wv-pt-card wv-cu-card wv-cu-summary-card" aria-label="Live recap">
+                <div class="wv-pt-h wv-cu-card-h">
+                  <div class="wv-cu-title">
+                    <span class="wv-cu-ic" aria-hidden="true"><svg class="i sm"><use href="/icons.svg#i-sparkles"/></svg></span>
+                    <b>Live recap</b>
+                    <span class="wv-cu-pill">Last 10m</span>
+                  </div>
+                  <em class="wv-cu-updated num" id="wCatchupUpdated">Ready</em>
                 </div>
-                <button type="button" class="btn sm primary" id="wCatchupBtn">Refresh recap</button>
-              </div>
-              <div class="wv-cu-body" id="wCatchupBody">
-                <p class="wv-cu-empty">Tap “Refresh recap” to get a quick bullet summary with jump-to-moment links.</p>
-              </div>
+                <p class="wv-cu-takeaway" id="wCatchupSummary">Tap refresh to build a live summary from recent show captions &amp; chat moments.</p>
+                <div class="wv-cu-foot">
+                  <span class="wv-cu-foot-note">Captions &amp; chat highlights</span>
+                  <button type="button" class="wv-cu-refresh" id="wCatchupBtn">
+                    <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-rotate-ccw"/></svg>
+                    <span>Refresh recap</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="wv-pt-card wv-cu-card wv-cu-moments-card" aria-label="Key moments">
+                <div class="wv-pt-h wv-cu-card-h">
+                  <div class="wv-cu-title">
+                    <b>Key moments</b>
+                  </div>
+                  <em class="num" id="wCatchupCount">0 moments</em>
+                </div>
+                <div class="wv-cu-body" id="wCatchupBody">
+                  <div class="wv-cu-empty-state">
+                    <svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-clock"/></svg>
+                    <span>Highlights appear here as captions, super chats, and challenges happen.</span>
+                  </div>
+                </div>
+              </section>
             </div>
 
-            <!-- Private Watch-Party Room -->
+            <!-- Private Watch-Party Room: Bento Dock matching Party & Catch-up -->
             <div class="wv-sc-pane wv-room-v2" id="wPaneRoom" role="tabpanel" hidden>
               <div class="wv-wr-setup" id="wRoomSetup">
-                <div>
-                  <b>Watch with friends in a private side room</b>
-                  <small>Create a room or enter a 6-character friend code — synced to this stream.</small>
-                </div>
-                <div class="wv-wr-acts">
-                  <button type="button" class="btn sm primary" id="wRoomCreate">Create friend room</button>
+                <section class="wv-pt-card wv-wr-card" aria-label="Create a friend room">
+                  <div class="wv-pt-h">
+                    <div class="wv-cu-title">
+                      <span class="wv-cu-ic wv-wr-ic" aria-hidden="true"><svg class="i sm"><use href="/icons.svg#i-users"/></svg></span>
+                      <b>Private watch room</b>
+                    </div>
+                    <em>Synced to stream</em>
+                  </div>
+                  <p class="wv-wr-desc">Start a private side chat for friends watching this live show together.</p>
+                  <div class="wv-wr-card-foot">
+                    <button type="button" class="btn sm primary" id="wRoomCreate">Create friend room</button>
+                  </div>
+                </section>
+
+                <section class="wv-pt-card wv-wr-card" aria-label="Join a friend room">
+                  <div class="wv-pt-h">
+                    <b>Join with a code</b>
+                    <em>6-character invite</em>
+                  </div>
+                  <p class="wv-wr-desc">Have an invite from a friend? Enter their code to hop into their room.</p>
                   <form class="wv-wr-join" id="wRoomJoinForm" autocomplete="off">
-                    <input class="input sm" id="wRoomCodeIn" maxlength="8" placeholder="Room code" aria-label="Friend room code">
-                    <button type="submit" class="btn sm">Join</button>
+                    <input class="input sm" id="wRoomCodeIn" maxlength="8" placeholder="ROOM CODE" aria-label="Friend room code">
+                    <button type="submit" class="btn sm">Join room</button>
                   </form>
-                </div>
+                </section>
               </div>
-              <div class="wv-wr-live" id="wRoomLive" hidden>
+              <div class="wv-pt-card wv-wr-live" id="wRoomLive" hidden>
                 <div class="wv-wr-bar">
                   <span class="wv-wr-pill">Room <b class="num" id="wRoomCodeTxt">—</b></span>
                   <span class="wv-wr-roster" id="wRoomRoster"></span>
@@ -802,6 +853,6 @@
 </dialog>
 
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
-<script type="module" src="/watch.js?v=20261126h"></script>
+<script type="module" src="/watch.js?v=20261127f"></script>
 </body>
 </html>

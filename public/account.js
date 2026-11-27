@@ -103,7 +103,8 @@ export function createAccount(app) {
     const b = $('#userBtn'), u = acct.user;
     b.classList.toggle('signed', !!u);
     document.body.classList.toggle('signed-in', !!u);
-    b.setAttribute('aria-label', u ? `Account menu (${u.name || u.email})` : 'Account menu');
+    b.setAttribute('aria-label', u ? `Account menu (${u.name || u.email})` : 'Sign in');
+    b.setAttribute('aria-haspopup', u ? 'menu' : 'dialog');
     b.removeAttribute('title');
     const av = $('#userAv');
     av.style.backgroundImage = u?.avatar ? `url("${u.avatar}")` : '';
@@ -111,8 +112,13 @@ export function createAccount(app) {
     $('#userIcon').toggleAttribute('hidden', !!u);
     $('#userLabel').textContent = u ? u.name : 'Sign in';
     const chev = $('#userChev');
-    if (chev) chev.removeAttribute('hidden');
+    if (chev) chev.hidden = !u;
+    if ($('#settingsTop')) $('#settingsTop').hidden = !u;
     if ($('#umGuestCard')) $('#umGuestCard').hidden = !!u;
+    if (!u) {
+      closeUserMenu();
+      if ($('#settingsDlg')?.open) $('#settingsDlg').close();
+    }
     if (u) {
       const prof = store.get('creatorProfile', {});
       const umAv = $('#umAv');
@@ -327,6 +333,11 @@ export function createAccount(app) {
   const acErr = (id, msg) => { const e = $(id); e.textContent = msg; e.hidden = !msg; };
   $('#userBtn').onclick = (e) => {
     e.stopPropagation();
+    if (!acct.user) {
+      closeUserMenu();
+      openAccount('in');
+      return;
+    }
     toggleUserMenu();
   };
   $('#umSignInBtn')?.addEventListener('click', (e) => {

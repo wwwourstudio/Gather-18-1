@@ -25,6 +25,7 @@ const PANEL_INFO = {
   shop: ['shopping-bag', 'Live drops, stock counter & instant checkout'],
   gaming: ['gamepad-2', 'Scoreboard, live counters, timer, queue & bounties'],
   controller: ['layout-dashboard', '3D glass remote, multi-cam, AI & live alerts'],
+  highlights: ['scissors', '30s clips, reel & stream export'],
 };
 const icon = (n) => `<svg class="i" aria-hidden="true"><use href="/icons.svg#i-${n}"/></svg>`;
 

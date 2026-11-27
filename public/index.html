@@ -65,7 +65,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@600;700&family=JetBrains+Mono:wght@600;800&family=Playfair+Display:wght@700;800&family=Bebas+Neue&family=DM+Serif+Display&display=swap">
 <link rel="stylesheet" href="/tokens.css?v=20261126h">
 <link rel="stylesheet" href="/ui.css?v=20261126h">
-<link rel="stylesheet" href="/style.css?v=20261126h">
+<link rel="stylesheet" href="/style.css?v=20261127g">
 </head>
 <body class="pre">
 <div class="boot" id="boot" role="status" aria-live="polite">
@@ -129,11 +129,11 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
     <div class="top-actions">
       <span class="rec-chip" id="recPill" hidden><i class="dot"></i><span id="recPillText">Recording</span></span>
       <div class="user-menu-wrap" id="userMenuWrap">
-        <button class="btn hdr user-btn" id="userBtn" aria-label="Your account" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPop">
+        <button class="btn hdr user-btn" id="userBtn" aria-label="Sign in" aria-haspopup="dialog" aria-expanded="false" aria-controls="userMenuPop">
           <span class="user-av" id="userAv"></span>
           <span class="user-ic-orb" id="userIcon" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-user"/></svg></span>
           <span class="user-label" id="userLabel">Sign in</span>
-          <svg class="i sm user-chev" id="userChev" aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg>
+          <svg class="i sm user-chev" id="userChev" hidden aria-hidden="true"><use href="/icons.svg#i-chevron-down"/></svg>
         </button>
         <div class="user-menu-pop glass raised" id="userMenuPop" role="menu" aria-label="Account menu" hidden>
           <div class="um-guest-card" id="umGuestCard">
@@ -167,7 +167,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
           <div class="um-sep um-signed-only" role="separator"></div>
           <div class="um-group" role="group" aria-label="Quick actions">
             <button type="button" class="um-item host-only um-signed-only" role="menuitem" id="umStartShow"><span class="um-ic um-ic-rose"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg></span><span class="um-lbl">Start or schedule show</span></button>
-            <button type="button" class="um-item" role="menuitem" id="umStudioSettings"><span class="um-ic um-ic-sky"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-video"/></svg></span><span class="um-lbl">Audio &amp; video devices</span></button>
+            <button type="button" class="um-item um-signed-only" role="menuitem" id="umStudioSettings"><span class="um-ic um-ic-sky"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-video"/></svg></span><span class="um-lbl">Audio &amp; video devices</span></button>
             <button type="button" class="um-item" role="menuitem" data-um-tab="shortcuts" id="umShortcuts"><span class="um-ic um-ic-violet"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-command"/></svg></span><span class="um-lbl">Keyboard shortcuts</span><kbd class="um-kbd">?</kbd></button>
             <button type="button" class="um-item" role="menuitem" id="umHelp"><span class="um-ic"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-circle-help"/></svg></span><span class="um-lbl">Help &amp; guides</span></button>
           </div>
@@ -185,7 +185,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
       </div>
       <button class="btn hdr primary mob-signup-btn" id="mobSignUpBtn" type="button">Sign up</button>
       <button class="icon-btn hdr-ic" id="helpTop" aria-label="Help" data-tip="Help"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-circle-help"/></svg></button>
-      <button class="icon-btn hdr-ic" id="settingsTop" aria-label="Settings" data-tip="Settings"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
+      <button class="icon-btn hdr-ic" id="settingsTop" hidden aria-label="Settings" data-tip="Settings"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-sliders-horizontal"/></svg></button>
       <button class="btn hdr host-only in-studio" id="watchTop" hidden data-tip="Your public watch page"><svg class="i" aria-hidden="true"><use href="/icons.svg#i-monitor-play"/></svg><span>Watch page</span></button>
       <button class="btn hdr host-only in-studio" id="enterTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-user-plus"/></svg><span id="enterTopText">Invite</span></button>
       <button class="btn hdr primary host-only in-studio live-top" id="liveTop" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-radio"/></svg><span id="livePillText">Go live</span></button>
@@ -1032,15 +1032,17 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
               </button>
               <button type="button" class="btn sm ghost" id="cloudSignOutBtn" hidden>Sign out</button>
             </div>
-            <div class="composer-row"><input id="layoutName" maxlength="40" placeholder="Scene name"><button type="button" class="btn sm" id="aiRecapBtn" data-tip="Generate 50-char description & participants from show transcript"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg>AI Recap</button><button type="button" class="btn sm primary" id="saveLayout">Save</button></div>
+            <div class="composer-row"><input id="layoutName" maxlength="40" placeholder="Scene name"><button type="button" class="btn sm ai-recap-btn" id="aiRecapBtn" data-tip="Gemini 50-char summary & participants"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-sparkles"/></svg><span>AI Recap</span></button><button type="button" class="btn sm primary" id="saveLayout">Save</button></div>
+            <p class="recap-status" id="aiRecapStatus" role="status" aria-live="polite" hidden></p>
             <label class="fld">
               <span class="recap-lbl-row"><span>Scene description</span><em class="num" id="layoutDescCount">0/50</em></span>
               <input class="input sm" id="layoutDesc" maxlength="50" placeholder="Auto-filled 50-character scene summary">
             </label>
             <label class="fld">
-              <span>Participants</span>
+              <span class="recap-lbl-row"><span>Participants</span><em class="num" id="layoutPartCount" hidden>0</em></span>
               <input class="input sm" id="layoutParticipants" maxlength="160" placeholder="e.g. Nathan, Maya, Alex">
             </label>
+            <div class="recap-chips" id="layoutPartChips" aria-label="Extracted participants" hidden></div>
             <label class="fld"><span>Opens with <em>presented when the scene starts</em></span><select id="sceneMedia"><option value="">No media</option></select></label>
             <div class="prune-box">
               <label class="toggle-row">
@@ -1713,13 +1715,13 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
         </header>
         <div class="panel-body hl-body">
           <!-- Combined Reel Preview Monitor -->
-          <div class="hl-preview-block">
-            <div class="hl-monitor" id="hlMonitor">
+          <div class="hl-preview-block" data-jump="Preview">
+            <div class="hl-monitor" id="hlMonitor" title="Click to play or pause preview">
               <canvas id="hlPreviewCanvas" width="640" height="360" aria-label="Combined Smart Highlights preview"></canvas>
               <div class="hl-monitor-empty" id="hlPreviewEmpty">
                 <svg class="i" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg>
-                <b>No clips in playlist yet</b>
-                <span>Drag 30-second clips into the sequence below to preview the combined reel.</span>
+                <b>Build a highlight reel</b>
+                <span>Capture a 30s moment or drag clips below to preview and send on-air.</span>
               </div>
               <div class="hl-monitor-hud" id="hlMonitorHud" hidden>
                 <span class="hl-hud-clip" id="hlHudClip"></span>
@@ -1737,20 +1739,22 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
                   <button type="button" class="icon-btn sm" id="hlPrevBtn" aria-label="Previous clip" data-tip="Previous clip" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-left"/></svg></button>
                   <button type="button" class="btn sm primary hl-play-btn" id="hlPlayBtn" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-play"/></svg><span id="hlPlayLbl">Preview</span></button>
                   <button type="button" class="icon-btn sm" id="hlNextBtn" aria-label="Next clip" data-tip="Next clip" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-chevron-right"/></svg></button>
+                </div>
+                <span class="hl-timecode num" id="hlTimecode">00:00 / 00:00</span>
+                <div class="hl-transport-opts">
                   <button type="button" class="icon-btn sm" id="hlLoopBtn" aria-pressed="false" aria-label="Loop preview" data-tip="Loop preview"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-repeat"/></svg></button>
                   <button type="button" class="icon-btn sm" id="hlMuteBtn" aria-pressed="false" aria-label="Mute preview" data-tip="Mute preview"><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-volume-2"/></svg></button>
                 </div>
-                <span class="hl-timecode num" id="hlTimecode">00:00 / 00:00</span>
               </div>
             </div>
           </div>
 
-          <!-- Playlist Sequence Drop Zone -->
-          <section class="hl-section" aria-label="Playlist sequence">
+          <!-- Reel Sequence Drop Zone -->
+          <section class="hl-section" data-jump="Reel sequence" aria-label="Reel sequence">
             <div class="hl-sec-head">
               <div class="hl-sec-title">
-                <h3>Playlist sequence</h3>
-                <span class="hl-sec-meta num" id="hlSeqMeta">Drag to reorder</span>
+                <h3>Reel sequence</h3>
+                <span class="hl-sec-meta num" id="hlSeqMeta">Empty</span>
               </div>
               <div class="hl-sec-acts">
                 <button type="button" class="btn sm ghost" id="hlAddAllBtn">Add all</button>
@@ -1761,7 +1765,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
             <div class="hl-dropzone" id="hlDropzone">
               <ol class="hl-seq-list" id="hlSeqList" aria-label="Sequenced highlight clips"></ol>
               <div class="hl-drop-empty" id="hlSeqEmpty">
-                <span>Drop 30s clips here to build your combined highlight sequence</span>
+                <span>Drag clips here or click <b>+ Add</b> below</span>
               </div>
             </div>
 
@@ -1776,45 +1780,45 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
               </label>
               <label class="toggle-inline hl-opt-chk">
                 <input type="checkbox" class="toggle sm" id="hlShowTitlesChk" role="switch" checked>
-                <span>Clip titles</span>
+                <span>Lower third</span>
               </label>
             </div>
           </section>
 
-          <!-- Generated 30-Second Clips Bin -->
-          <section class="hl-section" aria-label="Generated 30-second clips">
+          <!-- Captured Clips Library -->
+          <section class="hl-section" data-jump="Clip library" aria-label="Clip library">
             <div class="hl-sec-head">
               <div class="hl-sec-title">
-                <h3>Generated 30s clips</h3>
-                <span class="hl-sec-meta num" id="hlBinCount">0 available</span>
+                <h3>Clip library</h3>
+                <span class="hl-sec-meta num" id="hlBinCount">0</span>
               </div>
               <div class="hl-sec-acts">
                 <button type="button" class="btn sm" id="hlCapture30Btn" data-tip="Capture a 30-second highlight clip from the live stage">+ Capture 30s</button>
-                <button type="button" class="btn sm ghost" id="hlImportBtn" data-tip="Import local video clips into the bin">Import</button>
+                <button type="button" class="btn sm ghost" id="hlImportBtn" data-tip="Import local video clips into the library">Import</button>
                 <input type="file" id="hlImportFile" accept="video/*" multiple hidden>
               </div>
             </div>
-            <ul class="hl-bin-list" id="hlBinList" aria-label="Available 30-second clips to drag into the playlist"></ul>
-            <p class="hint hl-bin-empty" id="hlBinEmpty">Press <b>Mark clip</b> (or <b>M</b>) during a show, click <b>+ Capture 30s</b>, or import video files. Every generated 30-second clip appears here ready to drag into your playlist.</p>
+            <ul class="hl-bin-list" id="hlBinList" aria-label="Available clips to drag into the reel"></ul>
+            <p class="hint hl-bin-empty" id="hlBinEmpty">Press <b>M</b> during your show, tap <b>+ Capture 30s</b>, or import video files to build your clip library.</p>
           </section>
 
-          <!-- Export & Stream Overlay -->
-          <section class="hl-section hl-export-sec" aria-label="Export and stream overlay">
+          <!-- Broadcast & Export -->
+          <section class="hl-section hl-export-sec" data-jump="Broadcast & export" aria-label="Broadcast and export">
             <div class="hl-sec-head">
               <div class="hl-sec-title">
-                <h3>Export &amp; stream overlay</h3>
-                <span class="hl-sec-meta" id="hlOverlayStatus" data-state="idle">Ready</span>
+                <h3>Broadcast &amp; export</h3>
               </div>
+              <span class="hl-sec-meta" id="hlOverlayStatus" data-state="idle">Ready</span>
             </div>
 
             <div class="hl-overlay-row">
               <label class="hl-opt-fld">
-                <span>Overlay layout</span>
+                <span>Position</span>
                 <select class="input sm" id="hlOverlayModeSel" aria-label="Stream overlay layout">
                   <option value="pip-br" selected>PiP · Bottom right</option>
                   <option value="pip-bl">PiP · Bottom left</option>
                   <option value="pip-tr">PiP · Top right</option>
-                  <option value="full">Full stage reel</option>
+                  <option value="full">Full stage</option>
                 </select>
               </label>
               <label class="toggle-inline hl-opt-chk">
@@ -1823,15 +1827,21 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
               </label>
             </div>
 
-            <div class="hl-export-btns">
+            <div class="hl-export-stack">
               <button type="button" class="btn sm primary hl-export-main" id="hlOverlayBtn" disabled>Send to stream overlay</button>
-              <button type="button" class="btn sm" id="hlExportVideoBtn" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-download"/></svg>Export .webm</button>
-              <button type="button" class="btn sm ghost" id="hlExportJsonBtn" disabled>JSON</button>
+              <div class="hl-export-subrow">
+                <button type="button" class="btn sm" id="hlExportVideoBtn" data-tip="Render and download all sequenced clips as one combined .webm reel" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-download"/></svg><span>Export reel</span></button>
+                <button type="button" class="btn sm hl-batch-btn" id="hlBatchExportBtn" data-tip="Save every sequenced clip as an individual video file in Downloads" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-layers"/></svg><span id="hlBatchExportLbl">Batch Export</span></button>
+              </div>
+              <div class="hl-export-foot">
+                <span class="hl-export-hint" id="hlExportHint">Saves individual video files to Downloads</span>
+                <button type="button" class="btn sm ghost hl-json-btn" id="hlExportJsonBtn" data-tip="Export playlist order and metadata as JSON" disabled><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-file-text"/></svg><span>JSON</span></button>
+              </div>
             </div>
 
             <div class="hl-export-prog" id="hlExportProg" hidden>
               <div class="hl-export-prog-top">
-                <span id="hlExportProgText">Rendering combined playlist…</span>
+                <span id="hlExportProgText">Rendering combined reel…</span>
                 <button type="button" class="btn sm ghost" id="hlExportCancelBtn">Cancel</button>
               </div>
               <div class="hl-prog-track"><div class="hl-prog-fill" id="hlExportProgBar"></div></div>
@@ -3045,7 +3055,7 @@ body.pre #dock, body.pre .dock, #dock[hidden] { display: none !important; }
 <button type="button" class="audio-unblock glass raised" id="audioUnblock" hidden><svg class="i" aria-hidden="true"><use href="/icons.svg#i-play"/></svg>Your browser paused your guests’ sound. Click to hear them.</button>
 <div class="media-sink" id="mediaSink" aria-hidden="true"></div>
 
-<script src="/app.js?v=20261126h" type="module"></script>
+<script src="/app.js?v=20261127g" type="module"></script>
 <script type="module">import { startHero3D, tiltPreview } from '/hero3d.js'; tiltPreview(); window.requestIdleCallback ? window.requestIdleCallback(() => startHero3D(), { timeout: 800 }) : setTimeout(startHero3D, 200);</script>
 </body>
 </html>

@@ -50,6 +50,9 @@ export function initSmartHighlightsPlaylist(api) {
   const overlayBtn = $('#hlOverlayBtn');
   const overlayStatus = $('#hlOverlayStatus');
   const exportVideoBtn = $('#hlExportVideoBtn');
+  const batchExportBtn = $('#hlBatchExportBtn');
+  const batchExportLbl = $('#hlBatchExportLbl');
+  const exportHint = $('#hlExportHint');
   const exportJsonBtn = $('#hlExportJsonBtn');
   const exportProg = $('#hlExportProg');
   const exportProgText = $('#hlExportProgText');
@@ -301,6 +304,7 @@ export function initSmartHighlightsPlaylist(api) {
     const brandColor = opts.brandColor || api.getBrand?.()?.color || '#3b82f6';
     const font = opts.font || 'Plus Jakarta Sans, system-ui, -apple-system, sans-serif';
     const prog = Math.max(0, Math.min(1, clipDur > 0 ? localSec / clipDur : 0));
+    const reserveLowerThird = opts.reserveLowerThird !== false && cfg.showTitles;
 
     // Rich dark studio gradient backdrop with subtle animated light drift
     const bg = ctx.createLinearGradient(0, 0, w, h);
@@ -319,51 +323,50 @@ export function initSmartHighlightsPlaylist(api) {
     ctx.fillStyle = rad;
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle top hairline bar
+    // Subtle top progress hairline bar
     ctx.fillStyle = brandColor;
     ctx.fillRect(0, 0, w * prog, Math.max(3, Math.round(h * 0.008)));
 
     const padX = Math.round(w * 0.075);
-    const topY = Math.round(h * 0.22);
+    const topY = Math.round(h * 0.14);
+    const maxBottomY = reserveLowerThird ? Math.round(h * 0.64) : Math.round(h * 0.84);
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = `600 ${Math.max(11, Math.round(h * 0.042))}px ${font}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const metaStr = `${clip.source || '30s Highlight'}  ·  ${clip.durationSec || 30}s`;
-    ctx.fillText(metaStr, padX, topY);
 
+    // Eyebrow: source + speaker + duration (never collides with bottom lower-third)
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `600 ${Math.max(11, Math.round(h * 0.038))}px ${font}`;
+    const eyebrowParts = [clip.source || '30s Clip', clip.speaker || '', `${clip.durationSec || 30}s`].filter(Boolean);
+    ctx.fillText(eyebrowParts.join('  ·  '), padX, topY);
+
+    // Headline (only draw large card headline if lower-third isn't already repeating it, OR draw it cleanly with breathing room)
+    const headlineY = topY + Math.round(h * 0.075);
     ctx.fillStyle = '#f8fafc';
-    ctx.font = `700 ${Math.max(18, Math.round(h * 0.088))}px ${font}`;
-    const title = String(clip.title || 'Smart Highlight').slice(0, 44);
-    ctx.fillText(title, padX, topY + Math.round(h * 0.08));
+    ctx.font = `700 ${Math.max(16, Math.round(h * 0.076))}px ${font}`;
+    const title = String(clip.title || 'Smart Highlight').slice(0, 40);
+    ctx.fillText(title, padX, headlineY);
 
     if (clip.snippet) {
       ctx.fillStyle = '#cbd5e1';
-      ctx.font = `400 ${Math.max(12, Math.round(h * 0.048))}px ${font}`;
+      ctx.font = `400 ${Math.max(12, Math.round(h * 0.044))}px ${font}`;
       const words = String(clip.snippet).split(/\s+/);
       let line = '';
-      let y = topY + Math.round(h * 0.23);
+      let y = headlineY + Math.round(h * 0.125);
       const maxW = w - padX * 2;
-      const lh = Math.round(h * 0.072);
+      const lh = Math.round(h * 0.064);
       for (const word of words) {
         const cand = line ? `${line} ${word}` : word;
         if (ctx.measureText(cand).width > maxW && line) {
           ctx.fillText(line, padX, y);
           line = word;
           y += lh;
-          if (y > h * 0.72) break;
+          if (y + lh > maxBottomY) break;
         } else {
           line = cand;
         }
       }
-      if (line && y <= h * 0.72) ctx.fillText(line, padX, y);
-    }
-
-    if (clip.speaker) {
-      ctx.fillStyle = '#e2e8f0';
-      ctx.font = `600 ${Math.max(11, Math.round(h * 0.042))}px ${font}`;
-      ctx.fillText(clip.speaker, padX, Math.round(h * 0.79));
+      if (line && y <= maxBottomY) ctx.fillText(line, padX, y);
     }
   }
 
@@ -541,7 +544,7 @@ export function initSmartHighlightsPlaylist(api) {
 
     if (monitorHud && hudClip && hudIdx) {
       monitorHud.hidden = false;
-      hudClip.textContent = clip.title;
+      hudClip.textContent = cfg.showTitles ? '' : clip.title;
       hudIdx.textContent = `${preview.clipIdx + 1} / ${items.length}`;
     }
 
@@ -1040,6 +1043,7 @@ export function initSmartHighlightsPlaylist(api) {
     if (exportProg) exportProg.hidden = false;
     if (exportProgBar) exportProgBar.style.width = '0%';
     if (exportVideoBtn) exportVideoBtn.disabled = true;
+    if (batchExportBtn) batchExportBtn.disabled = true;
 
     const exCanvas = document.createElement('canvas');
     exCanvas.width = 1280;
@@ -1195,6 +1199,164 @@ export function initSmartHighlightsPlaylist(api) {
     }
   }
 
+  function extForVideoBlob(blob) {
+    const t = String(blob?.type || '').toLowerCase();
+    if (t.includes('mp4')) return 'mp4';
+    if (t.includes('quicktime') || t.includes('mov')) return 'mov';
+    if (t.includes('ogg')) return 'ogv';
+    if (t.includes('x-matroska') || t.includes('mkv')) return 'mkv';
+    return 'webm';
+  }
+
+  function buildClipFileName(clip, index, ext, stamp) {
+    const num = String(index + 1).padStart(2, '0');
+    const slug = String(clip?.title || 'highlight')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 36) || 'highlight';
+    return `highlight-${num}-${slug}-${stamp}.${ext}`;
+  }
+
+  async function renderSingleCardWebm(clip, seqIdx, totalCount, { maxCardSec = 2.0, onProgress } = {}) {
+    if (!window.MediaRecorder) {
+      throw new Error('Video rendering requires MediaRecorder support in this browser.');
+    }
+    const mime = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8', 'video/webm']
+      .find((m) => MediaRecorder.isTypeSupported(m));
+    if (!mime) {
+      throw new Error('No supported WebM encoder found in this browser.');
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+    const stream = canvas.captureStream(30);
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_600_000 });
+    const chunks = [];
+    rec.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
+    const stopped = new Promise((resolve) => { rec.onstop = resolve; });
+
+    try {
+      rec.start(250);
+      const targetDur = Math.max(0.8, Number(maxCardSec) || 2.0);
+      const startMs = performance.now();
+      await new Promise((resolve) => {
+        function step(now) {
+          if (exportCancelled) { resolve(); return; }
+          const elapsed = (now - startMs) / 1000;
+          drawHighlightCardFrame(ctx, 1280, 720, clip, elapsed, targetDur);
+          if (cfg.showTitles) {
+            drawTitleLowerThird(ctx, 0, 0, 1280, 720, clip, seqIdx, totalCount, elapsed, targetDur);
+          }
+          onProgress?.(Math.min(1, elapsed / targetDur));
+          if (elapsed >= targetDur) resolve();
+          else requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+      if (rec.state !== 'inactive') rec.stop();
+      await stopped;
+      if (exportCancelled) return null;
+      return new Blob(chunks, { type: mime.split(';')[0] || 'video/webm' });
+    } finally {
+      stream.getTracks().forEach((t) => t.stop());
+    }
+  }
+
+  /** Save every sequenced clip as an individual video file in the user's local Downloads directory. */
+  async function batchExportClips({ maxCardSec = 2.0, staggerMs = 260 } = {}) {
+    const items = getSequenceClips();
+    if (!items.length || exporting) return null;
+
+    exporting = true;
+    exportCancelled = false;
+    if (exportProg) exportProg.hidden = false;
+    if (exportProgBar) exportProgBar.style.width = '0%';
+    if (exportVideoBtn) exportVideoBtn.disabled = true;
+    if (batchExportBtn) batchExportBtn.disabled = true;
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+    const exportedFiles = [];
+    const total = items.length;
+
+    try {
+      for (let i = 0; i < total; i++) {
+        if (exportCancelled) break;
+        const clip = items[i];
+        const hasNativeVideo = clip.blob instanceof Blob && clip.blob.size > 0 && /^video\//i.test(String(clip.blob.type || ''));
+        let fileBlob = null;
+
+        if (hasNativeVideo) {
+          if (exportProgText) exportProgText.textContent = `Saving clip ${i + 1} of ${total} to Downloads…`;
+          fileBlob = clip.blob;
+        } else {
+          if (exportProgText) exportProgText.textContent = `Rendering clip ${i + 1} of ${total}…`;
+          fileBlob = await renderSingleCardWebm(clip, i, total, {
+            maxCardSec,
+            onProgress: (frac) => {
+              const pct = Math.min(99, Math.round(((i + frac) / total) * 100));
+              if (exportProgBar) exportProgBar.style.width = `${pct}%`;
+              if (exportProgText) exportProgText.textContent = `Rendering clip ${i + 1} of ${total} · ${pct}%`;
+            },
+          });
+        }
+
+        if (exportCancelled || !fileBlob) break;
+
+        const ext = extForVideoBlob(fileBlob);
+        const fileName = buildClipFileName(clip, i, ext, stamp);
+        triggerDownload(fileBlob, fileName);
+        exportedFiles.push({
+          index: i + 1,
+          id: clip.id,
+          title: clip.title,
+          fileName,
+          type: fileBlob.type || `video/${ext}`,
+          size: fileBlob.size,
+        });
+
+        const pct = Math.round(((i + 1) / total) * 100);
+        if (exportProgBar) exportProgBar.style.width = `${pct}%`;
+        if (exportProgText) {
+          exportProgText.textContent = i + 1 < total
+            ? `Saved ${i + 1} of ${total} clips to Downloads…`
+            : `Saved ${total} individual clip${total === 1 ? '' : 's'} to Downloads`;
+        }
+
+        // Stagger consecutive downloads slightly so browsers do not drop queued file saves
+        if (i + 1 < total && !exportCancelled && staggerMs > 0) {
+          await new Promise((r) => setTimeout(r, staggerMs));
+        }
+      }
+
+      if (exportCancelled) {
+        api.toast?.(
+          exportedFiles.length
+            ? `Batch export cancelled (${exportedFiles.length} of ${total} saved to Downloads).`
+            : 'Batch export cancelled.'
+        );
+      } else if (exportedFiles.length) {
+        api.toast?.(`Saved ${exportedFiles.length} individual video clip${exportedFiles.length === 1 ? '' : 's'} to Downloads.`);
+      }
+
+      return {
+        exportedCount: exportedFiles.length,
+        totalCount: total,
+        cancelled: exportCancelled,
+        files: exportedFiles,
+      };
+    } catch (err) {
+      api.toast?.(err?.message || 'Could not batch export sequenced clips.', { err: true });
+      return null;
+    } finally {
+      exporting = false;
+      setTimeout(() => { if (exportProg && !exporting) exportProg.hidden = true; }, 1100);
+      renderAll();
+    }
+  }
+
   // ---- UI Rendering
   function renderAll() {
     const seqClips = getSequenceClips();
@@ -1204,18 +1366,27 @@ export function initSmartHighlightsPlaylist(api) {
     if (headerMeta) headerMeta.textContent = `${seqClips.length} clip${seqClips.length === 1 ? '' : 's'} · ${fmtMMSS(totalSec)}`;
     if (tabBadge) {
       const n = seqClips.length || binClips.length;
-      tabBadge.textContent = String(n);
+      tabBadge.textContent = n > 0 ? (n > 99 ? '99+' : String(n)) : '';
       tabBadge.hidden = n === 0;
     }
     if (seqMeta) {
       seqMeta.textContent = seqClips.length
-        ? `${seqClips.length} in reel · ${fmtMMSS(totalSec)}`
-        : 'Drag to reorder';
+        ? `${seqClips.length} · ${fmtMMSS(totalSec)}`
+        : 'Empty';
     }
     if (seqEmpty) seqEmpty.hidden = seqClips.length > 0;
     if (clearSeqBtn) clearSeqBtn.disabled = seqClips.length === 0;
     if (addAllBtn) addAllBtn.disabled = binClips.length === 0;
     if (exportVideoBtn) exportVideoBtn.disabled = seqClips.length === 0 || exporting;
+    if (batchExportBtn) batchExportBtn.disabled = seqClips.length === 0 || exporting;
+    if (batchExportLbl) {
+      batchExportLbl.textContent = seqClips.length > 0 ? `Batch Export (${seqClips.length})` : 'Batch Export';
+    }
+    if (exportHint) {
+      exportHint.textContent = seqClips.length > 0
+        ? `Batch saves ${seqClips.length} separate file${seqClips.length === 1 ? '' : 's'} to Downloads`
+        : 'Saves individual video files to Downloads';
+    }
     if (exportJsonBtn) exportJsonBtn.disabled = seqClips.length === 0;
 
     // Proportional timeline segments
@@ -1299,15 +1470,15 @@ export function initSmartHighlightsPlaylist(api) {
       return li;
     }));
 
-    // Generated 30s clips bin
-    if (binCount) binCount.textContent = `${binClips.length} available`;
+    // Captured clips library
+    if (binCount) binCount.textContent = String(binClips.length);
     if (binEmpty) binEmpty.hidden = binClips.length > 0;
     const seqCounts = new Map();
     for (const s of sequence) seqCounts.set(s.clipId, (seqCounts.get(s.clipId) || 0) + 1);
 
     replaceKids(binList, ...binClips.map((c) => {
       const li = document.createElement('li');
-      li.className = 'hl-bin-item';
+      li.className = 'hl-bin-item' + (seqCounts.get(c.id) ? ' in-reel' : '');
       li.draggable = true;
       li.dataset.clipId = c.id;
       const inCount = seqCounts.get(c.id) || 0;
@@ -1315,7 +1486,7 @@ export function initSmartHighlightsPlaylist(api) {
       const thumbUrl = thumbCache.get(c.id);
 
       li.innerHTML = `
-        <span class="hl-grip" aria-hidden="true" title="Drag into playlist">⋮⋮</span>
+        <span class="hl-grip" aria-hidden="true" title="Drag into reel">⋮⋮</span>
         <div class="hl-thumb"></div>
         <div class="hl-bin-info">
           <b class="hl-item-title"></b>
@@ -1334,7 +1505,7 @@ export function initSmartHighlightsPlaylist(api) {
         thumbEl.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-scissors"/></svg>';
       }
       $('.hl-item-title', li).textContent = c.title;
-      $('.hl-item-meta', li).textContent = `${c.durationSec}s · ${when} · ${c.source}${inCount ? ` · In reel (${inCount})` : ''}`;
+      $('.hl-item-meta', li).textContent = `${c.durationSec}s · ${when}${inCount ? ` · In reel${inCount > 1 ? ` ×${inCount}` : ''}` : ''}`;
 
       const addBtn = $('.hl-bin-add', li);
       addBtn.textContent = inCount ? '+ Again' : '+ Add';
@@ -1373,6 +1544,11 @@ export function initSmartHighlightsPlaylist(api) {
   }
 
   // ---- Controls Wiring
+  previewCanvas.addEventListener('click', () => {
+    if (!getSequenceClips().length) return;
+    if (preview.playing) stopPreview();
+    else startPreview();
+  });
   playBtn?.addEventListener('click', () => {
     if (preview.playing) stopPreview();
     else startPreview();
@@ -1539,6 +1715,7 @@ export function initSmartHighlightsPlaylist(api) {
     else startStreamOverlay();
   });
   exportVideoBtn?.addEventListener('click', () => exportPlaylistWebm());
+  batchExportBtn?.addEventListener('click', () => batchExportClips());
   exportJsonBtn?.addEventListener('click', () => exportPlaylistJson());
   exportCancelBtn?.addEventListener('click', () => { exportCancelled = true; });
 
@@ -1582,6 +1759,7 @@ export function initSmartHighlightsPlaylist(api) {
     isOverlayAudioRouted: () => !!(overlayRun.audioRouted && overlayAudioHandle?.isRouted?.()),
     exportJson: () => exportPlaylistJson(),
     exportWebm: (opts) => exportPlaylistWebm(opts),
+    batchExport: (opts) => batchExportClips(opts),
     getState: () => ({
       binCount: clipPool.size,
       sequenceIds: sequence.map((s) => s.clipId),

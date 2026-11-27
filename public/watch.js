@@ -46,8 +46,11 @@ export function embedFor(kind, raw, host = location.hostname) {
 
 // Chat only (?chat=1): the live chat filling the window, for a second screen, a phone or an OBS browser source.
 // No video is pulled, so it doesn't use a viewer seat or bandwidth.
-const CHAT_ONLY = new URLSearchParams(location.search).get('chat') === '1';
+const _wParams = new URLSearchParams(location.search);
+const CHAT_ONLY = _wParams.get('chat') === '1';
+const STUDIO_CHAT = CHAT_ONLY && (_wParams.get('studio') === '1' || (() => { try { return !!JSON.parse(localStorage.getItem('gather:acctToken') || 'null'); } catch { return false; } })());
 if (CHAT_ONLY) document.documentElement.classList.add('chat-only');
+if (STUDIO_CHAT) document.documentElement.classList.add('studio-chat');
 
 // ---------------------------------------------------------------- state
 const ACCT = { user: null, av: '', then: null, up: false };
@@ -850,10 +853,44 @@ function renderHype(info) {
 function showErr(sel, msg) { const e = $(sel); e.textContent = msg || ''; e.hidden = !msg; }
 function renderMe() {
   const me = $('#wMe');
-  if (!me) return;
-  const nm = ACCT?.user?.name || (sess?.named ? sess.name : '');
-  me.textContent = nm || 'Sign in';
-  me.classList.toggle('signed', !!(ACCT?.user || sess?.named));
+  if (me) {
+    if (STUDIO_CHAT) {
+      me.hidden = true;
+    } else {
+      me.hidden = false;
+      const nm = ACCT?.user?.name || (sess?.named ? sess.name : '');
+      me.textContent = nm || 'Sign in';
+      me.classList.toggle('signed', !!(ACCT?.user || sess?.named));
+    }
+  }
+  renderWatchAccount();
+}
+function renderWatchAccount() {
+  const btn = $('#wAcctBtn');
+  if (!btn) return;
+  const u = ACCT?.user;
+  const av = $('#wAcctAv'), lbl = $('#wAcctLabel'), popAv = $('#wAcctPopAv');
+  btn.classList.toggle('signed', !!u);
+  btn.setAttribute('aria-label', u ? `Account: ${u.name || 'Signed in'}` : 'Sign in');
+  btn.setAttribute('aria-haspopup', u ? 'menu' : 'dialog');
+  if (lbl) lbl.textContent = u ? (u.name || 'Account') : 'Sign in';
+  const applyAv = (el) => {
+    if (!el) return;
+    if (u?.avatar) {
+      el.textContent = '';
+      el.style.backgroundImage = `url("${u.avatar}")`;
+      el.style.backgroundColor = 'transparent';
+    } else {
+      el.style.backgroundImage = '';
+      el.textContent = u ? initialsOf(u.name || u.email || 'A') : '';
+      el.style.backgroundColor = u ? nameColor(u.name || u.email || 'A') : '';
+    }
+  };
+  applyAv(av);
+  applyAv(popAv);
+  if ($('#wAcctPopName')) $('#wAcctPopName').textContent = u?.name || 'Account';
+  if ($('#wAcctPopEmail')) $('#wAcctPopEmail').textContent = u?.email || '';
+  if (!u && $('#wAcctPop')) { $('#wAcctPop').hidden = true; btn.setAttribute('aria-expanded', 'false'); }
 }
 
 let naming = null;
@@ -886,7 +923,19 @@ $('#wCompose').addEventListener('submit', async (e) => {
   const text = $('#wText').value.trim();
   if (!text) return;
   showErr('#wErr', '');
-  if (!ACCT.user && !sess?.named) { ACCT.then = () => $('#wCompose').requestSubmit(); return openSignIn(); }
+  if (!ACCT.user && !sess?.named) {
+    if (STUDIO_CHAT) {
+      await acctBootP.catch(() => {});
+      if (ACCT.user) await joinSigned();
+      else {
+        const fallbackName = String(store.get('name', '') || W.info?.host?.name || 'Host').trim() || 'Host';
+        await setName(fallbackName);
+      }
+    } else {
+      ACCT.then = () => $('#wCompose').requestSubmit();
+      return openSignIn();
+    }
+  }
   try {
     if (ACCT.user && !sess?.signed) await joinSigned();
     if (naming) await naming.catch(() => {});
@@ -939,7 +988,16 @@ async function spendReward(text) {
 $$('.wv-reward').forEach((b) => b.addEventListener('click', async () => {
   if (W.reward === b.dataset.reward) return setReward(null);
   await ensureSession().catch(() => {});
-  if (!sess?.named) { ACCT.then = () => b.click(); return openSignIn(); }
+  if (!sess?.named) {
+    if (STUDIO_CHAT) {
+      await acctBootP.catch(() => {});
+      if (ACCT.user) await joinSigned().catch(() => {});
+      else await setName(String(store.get('name', '') || W.info?.host?.name || 'Host').trim() || 'Host').catch(() => {});
+    } else {
+      ACCT.then = () => b.click();
+      return openSignIn();
+    }
+  }
   setReward(b.dataset.reward); setTab('chat'); refreshXp();
 }));
 $('#wRewardChipX').onclick = () => setReward(null);
@@ -1253,7 +1311,14 @@ function handBtn(label, cls, fn) { const b = document.createElement('button'); b
 async function raiseHand(mode) {
   try {
     await ensureSession();
-    if (!sess?.named) { if (ACCT.user) await joinSigned(); else { ACCT.then = () => raiseHand(mode); return openSignIn(); } }
+    if (!sess?.named) {
+      if (STUDIO_CHAT) {
+        await acctBootP.catch(() => {});
+        if (ACCT.user) await joinSigned();
+        else await setName(String(store.get('name', '') || W.info?.host?.name || 'Host').trim() || 'Host');
+      } else if (ACCT.user) await joinSigned();
+      else { ACCT.then = () => raiseHand(mode); return openSignIn(); }
+    }
     const r = await api('knock', { studio: code, dev: handDev(), name: sess.name, callin: mode === 'voice', note: mode === 'voice' ? 'Raised hand · voice' : 'Raised hand · camera' });
     Object.assign(HAND, { id: r.id, tok: r.tok, mode, pass: '' });
     $('#wAsk').classList.add('raised');
@@ -1602,27 +1667,61 @@ $('#wSignForm').addEventListener('submit', async (e) => {
   finally { $('#wSignGo').removeAttribute('aria-busy'); }
 });
 $('#wSignDlg').addEventListener('close', () => { if (!ACCT.user) ACCT.then = null; });
-if (acctToken()) acctApi('me').then((r) => setAccount(r.user)).catch(() => {});
-$('#wMe').onclick = () => {
+const acctBootP = acctToken()
+  ? acctApi('me').then(async (r) => {
+      await setAccount(r.user);
+      if (STUDIO_CHAT && !sess?.signed) await joinSigned().catch(() => {});
+    }).catch(() => {})
+  : Promise.resolve();
+function setAcctMenu(open) {
+  const pop = $('#wAcctPop'), btn = $('#wAcctBtn');
+  if (!pop || !btn) return;
+  pop.hidden = !open;
+  btn.setAttribute('aria-expanded', String(!!open));
+}
+function signOutWatchAccount() {
+  setAcctMenu(false);
+  localStorage.removeItem('gather:acctToken');
+  ACCT.user = null;
+  ACCT.av = '';
+  renew().then(renderMe).catch(() => renderMe());
+  toast('Signed out.');
+}
+$('#wAcctBtn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
   if (!ACCT.user) return openSignIn();
-  if (confirm(`Signed in as ${ACCT.user.name}. Sign out of the chat?`)) { localStorage.removeItem('gather:acctToken'); ACCT.user = null; ACCT.av = ''; renew().then(renderMe).catch(() => {}); toast('Signed out.'); }
+  setAcctMenu($('#wAcctPop').hidden);
+});
+$('#wAcctSignOut')?.addEventListener('click', signOutWatchAccount);
+document.addEventListener('click', (e) => {
+  if ($('#wAcctPop') && !$('#wAcctPop').hidden && !e.target.closest('#wAcctWrap')) setAcctMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#wAcctPop') && !$('#wAcctPop').hidden) setAcctMenu(false);
+});
+$('#wMe').onclick = () => {
+  if (STUDIO_CHAT) return;
+  if (!ACCT.user) return openSignIn();
+  if (confirm(`Signed in as ${ACCT.user.name}. Sign out of the chat?`)) signOutWatchAccount();
 };
+renderWatchAccount();
 
 // ---------------------------------------------------------------- Host details inside Show & Host Drawer
 function initialsOf(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?'; }
 function renderHost(info) {
   const card = $('#wHost'), infoBtn = $('#wInfoBtn');
   if (!info.found && !info.ended && !(info.offline && info.host)) {
-    card.hidden = true; infoBtn.hidden = true;
+    card.hidden = true; if (infoBtn) infoBtn.hidden = true;
     if ($('#wEmptyHost')) $('#wEmptyHost').textContent = 'Broadcast Feed';
     if ($('#wEmptyAv')) $('#wEmptyAv').textContent = '';
     return;
   }
-  card.hidden = false; infoBtn.hidden = false;
+  card.hidden = false; if (infoBtn) infoBtn.hidden = false;
   const h = info.host || {}, w = info.watch || {};
   $('#wHostTitle').textContent = info.offline ? `${h.name || 'This streamer'} isn’t live right now` : info.title || 'Live show';
   $('#wHostName').textContent = h.name || 'The host';
-  $('#wInfoName').textContent = h.name || 'Show info';
+  if ($('#wInfoName')) $('#wInfoName').textContent = h.name || 'Show info';
+  if (infoBtn) infoBtn.setAttribute('data-tip', `${h.name || 'Show'} · details (I)`);
   if ($('#wEmptyHost')) $('#wEmptyHost').textContent = (h.name || 'Broadcast Host') + (h.handle ? ` · @${h.handle}` : '');
   $('#wHostHandle').textContent = h.handle ? '@' + h.handle : '';
   const live = info.live?.on || W.direct.state === 'live';
@@ -1634,7 +1733,7 @@ function renderHost(info) {
   if (!av.dataset.done) {
     const ini = initialsOf(h.name), col = nameColor(h.name || '?');
     av.textContent = ini; av.style.background = col;
-    topAv.textContent = ini; topAv.style.background = col;
+    if (topAv) { topAv.textContent = ini; topAv.style.background = col; }
     if (slateAv) { slateAv.textContent = ini; slateAv.style.background = col; }
     if (h.photo) {
       av.dataset.done = '1';
@@ -1642,7 +1741,7 @@ function renderHost(info) {
         if (r.avatar) {
           W.hostAvatar = r.avatar;
           const im1 = document.createElement('img'); im1.src = r.avatar; im1.alt = ''; replaceKids(av, im1); av.style.background = 'none';
-          const im2 = document.createElement('img'); im2.src = r.avatar; im2.alt = ''; replaceKids(topAv, im2); topAv.style.background = 'none';
+          if (topAv) { const im2 = document.createElement('img'); im2.src = r.avatar; im2.alt = ''; replaceKids(topAv, im2); topAv.style.background = 'none'; }
           if (slateAv) { const im3 = document.createElement('img'); im3.src = r.avatar; im3.alt = ''; replaceKids(slateAv, im3); slateAv.style.background = 'none'; }
           if (W.info) renderCreatorCard(W.info);
         }
@@ -1881,8 +1980,8 @@ async function handleSubClick() {
   if (!$('#wSubEmail').value && ACCT?.user?.email) $('#wSubEmail').value = ACCT.user.email;
   $('#wSubDlg').showModal(); $('#wSubEmail').focus();
 }
-$('#wSub').onclick = handleSubClick;
-$('#wSubTop').onclick = handleSubClick;
+if ($('#wSub')) $('#wSub').onclick = handleSubClick;
+if ($('#wSubTop')) $('#wSubTop').onclick = handleSubClick;
 if ($('#wSubCard')) $('#wSubCard').onclick = handleSubClick;
 
 $('#wSubForm').addEventListener('submit', async (e) => {
@@ -2182,38 +2281,79 @@ async function checkoutBag(lines, total, onPaid) {
   }
 }
 
-// ---- AI Catch-up ("Missed 10 minutes?") ----
+// ---- AI Catch-up ("Live recap" + "Key moments") ----
 async function loadCatchup() {
   const body = $('#wCatchupBody');
   if (!body) return;
   const btn = $('#wCatchupBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Building recap…'; }
+  const btnLbl = btn?.querySelector('span');
+  const sumEl = $('#wCatchupSummary');
+  const updEl = $('#wCatchupUpdated');
+  const cntEl = $('#wCatchupCount');
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('loading');
+    if (btnLbl) btnLbl.textContent = 'Updating…';
+    else btn.textContent = 'Updating…';
+  }
   try {
     const r = await api('wcatchup', { studio: code });
-    const wrap = document.createElement('div'); wrap.className = 'wv-cu-list';
-    const sum = document.createElement('p'); sum.className = 'wv-cu-sum'; sum.textContent = r.summary || 'Here is what just happened on stream.';
-    wrap.append(sum);
-    const moments = r.moments || [];
+    const summaryText = (r.summary || '').trim() || 'Here is what just happened on stream.';
+    if (sumEl) sumEl.textContent = summaryText;
+    if (updEl) {
+      const now = new Date();
+      updEl.textContent = `Updated ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    }
+    const moments = Array.isArray(r.moments) ? r.moments : [];
+    if (cntEl) cntEl.textContent = `${moments.length} ${moments.length === 1 ? 'moment' : 'moments'}`;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'wv-cu-list';
     if (!moments.length) {
-      const em = document.createElement('p'); em.className = 'wv-cu-empty';
-      em.textContent = 'Quiet last 10 minutes — highlights appear here as captions, super chats, and challenges happen.';
+      const em = document.createElement('div');
+      em.className = 'wv-cu-empty-state';
+      em.innerHTML = '<svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-clock"/></svg>';
+      const txt = document.createElement('span');
+      txt.textContent = 'Quiet last 10 minutes — highlights appear here as captions, super chats & challenges happen.';
+      em.append(txt);
       wrap.append(em);
     } else {
-      const ul = document.createElement('ul'); ul.className = 'wv-cu-ul';
+      const ul = document.createElement('ul');
+      ul.className = 'wv-cu-ul';
       for (const m of moments) {
         const li = document.createElement('li');
         const agoMin = Math.max(0, Math.round((Date.now() - (m.ts || Date.now())) / 60000));
-        const t = document.createElement('span'); t.className = 'wv-cu-time num'; t.textContent = agoMin ? `${agoMin}m ago` : 'Just now';
-        const info = document.createElement('div'); info.className = 'wv-cu-txt';
-        info.append(Object.assign(document.createElement('b'), { textContent: m.title }), Object.assign(document.createElement('span'), { textContent: m.detail || '' }));
+        const t = document.createElement('span');
+        t.className = 'wv-cu-time num';
+        t.textContent = agoMin ? `${agoMin}m ago` : 'Just now';
+
+        const info = document.createElement('div');
+        info.className = 'wv-cu-txt';
+        const titleEl = document.createElement('b');
+        titleEl.textContent = m.title || 'Stream moment';
+        info.append(titleEl);
+        if (m.detail) {
+          const detEl = document.createElement('span');
+          detEl.textContent = m.detail;
+          info.append(detEl);
+        }
         li.append(t, info);
+
         if (m.msgId) {
-          const jump = document.createElement('button'); jump.type = 'button'; jump.className = 'btn sm ghost'; jump.textContent = 'Jump';
+          const jump = document.createElement('button');
+          jump.type = 'button';
+          jump.className = 'wv-cu-jump';
+          jump.innerHTML = '<span>Jump</span><svg class="i sm" aria-hidden="true"><use href="/icons.svg#i-arrow-up-right"/></svg>';
           jump.onclick = () => {
             setTab('chat');
             const target = $(`#wMsgs [data-id="${cssEsc(m.msgId)}"]`);
-            if (target) { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); target.classList.add('flash'); setTimeout(() => target.classList.remove('flash'), 1600); }
-            else toast('That chat moment scrolled past the live window.');
+            if (target) {
+              target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              target.classList.add('flash');
+              setTimeout(() => target.classList.remove('flash'), 1600);
+            } else {
+              toast('That chat moment scrolled past the live window.');
+            }
           };
           li.append(jump);
         }
@@ -2223,9 +2363,18 @@ async function loadCatchup() {
     }
     replaceKids(body, wrap);
   } catch (e) {
-    replaceKids(body, Object.assign(document.createElement('p'), { className: 'wv-cu-empty', textContent: e.message || 'Could not load recap right now.' }));
+    if (updEl) updEl.textContent = 'Offline';
+    const err = document.createElement('div');
+    err.className = 'wv-cu-empty-state';
+    err.textContent = e.message || 'Could not load recap right now.';
+    replaceKids(body, err);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Refresh recap'; }
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      if (btnLbl) btnLbl.textContent = 'Refresh recap';
+      else btn.textContent = 'Refresh recap';
+    }
   }
 }
 $('#wCatchupBtn')?.addEventListener('click', loadCatchup);
